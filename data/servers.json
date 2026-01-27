@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "servers": [
+    {
+      "id": "mc-randomcraft",
+      "name": "RandomCraft 1.20.1",
+      "type": "minecraft",
+      "enabled": true,
+      "cwd": "C:/Users/primeplaymain/Desktop/minecraft-modpacks",
+      "steam": false,
+      "java": true
+    },
+    {
+      "id": "mc-vaulthunters",
+      "name": "vaulthunters 1.18.2",
+      "type": "minecraft",
+      "enabled": true,
+      "cwd": "C:/Users/primeplaymain/Desktop/Vault-Hunters-3rd-Edition-3.19.6.4-server-files",
+      "steam": false,
+      "java": true
+    },
+    {
+      "id": "ark-friend-asa",
+      "name": "Friend ARK ASA",
+      "type": "ark",
+      "enabled": true,
+      "cwd": "C:/Users/primeplaymain/Desktop/steamcmd/games/asa",
+      "steam": true,
+      "java": false
+    },
+    {
+      "id": "Test",
+      "name": "Test",
+      "type": "steam",
+      "steam": true,
+      "enabled": true,
+      "cwd": "C:\\Users\\primeplaymain\\Desktop\\steamcmd\\games\\Test",
+      "appid": 740
+    }
+  ]
+}

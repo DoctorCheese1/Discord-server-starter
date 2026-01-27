@@ -1,0 +1,11 @@
+{
+  "name": "server-control-bot",
+  "type": "module",
+  "version": "1.0.0",
+  "dependencies": {
+    "discord.js": "^14.15.3",
+    "dotenv": "^16.4.5",
+    "node-fetch": "^3.3.2",
+    "pidusage": "^3.0.2"
+  }
+}

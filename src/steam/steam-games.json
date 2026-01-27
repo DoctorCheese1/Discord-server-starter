@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "games": [
+    {
+      "appid": 635,
+      "name": "Alien Swarm"
+    },
+    {
+      "appid": 740,
+      "name": "Counter-Strike: Global Offensive"
+    },
+    {
+      "appid": 232330,
+      "name": "Counter-Strike: Source"
+    },
+    {
+      "appid": 232290,
+      "name": "Day of Defeat: Source"
+    },
+    {
+      "appid": 570,
+      "name": "Dota 2"
+    },
+    {
+      "appid": 4020,
+      "name": "Garry's Mod"
+    },
+    {
+      "appid": 90,
+      "name": "Half-Life Dedicated Server"
+    },
+    {
+      "appid": 232370,
+      "name": "Half-Life 2: Deathmatch"
+    },
+    {
+      "appid": 510,
+      "name": "Left 4 Dead"
+    },
+    {
+      "appid": 222860,
+      "name": "Left 4 Dead 2"
+    },
+    {
+      "appid": 232250,
+      "name": "Team Fortress 2"
+    },
+    {
+      "appid": 2394010,
+      "name": "Palworld Dedicated Server"
+    },
+    {
+      "appid": 376030,
+      "name": "ARK: Survival Evolved"
+    },
+    {
+      "appid": 1110390,
+      "name": "Unturned Dedicated Server"
+    },
+    {
+      "appid": 258550,
+      "name": "Rust Dedicated Server"
+    },
+    {
+      "appid": 105600,
+      "name": "Terraria"
+    },
+    {
+      "appid": 105610,
+      "name": "Terraria Dedicated Server"
+    },
+    {
+      "appid": 1281930,
+      "name": "tModLoader"
+    },
+    {
+      "appid": 2430930,
+      "name": "ARK: Survival Ascended Dedicated Server"
+    },
+    {
+      "appid": 361580,
+      "name": "Wreckfest Dedicated Server"
+    },
+    {
+      "name": "Palworld",
+      "appid": 1623730
+    }
+  ]
+}

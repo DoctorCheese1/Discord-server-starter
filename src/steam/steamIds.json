@@ -1,0 +1,15 @@
+{
+  "servers": {
+    "ark-friend-asa": {
+      "appid": 2430930,
+      "dir": "C:/Servers/ARK/asa"
+    },
+    "test": {
+      "appid": 1623730,
+      "name": "Palworld",
+      "dir": "C:\\Users\\primeplaymain\\Desktop\\steamcmd\\games\\palworld",
+      "exe": "PalServer.exe",
+      "args": ""
+    }
+  }
+}
