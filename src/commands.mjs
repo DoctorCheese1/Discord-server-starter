@@ -4,7 +4,6 @@ import {
   addServer,
   removeServer,
   setServer,
-  serverChoices,
   loadRawConfig
 } from './serverStore.mjs';
 
