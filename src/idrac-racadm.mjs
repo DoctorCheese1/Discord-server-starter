@@ -1,11 +1,11 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { execFile } from 'child_process';
+import { execFile, exec } from 'child_process';
 import { promisify } from 'util';
 
 /* ======================================================
-   LOAD .env (guaranteed)
+   LOAD .env
 ====================================================== */
 
 const __filename = fileURLToPath(import.meta.url);
@@ -15,45 +15,52 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 /* ======================================================
-   ENV VALIDATION
+   ENV
 ====================================================== */
 
 const {
-  RACADM_PATH,
+  RACADM_PATH,   // Windows only
   IDRAC_HOST,
   IDRAC_USER,
-  IDRAC_PASS
+  IDRAC_PASS    // Windows only
 } = process.env;
 
-if (!RACADM_PATH) {
-  throw new Error('❌ RACADM_PATH is not set in .env');
-}
-if (!IDRAC_HOST) {
-  throw new Error('❌ IDRAC_HOST is not set in .env');
-}
-if (!IDRAC_USER) {
-  throw new Error('❌ IDRAC_USER is not set in .env');
-}
-if (!IDRAC_PASS) {
-  throw new Error('❌ IDRAC_PASS is not set in .env');
-}
+if (!IDRAC_HOST) throw new Error('❌ IDRAC_HOST missing');
+if (!IDRAC_USER) throw new Error('❌ IDRAC_USER missing');
 
-console.log('🧩 iDRAC enabled via racadm');
-console.log('🧩 racadm path:', RACADM_PATH);
+const isWindows = process.platform === 'win32';
+
+console.log(`🧩 iDRAC mode: ${isWindows ? 'Windows (local racadm)' : 'Linux (SSH racadm)'}`);
 console.log('🧩 iDRAC host:', IDRAC_HOST);
 
 /* ======================================================
-   EXEC HELPER
+   EXEC HELPERS
 ====================================================== */
 
-const exec = promisify(execFile);
+const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
-function baseArgs() {
-  return [
-    '-r', IDRAC_HOST,
-    '-u', IDRAC_USER,
-    '-p', IDRAC_PASS
-  ];
+/* ======================================================
+   RUN RACADM (AUTO MODE)
+====================================================== */
+
+async function runRacadm(args) {
+  if (isWindows) {
+    if (!RACADM_PATH) throw new Error('❌ RACADM_PATH missing (Windows)');
+    if (!IDRAC_PASS) throw new Error('❌ IDRAC_PASS missing (Windows)');
+
+    return execFileAsync(
+      RACADM_PATH,
+      ['-r', IDRAC_HOST, '-u', IDRAC_USER, '-p', IDRAC_PASS, ...args.split(' ')],
+      { windowsHide: true, timeout: 15000 }
+    );
+  }
+
+  // Linux / Raspberry Pi → SSH into iDRAC
+  return execAsync(
+    `ssh ${IDRAC_USER}@${IDRAC_HOST} racadm ${args}`,
+    { timeout: 15000 }
+  );
 }
 
 /* ======================================================
@@ -61,14 +68,8 @@ function baseArgs() {
 ====================================================== */
 
 export async function getIdracStatus() {
-  const { stdout } = await exec(
-    RACADM_PATH,
-    [...baseArgs(), 'serveraction', 'powerstatus'],
-    { windowsHide: true }
-  );
+  const { stdout } = await runRacadm('serveraction powerstatus');
 
-  // Example output:
-  // "Server power status: ON"
   const match = stdout.match(/power status:\s*(\w+)/i);
 
   return {
@@ -92,9 +93,5 @@ export async function idracPower(action) {
     throw new Error(`❌ Invalid iDRAC action: ${action}`);
   }
 
-  await exec(
-    RACADM_PATH,
-    [...baseArgs(), 'serveraction', map[action]],
-    { windowsHide: true }
-  );
+  await runRacadm(`serveraction ${map[action]}`);
 }
