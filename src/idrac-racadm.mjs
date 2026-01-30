@@ -1,7 +1,7 @@
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /* ======================================================
    ENV
@@ -19,17 +19,30 @@ if (!IDRAC_USER) {
   throw new Error('❌ IDRAC_USER is not set in .env');
 }
 
-console.log('🧩 iDRAC control via SSH');
+console.log('🧩 iDRAC control: SSH (non-interactive)');
 console.log('🧩 iDRAC host:', IDRAC_HOST);
+console.log('🧩 iDRAC user:', IDRAC_USER);
 
 /* ======================================================
-   HELPER
+   INTERNAL HELPER
 ====================================================== */
 
 async function runRacadm(cmd) {
-  return execAsync(
-    `ssh ${IDRAC_USER}@${IDRAC_HOST} racadm ${cmd}`,
-    { timeout: 15000 }
+  return execFileAsync(
+    'ssh',
+    [
+      '-o', 'BatchMode=yes',
+      '-o', 'StrictHostKeyChecking=no',
+      '-o', 'UserKnownHostsFile=/dev/null',
+      '-o', 'ConnectTimeout=5',
+      '-T', // disable pseudo-tty (prevents hangs)
+      `${IDRAC_USER}@${IDRAC_HOST}`,
+      'racadm',
+      ...cmd.split(' ')
+    ],
+    {
+      timeout: 8000
+    }
   );
 }
 
@@ -40,6 +53,8 @@ async function runRacadm(cmd) {
 export async function getIdracStatus() {
   const { stdout } = await runRacadm('serveraction powerstatus');
 
+  // Expected output:
+  // "Server power status: ON"
   const match = stdout.match(/power status:\s*(\w+)/i);
 
   return {
