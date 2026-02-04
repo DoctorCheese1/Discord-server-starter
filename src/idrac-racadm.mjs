@@ -1,82 +1,100 @@
-import { execFile } from 'child_process';
-import { promisify } from 'util';
+// import dotenv from 'dotenv';
+// import path from 'path';
+// import { fileURLToPath } from 'url';
+// import { execFile } from 'child_process';
+// import { promisify } from 'util';
 
-const execFileAsync = promisify(execFile);
+// /* ======================================================
+//    LOAD .env (guaranteed)
+// ====================================================== */
 
-/* ======================================================
-   ENV
-====================================================== */
+// const __filename = fileURLToPath(import.meta.url);
+// const __dirname = path.dirname(__filename);
 
-const {
-  IDRAC_HOST,
-  IDRAC_USER
-} = process.env;
+// // Load .env from project root
+// dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
-if (!IDRAC_HOST) {
-  throw new Error('❌ IDRAC_HOST is not set in .env');
-}
-if (!IDRAC_USER) {
-  throw new Error('❌ IDRAC_USER is not set in .env');
-}
+// /* ======================================================
+//    ENV VALIDATION
+// ====================================================== */
 
-console.log('🧩 iDRAC control: SSH (non-interactive)');
-console.log('🧩 iDRAC host:', IDRAC_HOST);
-console.log('🧩 iDRAC user:', IDRAC_USER);
+// const {
+//   RACADM_PATH,
+//   IDRAC_HOST,
+//   IDRAC_USER,
+//   IDRAC_PASS
+// } = process.env;
 
-/* ======================================================
-   INTERNAL HELPER
-====================================================== */
+// if (!RACADM_PATH) {
+//   throw new Error('❌ RACADM_PATH is not set in .env');
+// }
+// if (!IDRAC_HOST) {
+//   throw new Error('❌ IDRAC_HOST is not set in .env');
+// }
+// if (!IDRAC_USER) {
+//   throw new Error('❌ IDRAC_USER is not set in .env');
+// }
+// if (!IDRAC_PASS) {
+//   throw new Error('❌ IDRAC_PASS is not set in .env');
+// }
 
-async function runRacadm(cmd) {
-  return execFileAsync(
-    'ssh',
-    [
-      '-o', 'BatchMode=yes',
-      '-o', 'StrictHostKeyChecking=no',
-      '-o', 'UserKnownHostsFile=/dev/null',
-      '-o', 'ConnectTimeout=5',
-      '-T', // disable pseudo-tty (prevents hangs)
-      `${IDRAC_USER}@${IDRAC_HOST}`,
-      'racadm',
-      ...cmd.split(' ')
-    ],
-    {
-      timeout: 8000
-    }
-  );
-}
+// console.log('🧩 iDRAC enabled via racadm');
+// console.log('🧩 racadm path:', RACADM_PATH);
+// console.log('🧩 iDRAC host:', IDRAC_HOST);
 
-/* ======================================================
-   STATUS
-====================================================== */
+// /* ======================================================
+//    EXEC HELPER
+// ====================================================== */
 
-export async function getIdracStatus() {
-  const { stdout } = await runRacadm('serveraction powerstatus');
+// const exec = promisify(execFile);
 
-  // Expected output:
-  // "Server power status: ON"
-  const match = stdout.match(/power status:\s*(\w+)/i);
+// function baseArgs() {
+//   return [
+//     '-r', IDRAC_HOST,
+//     '-u', IDRAC_USER,
+//     '-p', IDRAC_PASS
+//   ];
+// }
 
-  return {
-    power: match ? match[1].toUpperCase() : 'UNKNOWN',
-    raw: stdout.trim()
-  };
-}
+// /* ======================================================
+//    STATUS
+// ====================================================== */
 
-/* ======================================================
-   POWER CONTROL
-====================================================== */
+// export async function getIdracStatus() {
+//   const { stdout } = await exec(
+//     RACADM_PATH,
+//     [...baseArgs(), 'serveraction', 'powerstatus'],
+//     { windowsHide: true }
+//   );
 
-export async function idracPower(action) {
-  const map = {
-    on: 'powerup',
-    off: 'powerdown',
-    reboot: 'powercycle'
-  };
+//   // Example output:
+//   // "Server power status: ON"
+//   const match = stdout.match(/power status:\s*(\w+)/i);
 
-  if (!map[action]) {
-    throw new Error(`❌ Invalid iDRAC action: ${action}`);
-  }
+//   return {
+//     power: match ? match[1].toUpperCase() : 'UNKNOWN',
+//     raw: stdout.trim()
+//   };
+// }
 
-  await runRacadm(`serveraction ${map[action]}`);
-}
+// /* ======================================================
+//    POWER CONTROL
+// ====================================================== */
+
+// export async function idracPower(action) {
+//   const map = {
+//     on: 'powerup',
+//     off: 'powerdown',
+//     reboot: 'powercycle'
+//   };
+
+//   if (!map[action]) {
+//     throw new Error(`❌ Invalid iDRAC action: ${action}`);
+//   }
+
+//   await exec(
+//     RACADM_PATH,
+//     [...baseArgs(), 'serveraction', map[action]],
+//     { windowsHide: true }
+//   );
+// }

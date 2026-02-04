@@ -94,13 +94,36 @@ export function createSteamServer({
 
   const steamIds = loadJson(STEAM_IDS_FILE, { servers: {} });
 
-  const exes = findExecutables(serverDir);
-  if (!chosenExe && exes.length > 1) {
-    return { needsExeChoice: true, exes };
-  }
 
-  const exePath = chosenExe || exes[0];
-  if (!exePath) throw new Error('No .exe found in server directory');
+const exes = findExecutables(serverDir);
+
+if (!exes.length) {
+  throw new Error(
+    'No executable found after install. ' +
+    'This server may require srcds.exe or manual selection.'
+  );
+}
+
+// auto-pick common server exe
+const preferred =
+  exes.find(e => /srcds\.exe$/i.test(e)) ||
+  exes.find(e => /server\.exe$/i.test(e)) ||
+  exes[0];
+
+if (!chosenExe && exes.length > 1 && !preferred) {
+  return { needsExeChoice: true, exes };
+}
+
+const exePath = chosenExe || preferred;
+
+// ================= RUN STEAMCMD INSTALL =================
+console.log(`[STEAM] Installing AppID ${appid} to ${serverDir}`);
+
+execSync(
+  `"${STEAMCMD_EXE}" +force_install_dir "${serverDir}" +login anonymous +app_update ${appid} validate +quit`,
+  { stdio: 'inherit' }
+);
+
 
   steamIds.servers[serverId] = {
     appid: Number(appid),

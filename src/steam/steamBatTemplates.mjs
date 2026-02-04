@@ -1,5 +1,27 @@
 import path from 'path';
+import { spawn } from 'child_process';
 
+export function runUpdateDetached(serverDir) {
+  const child = spawn(
+    'cmd.exe',
+    [
+      '/c',
+      'start',
+      '""',          // 👈 REQUIRED empty title
+      'cmd.exe',
+      '/k',
+      'update.bat'
+    ],
+    {
+      cwd: serverDir,
+      detached: true,
+      stdio: 'ignore',
+      shell: false
+    }
+  );
+
+  child.unref();
+}
 export function buildStartBat(exePath, args = '') {
   const exe = path.basename(exePath);
   return `@echo off
@@ -22,9 +44,9 @@ export function buildUpdateBat(appid, installDir) {
   return `@echo off
 echo Updating server (AppID ${appid})
 "C:\\Program Files (x86)\\Steam\\steamcmd.exe" ^
-+force_install_dir "${installDir}" ^
++force_install_dir "%~dp0" ^
 +login anonymous ^
-+app_update ${appid} validate ^
++app_update APPID_HERE validate ^
 +quit
 `;
 }

@@ -10,6 +10,13 @@
       "dir": "C:\\Users\\primeplaymain\\Desktop\\steamcmd\\games\\palworld",
       "exe": "PalServer.exe",
       "args": ""
+    },
+    "ttt": {
+      "appid": 4020,
+      "name": "Garry's Mod",
+      "dir": "C:\\Users\\primeplaymain\\Desktop\\steamcmd\\games\\ttt",
+      "exe": "srcds.exe",
+      "args": ""
     }
   }
 }

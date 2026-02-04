@@ -6,12 +6,20 @@ import {
   setServer,
   loadRawConfig
 } from './serverStore.mjs';
+import fs from 'fs';
+import { EmbedBuilder } from 'discord.js';
+import { isRunning } from './processManager.mjs';
 
 import {
   listSteamGames,
   addSteamGame,
   removeSteamGame
 } from './steam/steamGameStore.mjs';
+import path from 'path';
+
+import {
+  createSteamServer
+} from './steam/steamServerCreator.mjs';
 
 import {
   saveSearch
@@ -24,11 +32,37 @@ import {
 import {
   getIdracStatus,
   idracPower
-} from './idrac-racadm.mjs';
+} from './idrac/idrac.mjs';
 
 /* ======================================================
    MAIN HANDLER
 ====================================================== */
+function getServerState(server) {
+  if (server.enabled === false) {
+    return { emoji: '⚫', label: 'Disabled', color: 0x2f3136 };
+  }
+
+  // 🟡 Updating (update.pid convention)
+  const updatePidFile =
+    server.updateBat?.replace('update.bat', 'update.pid');
+
+  if (updatePidFile && fs.existsSync(updatePidFile)) {
+    try {
+      const pid = fs.readFileSync(updatePidFile, 'utf8').trim();
+      if (pid) {
+        return { emoji: '🟡', label: 'Updating', color: 0xf1c40f };
+      }
+    } catch {}
+  }
+
+  // 🟢 Running
+  if (isRunning(server)) {
+    return { emoji: '🟢', label: 'Running', color: 0x2ecc71 };
+  }
+
+  // 🔴 Stopped
+  return { emoji: '🔴', label: 'Stopped', color: 0xe74c3c };
+}
 
 export async function handleCommand(interaction) {
   const cmd = interaction.commandName;
@@ -38,17 +72,15 @@ export async function handleCommand(interaction) {
   ====================================================== */
 
   if (cmd === 'servers') {
-    const servers = loadServers({ includeDisabled: true });
+const servers = loadServers({ includeDisabled: true });
 
-    if (!servers.length) {
-      return interaction.editReply('❌ No servers configured.');
-    }
+const lines = servers.map(s => {
+  const st = getServerState(s);
+  return `${st.emoji} **${s.name}** (${s.id}) — ${st.label}`;
+});
 
-    return interaction.editReply(
-      servers
-        .map(s => `${s.enabled ? '🟢' : '🔴'} **${s.name}** (${s.id})`)
-        .join('\n')
-    );
+return interaction.editReply(lines.join('\n'));
+
   }
 
   if (cmd === 'status') {
@@ -61,20 +93,27 @@ export async function handleCommand(interaction) {
   }
 
   if (cmd === 'info') {
-    const id = interaction.options.getString('id');
-    const server = getServer(id);
+const id = interaction.options.getString('id', true);
+const server = getServer(id, { includeDisabled: true });
 
-    if (!server) {
-      return interaction.editReply('❌ Server not found.');
-    }
+if (!server) {
+  return interaction.editReply('❌ Server not found.');
+}
 
-    return interaction.editReply(
-      `**${server.name}**\n` +
-      `ID: \`${server.id}\`\n` +
-      `Type: ${server.type ?? 'unknown'}\n` +
-      `Enabled: ${server.enabled ? 'Yes' : 'No'}\n` +
-      `CWD: ${server.cwd}`
-    );
+const st = getServerState(server);
+
+const embed = new EmbedBuilder()
+  .setTitle(`${st.emoji} ${server.name}`)
+  .setColor(st.color)
+  .addFields(
+    { name: 'Status', value: st.label, inline: true },
+    { name: 'ID', value: server.id, inline: true },
+    { name: 'Type', value: server.type ?? 'unknown', inline: true },
+    { name: 'Path', value: server.cwd ?? 'n/a' }
+  );
+
+return interaction.editReply({ embeds: [embed] });
+
   }
 
   /* ======================================================
@@ -99,124 +138,189 @@ export async function handleCommand(interaction) {
      CONFIG
   ====================================================== */
 
-  if (cmd === 'config') {
-    const sub = interaction.options.getSubcommand();
+if (cmd === 'config') {
+  const sub = interaction.options.getSubcommand();
 
-    if (sub === 'list') {
-      const all = interaction.options.getBoolean('all') === true;
-      const type = interaction.options.getString('type');
+  if (sub === 'list') {
+    const all  = interaction.options.getBoolean('all') === true;
+    const type = interaction.options.getString('type');
 
-      let servers = loadServers({ includeDisabled: all });
-      if (type) {
-        servers = servers.filter(s => s.type === type);
-      }
+    let servers = loadServers({ includeDisabled: all });
 
-      if (!servers.length) {
-        return interaction.editReply('❌ No servers found.');
-      }
-
-      return interaction.editReply(
-        servers
-          .map(s => `${s.enabled ? '🟢' : '🔴'} **${s.name}** (${s.id})`)
-          .join('\n')
-      );
+    if (type) {
+      servers = servers.filter(s => s.type === type);
     }
 
-    if (sub === 'validate') {
-      const raw = loadRawConfig();
-      return interaction.editReply(
-        `✅ Config valid\nServers: ${raw.servers.length}`
-      );
+    if (!servers.length) {
+      return interaction.editReply('❌ No servers found.');
     }
 
-    if (sub === 'enable' || sub === 'disable') {
-      const id = interaction.options.getString('id');
-      setServer(id, { enabled: sub === 'enable' });
-      return interaction.editReply(`✅ Server **${id}** updated.`);
-    }
+    const lines = servers.map(s => {
+      const st = getServerState(s); // <-- make sure this exists
+      return `${st.emoji} **${s.name}** (${s.id}) — ${st.label}`;
+    });
 
-    if (sub === 'rename') {
-      const id = interaction.options.getString('id');
-      const name = interaction.options.getString('name');
-      setServer(id, { name });
-      return interaction.editReply(`✅ Server renamed to **${name}**.`);
-    }
-
-    if (sub === 'set-java') {
-      const id = interaction.options.getString('id');
-      const value = interaction.options.getBoolean('value');
-      setServer(id, { java: value });
-      return interaction.editReply(`✅ Java flag updated.`);
-    }
-
-    if (sub === 'set-steam') {
-      const id = interaction.options.getString('id');
-      const value = interaction.options.getBoolean('value');
-      setServer(id, { steam: value });
-      return interaction.editReply(`✅ Steam flag updated.`);
-    }
+    return interaction.editReply(lines.join('\n'));
   }
+
+  if (sub === 'validate') {
+    const raw = loadRawConfig();
+    return interaction.editReply(
+      `✅ Config valid\nServers: ${raw.servers.length}`
+    );
+  }
+
+  if (sub === 'enable' || sub === 'disable') {
+    const id = interaction.options.getString('id');
+    setServer(id, { enabled: sub === 'enable' });
+    return interaction.editReply(`✅ Server **${id}** updated.`);
+  }
+
+  if (sub === 'rename') {
+    const id = interaction.options.getString('id');
+    const name = interaction.options.getString('name');
+    setServer(id, { name });
+    return interaction.editReply(`✅ Server renamed to **${name}**.`);
+  }
+
+  if (sub === 'set-java') {
+    const id = interaction.options.getString('id');
+    const value = interaction.options.getBoolean('value');
+    setServer(id, { java: value });
+    return interaction.editReply(`✅ Java flag updated.`);
+  }
+
+  if (sub === 'set-steam') {
+    const id = interaction.options.getString('id');
+    const value = interaction.options.getBoolean('value');
+    setServer(id, { steam: value });
+    return interaction.editReply(`✅ Steam flag updated.`);
+  }
+}
+
 
   /* ======================================================
      STEAM (LOCAL REGISTRY)
   ====================================================== */
 
-  if (cmd === 'steam') {
-    const sub = interaction.options.getSubcommand();
+/* ======================================================
+   STEAM
+====================================================== */
 
-    if (sub === 'list') {
-      const games = listSteamGames();
+if (cmd === 'steam') {
+  const sub = interaction.options.getSubcommand();
 
-      if (!games.length) {
-        return interaction.editReply('❌ No Steam games registered.');
-      }
+  /* ---------- LIST STEAM GAMES ---------- */
+  if (sub === 'list') {
+    const games = listSteamGames();
 
-      return interaction.editReply(
-        games.map(g => `• **${g.name}** (${g.appid})`).join('\n')
-      );
+    if (!games.length) {
+      return interaction.editReply('❌ No Steam games registered.');
     }
 
-    if (sub === 'search') {
-      const query = interaction.options.getString('query').toLowerCase();
-      const games = listSteamGames();
-
-      const results = games.filter(g =>
-        g.name.toLowerCase().includes(query) ||
-        String(g.appid).includes(query)
-      );
-
-      if (!results.length) {
-        return interaction.editReply(
-          '❌ No dedicated servers found.\nUse `/steam addgame` to add one.'
-        );
-      }
-
-      saveSearch(interaction.user.id, results, 0);
-
-      const existing = new Set(games.map(g => g.appid));
-      return interaction.editReply(
-        buildSearchPage(results, 0, existing)
-      );
-    }
-
-    if (sub === 'addgame') {
-      const appid = interaction.options.getInteger('appid');
-      const name = interaction.options.getString('name');
-
-      addSteamGame({ appid, name });
-      return interaction.editReply(
-        `✅ Added **${name}** (${appid})`
-      );
-    }
-
-    if (sub === 'removegame') {
-      const appid = interaction.options.getInteger('appid');
-      removeSteamGame(appid);
-      return interaction.editReply(
-        `🗑 Removed Steam game (${appid})`
-      );
-    }
+    return interaction.editReply(
+      games.map(g => `• **${g.name}** (${g.appid})`).join('\n')
+    );
   }
+
+  /* ---------- ADD STEAM SERVER ---------- */
+if (sub === 'add') {
+    const id = interaction.options.getString('id', true);
+    const appid = interaction.options.getInteger('appid', true);
+    const customDir = interaction.options.getString('dir');
+
+    // const baseDir =
+    //   process.env.STEAM_BASE_DIR || 'C:\\Servers\\Steam';
+
+    // const serverDir =
+    //   customDir || path.join(baseDir, id);
+
+    // // ensure directory exists
+    // fs.mkdirSync(serverDir, { recursive: true });
+
+    // register only
+    // addServer({
+    //   id,
+    //   name: `Steam Server (${appid})`,
+    //   type: 'steam',
+    //   enabled: true,
+    //   cwd: serverDir,
+    //   steam: true,
+    //   java: false
+    // });
+
+    return interaction.editReply(
+      // `✅ Steam server **${id}** registered\n` +
+      // `📦 AppID: ${appid}\n` +
+      // `📁 ${serverDir}\n\n` +
+      `⚠ Installation disabled — add files manually`
+    );
+  }
+
+
+  /* ---------- UPDATE STEAM SERVER ---------- */
+  if (sub === 'update') {
+    const id = interaction.options.getString('id', true);
+    // const server = getServer(id);
+
+    // if (!server || !server.cwd) {
+    //   return interaction.editReply('❌ Server not found.');
+    // }
+
+    // runUpdateDetached(server.cwd);
+
+    return interaction.editReply(
+      `🔄 Update started for **${server.name}**\n🪟 Running in a separate CMD window`
+          `⚠ Installation disabled — add files manually`
+    
+    );
+  }
+
+  /* ---------- SEARCH REGISTRY ---------- */
+  if (sub === 'search') {
+    const query = interaction.options.getString('query').toLowerCase();
+    const games = listSteamGames();
+
+    const results = games.filter(g =>
+      g.name.toLowerCase().includes(query) ||
+      String(g.appid).includes(query)
+    );
+
+    if (!results.length) {
+      return interaction.editReply(
+        '❌ No results found.'
+      );
+    }
+
+    saveSearch(interaction.user.id, results, 0);
+
+    const existing = new Set(games.map(g => g.appid));
+    return interaction.editReply(
+      buildSearchPage(results, 0, existing)
+    );
+  }
+
+  /* ---------- ADD GAME TO REGISTRY ---------- */
+  if (sub === 'addgame') {
+    const appid = interaction.options.getInteger('appid', true);
+    const name = interaction.options.getString('name', true);
+
+    addSteamGame({ appid, name });
+    return interaction.editReply(
+      `✅ Added **${name}** (${appid})`
+    );
+  }
+
+  /* ---------- REMOVE GAME ---------- */
+  if (sub === 'removegame') {
+    const appid = interaction.options.getInteger('appid', true);
+    removeSteamGame(appid);
+    return interaction.editReply(
+      `🗑 Removed Steam game (${appid})`
+    );
+  }
+}
+
 
   /* ======================================================
      IDRAC

@@ -55,10 +55,11 @@ export function buildCommands() {
       .setName('info')
       .setDescription('Server info')
       .setDMPermission(true)
-      .addStringOption(o =>
-        o.setName('id')
-          .setDescription('Server id')
-          .setRequired(true)
+.addStringOption(o =>
+  o.setName('id')
+   .setDescription('Server id')
+   .setRequired(true)
+   .addChoices(...serverChoices())
       ),
 
     new SlashCommandBuilder()
@@ -101,17 +102,19 @@ export function buildCommands() {
       .setDMPermission(true)
 
       .addSubcommand(sc =>
-        sc.setName('list')
+        sc
+          .setName('list')
           .setDescription('List servers')
           .addBooleanOption(o =>
             o.setName('all')
-              .setDescription('Include disabled servers')
+             .setDescription('Include disabled servers')
           )
           .addStringOption(o =>
             o.setName('type')
-              .setDescription('Filter by server type')
+             .setDescription('Filter by server type')
           )
       )
+
 
       .addSubcommand(sc =>
         sc.setName('validate')

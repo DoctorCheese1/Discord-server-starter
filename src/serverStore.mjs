@@ -13,15 +13,13 @@ const ROOT = path.join(__dirname, '..');
 const FILE = path.join(ROOT, 'data', 'servers.json');
 
 /* ===============================
-   Raw access (DEPLOY SAFE)
+   RAW ACCESS
 ================================ */
 
 export function loadRawConfig() {
   if (!fs.existsSync(FILE)) {
-    console.warn('⚠️ servers.json not found at:', FILE);
     return { servers: [] };
   }
-
   return JSON.parse(fs.readFileSync(FILE, 'utf8'));
 }
 
@@ -31,72 +29,7 @@ export function saveRawConfig(raw) {
 }
 
 /* ===============================
-   MUTATION HELPERS (NEW)
-================================ */
-
-export function addServer(server) {
-  const raw = loadRawConfig();
-
-  if (raw.servers.some(s => s.id === server.id)) {
-    throw new Error(`Server with id "${server.id}" already exists`);
-  }
-
-  raw.servers.push(server);
-  saveRawConfig(raw);
-}
-
-export function removeServer(idOrName) {
-  const raw = loadRawConfig();
-  const before = raw.servers.length;
-
-  raw.servers = raw.servers.filter(
-    s => s.id !== idOrName && s.name !== idOrName
-  );
-
-  if (raw.servers.length === before) {
-    throw new Error(`Server "${idOrName}" not found`);
-  }
-
-  saveRawConfig(raw);
-}
-
-export function setServer(idOrName, patch) {
-  const raw = loadRawConfig();
-  const server = raw.servers.find(
-    s => s.id === idOrName || s.name === idOrName
-  );
-
-  if (!server) {
-    throw new Error(`Server "${idOrName}" not found`);
-  }
-
-  Object.assign(server, patch);
-  saveRawConfig(raw);
-}
-
-/* ===============================
-   Slash command choices
-================================ */
-
-export function serverChoices({ steamOnly = false } = {}) {
-  const raw = loadRawConfig();
-
-  return (raw.servers || [])
-    .filter(s => s.enabled !== false)
-    .filter(s =>
-      !steamOnly ||
-      s.steam === true ||
-      s.type === 'steam'
-    )
-    .map(s => ({
-      name: s.name,
-      value: s.id ?? s.name
-    }))
-    .slice(0, 25); // Discord hard limit
-}
-
-/* ===============================
-   Runtime normalization
+   NORMALIZATION
 ================================ */
 
 function normalizeServer(s) {
@@ -118,7 +51,7 @@ function normalizeServer(s) {
 }
 
 /* ===============================
-   Runtime access
+   RUNTIME ACCESS
 ================================ */
 
 export function loadServers({ includeDisabled = false } = {}) {
@@ -136,4 +69,79 @@ export function getServer(idOrName, opts) {
   return loadServers(opts).find(
     s => s.id === idOrName || s.name === idOrName
   );
+}
+
+/* ===============================
+   COMMAND HELPERS
+================================ */
+
+/**
+ * Used by slash-command choices
+ */
+export function serverChoices({ steamOnly = false } = {}) {
+  const raw = loadRawConfig();
+
+  return (raw.servers || [])
+    .filter(s => s.enabled !== false)
+    .filter(s => !steamOnly || s.steam === true || s.type === 'steam')
+    .map(s => ({
+      name: s.name,
+      value: s.id
+    }))
+    .slice(0, 25); // Discord hard limit
+}
+
+/**
+ * Add a new server to servers.json
+ */
+export function addServer(server) {
+  const raw = loadRawConfig();
+
+  if (raw.servers.some(s => s.id === server.id)) {
+    throw new Error(`Server with id "${server.id}" already exists`);
+  }
+
+  raw.servers.push({
+    id: server.id,
+    name: server.name ?? server.id,
+    type: server.type ?? 'generic',
+    enabled: server.enabled !== false,
+    cwd: server.cwd,
+    steam: server.steam === true,
+    java: server.java === true,
+    appid: server.appid
+  });
+
+  saveRawConfig(raw);
+}
+
+/**
+ * Remove a server from servers.json
+ */
+export function removeServer(id) {
+  const raw = loadRawConfig();
+  const before = raw.servers.length;
+
+  raw.servers = raw.servers.filter(s => s.id !== id);
+
+  if (raw.servers.length === before) {
+    throw new Error(`Server "${id}" not found`);
+  }
+
+  saveRawConfig(raw);
+}
+
+/**
+ * Update fields on an existing server
+ */
+export function setServer(id, updates = {}) {
+  const raw = loadRawConfig();
+  const server = raw.servers.find(s => s.id === id);
+
+  if (!server) {
+    throw new Error(`Server "${id}" not found`);
+  }
+
+  Object.assign(server, updates);
+  saveRawConfig(raw);
 }
