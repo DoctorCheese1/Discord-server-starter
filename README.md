@@ -230,12 +230,4 @@ Used as a default location when registering servers.
 
 ---
 
-If you want next:
 
-* Command permission hardening
-* PID tracking
-* CPU / RAM monitoring
-* Restart safety checks
-* Update workflows
-
-Just say the word.
