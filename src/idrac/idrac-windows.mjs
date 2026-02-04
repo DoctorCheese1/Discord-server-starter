@@ -46,25 +46,36 @@ function baseArgs() {
 ====================================================== */
 
 export async function getIdracStatus() {
-  const { stdout } = await execAsync(
-    RACADM_PATH,
-    [...baseArgs(), 'serveraction', 'powerstatus'],
-    { windowsHide: true }
-  );
+  try {
+    const { stdout } = await execAsync(
+      RACADM_PATH,
+      [...baseArgs(), 'serveraction', 'powerstatus'],
+      { windowsHide: true, timeout: 8000 }
+    );
 
-  const match = stdout.match(/power status:\s*(\w+)/i);
+    const match = stdout.match(/power status:\s*(\w+)/i);
+    const power = match ? match[1].toUpperCase() : 'UNKNOWN';
 
-  // ✅ DEFINE power FIRST
-  const power = match ? match[1].toUpperCase() : 'UNKNOWN';
-  let state = 'unknown';  
-  if (power === 'ON') state = 'online';
-  if (power === 'OFF') state = 'offline';
-  return {
-    power: match ? match[1].toUpperCase() : 'UNKNOWN',
-    state,
-    raw: stdout.trim()
-  };
+    let state = 'offline';
+    if (power === 'ON') state = 'online';
+
+    return {
+      power,
+      state,
+      reachable: true,
+      raw: stdout.trim()
+    };
+
+  } catch (err) {
+    return {
+      power: 'UNKNOWN',
+      state: 'offline',
+      reachable: false,
+      error: err.message
+    };
+  }
 }
+
 
 /* ======================================================
    POWER CONTROL

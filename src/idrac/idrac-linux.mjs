@@ -45,20 +45,32 @@ async function runRacadm(args) {
 ====================================================== */
 
 export async function getIdracStatus() {
-  const out = await runRacadm(['serveraction', 'powerstatus']);
+  try {
+    const out = await runRacadm(['serveraction', 'powerstatus']);
 
-  const match = out.match(/power status:\s*(\w+)/i);
-    let state = 'unknown';
+    const match = out.match(/power status:\s*(\w+)/i);
+    const power = match ? match[1].toUpperCase() : 'UNKNOWN';
 
-  if (power === 'ON') state = 'online';
-  if (power === 'OFF') state = 'offline';
+    let state = 'offline';
+    if (power === 'ON') state = 'online';
 
-  return {
-    power: match ? match[1].toUpperCase() : 'UNKNOWN',
-    state,
-    raw: out
-  };
+    return {
+      power,
+      state,
+      reachable: true,
+      raw: out
+    };
+
+  } catch (err) {
+    return {
+      power: 'UNKNOWN',
+      state: 'offline',
+      reachable: false,
+      error: err.message
+    };
+  }
 }
+
 
 /* ======================================================
    POWER CONTROL
