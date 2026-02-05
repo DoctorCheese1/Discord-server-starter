@@ -60,7 +60,7 @@ const client = new Client({
 });
 
 /* ================= READY ================= */
-client.once('ready', async () => {
+client.once('clientReady', async () => {
   console.log(`✅ DM-only bot online as ${client.user.tag}`);
 
   // ---------- AUTO DEPLOY ----------
