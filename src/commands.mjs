@@ -3,8 +3,7 @@ import {
   getServer,
   addServer,
   removeServer,
-  setServer,
-  loadRawConfig
+  setServer
 } from './serverStore.mjs';
 import fs from 'fs';
 import { EmbedBuilder } from 'discord.js';
@@ -164,9 +163,9 @@ if (cmd === 'config') {
   }
 
   if (sub === 'validate') {
-    const raw = loadRawConfig();
+    const servers = loadServers({ includeDisabled: true });
     return interaction.editReply(
-      `✅ Config valid\nServers: ${raw.servers.length}`
+      `✅ Config valid\nServers: ${servers.length}`
     );
   }
 
