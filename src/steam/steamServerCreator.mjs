@@ -28,10 +28,24 @@ const SERVERS_FILE    = path.join(ROOT, 'data', 'servers.json');
 function detectSteamCmd() {
   // 1️⃣ ENV
   if (process.env.STEAMCMD_EXE) {
-    if (fs.existsSync(process.env.STEAMCMD_EXE)) {
-      return process.env.STEAMCMD_EXE;
+    const envPath = process.env.STEAMCMD_EXE.replace(/^"(.*)"$/, '$1');
+    if (fs.existsSync(envPath)) {
+      return envPath;
     }
-    throw new Error(`STEAMCMD_EXE set but not found: ${process.env.STEAMCMD_EXE}`);
+
+    const looksLikeWindowsPath =
+      /^[a-zA-Z]:[\\/]/.test(envPath) ||
+      /^\\\\/.test(envPath) ||
+      /^\/\/[^/]/.test(envPath);
+
+    if (looksLikeWindowsPath) {
+      console.warn(
+        `⚠️ STEAMCMD_EXE not found locally, using provided path anyway: ${envPath}`
+      );
+      return envPath;
+    }
+
+    throw new Error(`STEAMCMD_EXE set but not found: ${envPath}`);
   }
 
   // 2️⃣ Common locations
