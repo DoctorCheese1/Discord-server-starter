@@ -8,7 +8,6 @@ import {
 import fs from 'fs';
 import { EmbedBuilder } from 'discord.js';
 import { ensureUpdateTask, isRunning, runUpdateTask } from './processManager.mjs';
-import { isRunning, runUpdateTask } from './processManager.mjs';
 
 import {
   listSteamGames,
