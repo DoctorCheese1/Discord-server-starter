@@ -195,6 +195,22 @@ export function buildCommands() {
               .setDescription('Enable Steam')
               .setRequired(true)
           )
+      )
+
+      .addSubcommand(sc =>
+        sc.setName('set-process')
+          .setDescription('Set process image name fallback (ex: java.exe, ShooterGameServer.exe)')
+          .addStringOption(o =>
+            o.setName('id')
+              .setDescription('Server id')
+              .setRequired(true)
+              .addChoices(...safeServerChoices())
+          )
+          .addStringOption(o =>
+            o.setName('name')
+              .setDescription('Process image name')
+              .setRequired(true)
+          )
       ),
 
     /* ===== STEAM ===== */

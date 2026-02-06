@@ -7,6 +7,7 @@ import {
 } from './serverStore.mjs';
 import fs from 'fs';
 import { EmbedBuilder } from 'discord.js';
+import { ensureUpdateTask, isRunning, runUpdateTask } from './processManager.mjs';
 import { isRunning, runUpdateTask } from './processManager.mjs';
 
 import {
@@ -71,6 +72,52 @@ export async function handleCommand(interaction) {
   ====================================================== */
 
   if (cmd === 'servers') {
+    const sub = interaction.options.getSubcommand();
+
+    if (sub === 'list') {
+      const servers = loadServers({ includeDisabled: true });
+
+      const lines = await Promise.all(servers.map(async s => {
+        const st = await getServerState(s);
+        return `${st.emoji} **${s.name}** (${s.id}) — ${st.label}`;
+      }));
+
+      return interaction.editReply(lines.join('\n'));
+    }
+
+    if (sub === 'validate') {
+      const servers = loadServers({ includeDisabled: true });
+
+      const results = await Promise.all(
+        servers.map(async s => {
+          if (!s.updateBat) {
+            return { id: s.id, status: 'skipped', reason: 'no updateBat' };
+          }
+
+          try {
+            const taskName = await ensureUpdateTask(s);
+            return { id: s.id, status: 'synced', taskName };
+          } catch (error) {
+            return { id: s.id, status: 'failed', reason: error?.message || 'error' };
+          }
+        })
+      );
+
+      const synced = results.filter(r => r.status === 'synced').length;
+      const skipped = results.filter(r => r.status === 'skipped').length;
+      const failed = results.filter(r => r.status === 'failed').length;
+
+      const summary = `✅ Task Scheduler sync complete — ${synced} synced, ${skipped} skipped, ${failed} failed.`;
+      const details = results
+        .map(r => {
+          if (r.status === 'synced') return `🟢 ${r.id} → ${r.taskName}`;
+          if (r.status === 'skipped') return `🟡 ${r.id} → skipped (${r.reason})`;
+          return `🔴 ${r.id} → failed (${r.reason})`;
+        })
+        .join('\n');
+
+      return interaction.editReply(`${summary}\n${details}`);
+    }
 const servers = loadServers({ includeDisabled: true });
 
 const lines = await Promise.all(servers.map(async s => {
@@ -194,6 +241,13 @@ if (cmd === 'config') {
     const value = interaction.options.getBoolean('value');
     setServer(id, { steam: value });
     return interaction.editReply(`✅ Steam flag updated.`);
+  }
+
+  if (sub === 'set-process') {
+    const id = interaction.options.getString('id');
+    const name = interaction.options.getString('name');
+    setServer(id, { processName: name });
+    return interaction.editReply(`✅ Process fallback set to **${name}**.`);
   }
 }
 
