@@ -1,7 +1,7 @@
 import fs from 'fs';
 import { isRunning } from './processManager.mjs';
 
-export function getServerState(server) {
+export async function getServerState(server) {
   if (server.enabled === false) {
     return {
       emoji: '⚫',
@@ -26,7 +26,7 @@ export function getServerState(server) {
   }
 
   // 🟢 Running
-  if (isRunning(server)) {
+  if (await isRunning(server)) {
     return {
       emoji: '🟢',
       label: 'Running',

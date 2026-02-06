@@ -14,6 +14,10 @@ function getPid(server) {
   return pid || null;
 }
 
+function sanitizeTaskName(name) {
+  return String(name).replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
 /* ======================================================
    START / STOP / STATUS
    (ALL EXECUTED ON WINDOWS)
@@ -52,4 +56,25 @@ export async function isRunning(server) {
   } catch {
     return false;
   }
+}
+
+/* ======================================================
+   UPDATE TASKS (TASK SCHEDULER)
+====================================================== */
+
+export async function runUpdateTask(server) {
+  if (!server?.updateBat) {
+    throw new Error('Server has no updateBat defined');
+  }
+
+  const taskName = `ServerStarter_Update_${sanitizeTaskName(server.id || server.name || 'server')}`;
+
+  // Create/replace one-shot task and execute immediately.
+  await execWindows(
+    `schtasks /Create /TN "${taskName}" /TR "\"${server.updateBat}\"" /SC ONCE /ST 00:00 /F`
+  );
+
+  await execWindows(`schtasks /Run /TN "${taskName}"`);
+
+  return taskName;
 }
