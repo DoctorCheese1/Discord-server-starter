@@ -30,7 +30,7 @@ export function startPresenceLoop(client) {
       let topServer = null;
 
       for (const s of servers) {
-        if (!isRunning(s)) continue;
+        if (!(await isRunning(s))) continue;
 
         online++;
 
