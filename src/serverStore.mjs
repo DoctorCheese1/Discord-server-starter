@@ -16,17 +16,14 @@ const FILE = path.join(ROOT, 'data', 'servers.json');
    RAW ACCESS
 ================================ */
 
-export function loadRawConfig() {
+function readRawConfig() {
   if (!fs.existsSync(FILE)) {
     return { servers: [] };
   }
-
-  try {
-    return JSON.parse(fs.readFileSync(FILE, 'utf8'));
-  } catch {
-    return { servers: [] };
-  }
+  return JSON.parse(fs.readFileSync(FILE, 'utf8'));
 }
+
+export const loadRawConfig = readRawConfig;
 
 export function saveRawConfig(raw) {
   fs.mkdirSync(path.dirname(FILE), { recursive: true });
@@ -60,14 +57,7 @@ function normalizeServer(s) {
 ================================ */
 
 export function loadServers({ includeDisabled = false } = {}) {
-  let raw;
-
-  try {
-    raw = loadRawConfig();
-  } catch {
-    raw = { servers: [] };
-  }
-
+  const raw = readRawConfig();
   let servers = (raw.servers || []).map(normalizeServer);
 
   if (!includeDisabled) {
@@ -91,7 +81,7 @@ export function getServer(idOrName, opts) {
  * Used by slash-command choices
  */
 export function serverChoices({ steamOnly = false } = {}) {
-  const raw = loadRawConfig();
+  const raw = readRawConfig();
 
   return (raw.servers || [])
     .filter(s => s.enabled !== false)
@@ -107,7 +97,7 @@ export function serverChoices({ steamOnly = false } = {}) {
  * Add a new server to servers.json
  */
 export function addServer(server) {
-  const raw = loadRawConfig();
+  const raw = readRawConfig();
 
   if (raw.servers.some(s => s.id === server.id)) {
     throw new Error(`Server with id "${server.id}" already exists`);
@@ -131,7 +121,7 @@ export function addServer(server) {
  * Remove a server from servers.json
  */
 export function removeServer(id) {
-  const raw = loadRawConfig();
+  const raw = readRawConfig();
   const before = raw.servers.length;
 
   raw.servers = raw.servers.filter(s => s.id !== id);
@@ -147,7 +137,7 @@ export function removeServer(id) {
  * Update fields on an existing server
  */
 export function setServer(id, updates = {}) {
-  const raw = loadRawConfig();
+  const raw = readRawConfig();
   const server = raw.servers.find(s => s.id === id);
 
   if (!server) {
