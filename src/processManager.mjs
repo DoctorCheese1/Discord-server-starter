@@ -78,3 +78,21 @@ export async function runUpdateTask(server) {
 
   return taskName;
 }
+
+export async function ensureUpdateTask(server) {
+  if (!server?.updateBat) {
+    throw new Error('Server has no updateBat defined');
+  }
+
+  const taskName = `ServerStarter_Update_${sanitizeTaskName(server.id || server.name || 'server')}`;
+
+  try {
+    await execWindows(`schtasks /Query /TN "${taskName}"`);
+    return taskName;
+  } catch {
+    await execWindows(
+      `schtasks /Create /TN "${taskName}" /TR "\"${server.updateBat}\"" /SC ONCE /ST 00:00 /F`
+    );
+    return taskName;
+  }
+}
