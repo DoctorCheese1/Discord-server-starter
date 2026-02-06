@@ -5,7 +5,8 @@ import { fileURLToPath } from 'url';
 import {
   Client,
   GatewayIntentBits,
-  EmbedBuilder
+  EmbedBuilder,
+  MessageFlags
 } from 'discord.js';
 
 import { autoDeployIfEnabled } from './autoDeploy.mjs';
@@ -60,7 +61,7 @@ const client = new Client({
 });
 
 /* ================= READY ================= */
-client.once('ready', async () => {
+client.once('clientReady', async () => {
   console.log(`✅ DM-only bot online as ${client.user.tag}`);
 
   // ---------- AUTO DEPLOY ----------
@@ -140,7 +141,7 @@ client.on('interactionCreate', async interaction => {
   // SLASH COMMANDS
   if (interaction.isChatInputCommand()) {
     try {
-      await interaction.deferReply({ ephemeral: true });
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       await handleCommand(interaction);
     } catch (err) {
       console.error('❌ Command error:', err);

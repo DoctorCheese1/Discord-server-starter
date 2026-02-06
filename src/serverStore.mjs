@@ -20,7 +20,12 @@ export function loadRawConfig() {
   if (!fs.existsSync(FILE)) {
     return { servers: [] };
   }
-  return JSON.parse(fs.readFileSync(FILE, 'utf8'));
+
+  try {
+    return JSON.parse(fs.readFileSync(FILE, 'utf8'));
+  } catch {
+    return { servers: [] };
+  }
 }
 
 export function saveRawConfig(raw) {
@@ -55,7 +60,14 @@ function normalizeServer(s) {
 ================================ */
 
 export function loadServers({ includeDisabled = false } = {}) {
-  const raw = loadRawConfig();
+  let raw;
+
+  try {
+    raw = loadRawConfig();
+  } catch {
+    raw = { servers: [] };
+  }
+
   let servers = (raw.servers || []).map(normalizeServer);
 
   if (!includeDisabled) {
@@ -78,11 +90,11 @@ export function getServer(idOrName, opts) {
 /**
  * Used by slash-command choices
  */
-export function serverChoices({ steamOnly = false } = {}) {
+export function serverChoices({ steamOnly = false, includeDisabled = false } = {}) {
   const raw = loadRawConfig();
 
   return (raw.servers || [])
-    .filter(s => s.enabled !== false)
+    .filter(s => includeDisabled || s.enabled !== false)
     .filter(s => !steamOnly || s.steam === true || s.type === 'steam')
     .map(s => ({
       name: s.name,
