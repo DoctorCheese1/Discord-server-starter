@@ -8,6 +8,7 @@ import {
 import fs from 'fs';
 import { EmbedBuilder } from 'discord.js';
 import { ensureUpdateTask, isRunning, runUpdateTask } from './processManager.mjs';
+import { isRunning, runUpdateTask } from './processManager.mjs';
 
 import {
   listSteamGames,
@@ -117,6 +118,15 @@ export async function handleCommand(interaction) {
 
       return interaction.editReply(`${summary}\n${details}`);
     }
+const servers = loadServers({ includeDisabled: true });
+
+const lines = await Promise.all(servers.map(async s => {
+  const st = await getServerState(s);
+  return `${st.emoji} **${s.name}** (${s.id}) — ${st.label}`;
+}));
+
+return interaction.editReply(lines.join('\n'));
+
   }
 
   if (cmd === 'status') {

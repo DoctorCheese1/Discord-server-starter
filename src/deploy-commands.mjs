@@ -49,18 +49,8 @@ export function buildCommands() {
     /* ===== BASIC ===== */
     new SlashCommandBuilder()
       .setName('servers')
-      .setDescription('Server list & validation')
-      .setDMPermission(true)
-      .addSubcommand(sc =>
-        sc
-          .setName('list')
-          .setDescription('List servers')
-      )
-      .addSubcommand(sc =>
-        sc
-          .setName('validate')
-          .setDescription('Sync servers with Task Scheduler')
-      ),
+      .setDescription('List servers')
+      .setDMPermission(true),
 
     new SlashCommandBuilder()
       .setName('status')
