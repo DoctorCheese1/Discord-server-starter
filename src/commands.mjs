@@ -75,9 +75,9 @@ export async function handleCommand(interaction) {
   ====================================================== */
 
   if (cmd === 'servers') {
-    const sub = interaction.options.getSubcommand();
+    const sub = interaction.options.getSubcommand(false);
 
-    if (sub === 'list') {
+    if (!sub || sub === 'list') {
       const servers = loadServers({ includeDisabled: true });
 
       const lines = await Promise.all(servers.map(async s => {
