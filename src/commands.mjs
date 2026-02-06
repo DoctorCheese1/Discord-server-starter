@@ -7,7 +7,7 @@ import {
 } from './serverStore.mjs';
 import fs from 'fs';
 import { EmbedBuilder } from 'discord.js';
-import { isRunning } from './processManager.mjs';
+import { ensureUpdateTask, isRunning, runUpdateTask } from './processManager.mjs';
 
 import {
   listSteamGames,
@@ -36,7 +36,7 @@ import {
 /* ======================================================
    MAIN HANDLER
 ====================================================== */
-function getServerState(server) {
+async function getServerState(server) {
   if (server.enabled === false) {
     return { emoji: '⚫', label: 'Disabled', color: 0x2f3136 };
   }
@@ -55,7 +55,7 @@ function getServerState(server) {
   }
 
   // 🟢 Running
-  if (isRunning(server)) {
+  if (await isRunning(server)) {
     return { emoji: '🟢', label: 'Running', color: 0x2ecc71 };
   }
 
@@ -71,15 +71,52 @@ export async function handleCommand(interaction) {
   ====================================================== */
 
   if (cmd === 'servers') {
-const servers = loadServers({ includeDisabled: true });
+    const sub = interaction.options.getSubcommand();
 
-const lines = servers.map(s => {
-  const st = getServerState(s);
-  return `${st.emoji} **${s.name}** (${s.id}) — ${st.label}`;
-});
+    if (sub === 'list') {
+      const servers = loadServers({ includeDisabled: true });
 
-return interaction.editReply(lines.join('\n'));
+      const lines = await Promise.all(servers.map(async s => {
+        const st = await getServerState(s);
+        return `${st.emoji} **${s.name}** (${s.id}) — ${st.label}`;
+      }));
 
+      return interaction.editReply(lines.join('\n'));
+    }
+
+    if (sub === 'validate') {
+      const servers = loadServers({ includeDisabled: true });
+
+      const results = await Promise.all(
+        servers.map(async s => {
+          if (!s.updateBat) {
+            return { id: s.id, status: 'skipped', reason: 'no updateBat' };
+          }
+
+          try {
+            const taskName = await ensureUpdateTask(s);
+            return { id: s.id, status: 'synced', taskName };
+          } catch (error) {
+            return { id: s.id, status: 'failed', reason: error?.message || 'error' };
+          }
+        })
+      );
+
+      const synced = results.filter(r => r.status === 'synced').length;
+      const skipped = results.filter(r => r.status === 'skipped').length;
+      const failed = results.filter(r => r.status === 'failed').length;
+
+      const summary = `✅ Task Scheduler sync complete — ${synced} synced, ${skipped} skipped, ${failed} failed.`;
+      const details = results
+        .map(r => {
+          if (r.status === 'synced') return `🟢 ${r.id} → ${r.taskName}`;
+          if (r.status === 'skipped') return `🟡 ${r.id} → skipped (${r.reason})`;
+          return `🔴 ${r.id} → failed (${r.reason})`;
+        })
+        .join('\n');
+
+      return interaction.editReply(`${summary}\n${details}`);
+    }
   }
 
   if (cmd === 'status') {
@@ -99,7 +136,7 @@ if (!server) {
   return interaction.editReply('❌ Server not found.');
 }
 
-const st = getServerState(server);
+const st = await getServerState(server);
 
 const embed = new EmbedBuilder()
   .setTitle(`${st.emoji} ${server.name}`)
@@ -154,10 +191,10 @@ if (cmd === 'config') {
       return interaction.editReply('❌ No servers found.');
     }
 
-    const lines = servers.map(s => {
-      const st = getServerState(s); // <-- make sure this exists
+    const lines = await Promise.all(servers.map(async s => {
+      const st = await getServerState(s);
       return `${st.emoji} **${s.name}** (${s.id}) — ${st.label}`;
-    });
+    }));
 
     return interaction.editReply(lines.join('\n'));
   }
@@ -194,6 +231,13 @@ if (cmd === 'config') {
     const value = interaction.options.getBoolean('value');
     setServer(id, { steam: value });
     return interaction.editReply(`✅ Steam flag updated.`);
+  }
+
+  if (sub === 'set-process') {
+    const id = interaction.options.getString('id');
+    const name = interaction.options.getString('name');
+    setServer(id, { processName: name });
+    return interaction.editReply(`✅ Process fallback set to **${name}**.`);
   }
 }
 
@@ -259,20 +303,38 @@ if (sub === 'add') {
 
   /* ---------- UPDATE STEAM SERVER ---------- */
   if (sub === 'update') {
-    const id = interaction.options.getString('id', true);
-    // const server = getServer(id);
+    const updateAll = interaction.options.getBoolean('all') === true;
+    const id = interaction.options.getString('id');
 
-    // if (!server || !server.cwd) {
-    //   return interaction.editReply('❌ Server not found.');
-    // }
+    if (!updateAll && !id) {
+      return interaction.editReply('❌ Provide a server id or set `all` to true.');
+    }
 
-    // runUpdateDetached(server.cwd);
+    const targets = updateAll
+      ? loadServers({ includeDisabled: false }).filter(s => s.steam)
+      : [getServer(id)].filter(Boolean);
 
-    return interaction.editReply(
-      `🔄 Update started for **${server.name}**\n🪟 Running in a separate CMD window`
-          `⚠ Installation disabled — add files manually`
-    
-    );
+    if (!targets.length) {
+      return interaction.editReply('❌ No matching Steam servers found.');
+    }
+
+    const ok = [];
+    const fail = [];
+
+    for (const server of targets) {
+      try {
+        const taskName = await runUpdateTask(server);
+        ok.push(`✅ **${server.name}** via task \`${taskName}\``);
+      } catch (err) {
+        fail.push(`❌ **${server.name}**: ${err.message || 'failed'}`);
+      }
+    }
+
+    return interaction.editReply([
+      `🔄 Update request complete (${ok.length}/${targets.length} started).`,
+      ...ok,
+      ...fail
+    ].join('\n'));
   }
 
   /* ---------- SEARCH REGISTRY ---------- */

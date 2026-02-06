@@ -31,6 +31,12 @@ function safeServerChoices(opts) {
   return c.length ? c : [];
 }
 
+
+function safeServerChoicesAll(opts) {
+  const c = serverChoices({ includeDisabled: true, ...(opts || {}) });
+  return c.length ? c : [];
+}
+
 function safeSteamGameChoices() {
   const c = steamGameChoices();
   return c.length ? c : [];
@@ -43,8 +49,18 @@ export function buildCommands() {
     /* ===== BASIC ===== */
     new SlashCommandBuilder()
       .setName('servers')
-      .setDescription('List servers')
-      .setDMPermission(true),
+      .setDescription('Server list & validation')
+      .setDMPermission(true)
+      .addSubcommand(sc =>
+        sc
+          .setName('list')
+          .setDescription('List servers')
+      )
+      .addSubcommand(sc =>
+        sc
+          .setName('validate')
+          .setDescription('Sync servers with Task Scheduler')
+      ),
 
     new SlashCommandBuilder()
       .setName('status')
@@ -59,7 +75,7 @@ export function buildCommands() {
   o.setName('id')
    .setDescription('Server id')
    .setRequired(true)
-   .addChoices(...serverChoices())
+   .addChoices(...safeServerChoicesAll())
       ),
 
     new SlashCommandBuilder()
@@ -189,6 +205,22 @@ export function buildCommands() {
               .setDescription('Enable Steam')
               .setRequired(true)
           )
+      )
+
+      .addSubcommand(sc =>
+        sc.setName('set-process')
+          .setDescription('Set process image name fallback (ex: java.exe, ShooterGameServer.exe)')
+          .addStringOption(o =>
+            o.setName('id')
+              .setDescription('Server id')
+              .setRequired(true)
+              .addChoices(...safeServerChoices())
+          )
+          .addStringOption(o =>
+            o.setName('name')
+              .setDescription('Process image name')
+              .setRequired(true)
+          )
       ),
 
     /* ===== STEAM ===== */
@@ -224,12 +256,17 @@ export function buildCommands() {
 
       .addSubcommand(sc =>
         sc.setName('update')
-          .setDescription('Update a Steam server')
+          .setDescription('Update one Steam server or all Steam servers')
           .addStringOption(o =>
             o.setName('id')
-              .setDescription('Server id')
-              .setRequired(true)
+              .setDescription('Server id (optional when using all=true)')
+              .setRequired(false)
               .addChoices(...safeServerChoices({ steamOnly: true }))
+          )
+          .addBooleanOption(o =>
+            o.setName('all')
+              .setDescription('Update all enabled Steam servers')
+              .setRequired(false)
           )
       )
 
