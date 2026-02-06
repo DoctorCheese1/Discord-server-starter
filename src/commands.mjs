@@ -8,7 +8,6 @@ import {
 import fs from 'fs';
 import { EmbedBuilder } from 'discord.js';
 import { ensureUpdateTask, isRunning, runUpdateTask } from './processManager.mjs';
-import { isRunning, runUpdateTask } from './processManager.mjs';
 
 import {
   listSteamGames,
@@ -33,6 +32,10 @@ import {
   getIdracStatus,
   idracPower
 } from './idrac/idrac.mjs';
+import {
+  getIdracMonitorState,
+  refreshIdracMonitor
+} from './idrac/idracMonitor.mjs';
 
 /* ======================================================
    MAIN HANDLER
@@ -72,9 +75,9 @@ export async function handleCommand(interaction) {
   ====================================================== */
 
   if (cmd === 'servers') {
-    const sub = interaction.options.getSubcommand();
+    const sub = interaction.options.getSubcommand(false);
 
-    if (sub === 'list') {
+    if (!sub || sub === 'list') {
       const servers = loadServers({ includeDisabled: true });
 
       const lines = await Promise.all(servers.map(async s => {
@@ -118,15 +121,6 @@ export async function handleCommand(interaction) {
 
       return interaction.editReply(`${summary}\n${details}`);
     }
-const servers = loadServers({ includeDisabled: true });
-
-const lines = await Promise.all(servers.map(async s => {
-  const st = await getServerState(s);
-  return `${st.emoji} **${s.name}** (${s.id}) — ${st.label}`;
-}));
-
-return interaction.editReply(lines.join('\n'));
-
   }
 
   if (cmd === 'status') {
@@ -139,27 +133,26 @@ return interaction.editReply(lines.join('\n'));
   }
 
   if (cmd === 'info') {
-const id = interaction.options.getString('id', true);
-const server = getServer(id, { includeDisabled: true });
+    const id = interaction.options.getString('id', true);
+    const server = getServer(id, { includeDisabled: true });
 
-if (!server) {
-  return interaction.editReply('❌ Server not found.');
-}
+    if (!server) {
+      return interaction.editReply('❌ Server not found.');
+    }
 
-const st = await getServerState(server);
+    const st = await getServerState(server);
 
-const embed = new EmbedBuilder()
-  .setTitle(`${st.emoji} ${server.name}`)
-  .setColor(st.color)
-  .addFields(
-    { name: 'Status', value: st.label, inline: true },
-    { name: 'ID', value: server.id, inline: true },
-    { name: 'Type', value: server.type ?? 'unknown', inline: true },
-    { name: 'Path', value: server.cwd ?? 'n/a' }
-  );
+    const embed = new EmbedBuilder()
+      .setTitle(`${st.emoji} ${server.name}`)
+      .setColor(st.color)
+      .addFields(
+        { name: 'Status', value: st.label, inline: true },
+        { name: 'ID', value: server.id, inline: true },
+        { name: 'Type', value: server.type ?? 'unknown', inline: true },
+        { name: 'Path', value: server.cwd ?? 'n/a' }
+      );
 
-return interaction.editReply({ embeds: [embed] });
-
+    return interaction.editReply({ embeds: [embed] });
   }
 
   /* ======================================================
@@ -184,72 +177,72 @@ return interaction.editReply({ embeds: [embed] });
      CONFIG
   ====================================================== */
 
-if (cmd === 'config') {
-  const sub = interaction.options.getSubcommand();
+  if (cmd === 'config') {
+    const sub = interaction.options.getSubcommand();
 
-  if (sub === 'list') {
-    const all  = interaction.options.getBoolean('all') === true;
-    const type = interaction.options.getString('type');
+    if (sub === 'list') {
+      const all = interaction.options.getBoolean('all') === true;
+      const type = interaction.options.getString('type');
 
-    let servers = loadServers({ includeDisabled: all });
+      let servers = loadServers({ includeDisabled: all });
 
-    if (type) {
-      servers = servers.filter(s => s.type === type);
+      if (type) {
+        servers = servers.filter(s => s.type === type);
+      }
+
+      if (!servers.length) {
+        return interaction.editReply('❌ No servers found.');
+      }
+
+      const lines = await Promise.all(servers.map(async s => {
+        const st = await getServerState(s);
+        return `${st.emoji} **${s.name}** (${s.id}) — ${st.label}`;
+      }));
+
+      return interaction.editReply(lines.join('\n'));
     }
 
-    if (!servers.length) {
-      return interaction.editReply('❌ No servers found.');
+    if (sub === 'validate') {
+      const servers = loadServers({ includeDisabled: true });
+      return interaction.editReply(
+        `✅ Config valid\nServers: ${servers.length}`
+      );
     }
 
-    const lines = await Promise.all(servers.map(async s => {
-      const st = await getServerState(s);
-      return `${st.emoji} **${s.name}** (${s.id}) — ${st.label}`;
-    }));
+    if (sub === 'enable' || sub === 'disable') {
+      const id = interaction.options.getString('id');
+      setServer(id, { enabled: sub === 'enable' });
+      return interaction.editReply(`✅ Server **${id}** updated.`);
+    }
 
-    return interaction.editReply(lines.join('\n'));
-  }
+    if (sub === 'rename') {
+      const id = interaction.options.getString('id');
+      const name = interaction.options.getString('name');
+      setServer(id, { name });
+      return interaction.editReply(`✅ Server renamed to **${name}**.`);
+    }
 
-  if (sub === 'validate') {
-    const servers = loadServers({ includeDisabled: true });
-    return interaction.editReply(
-      `✅ Config valid\nServers: ${servers.length}`
-    );
-  }
+    if (sub === 'set-java') {
+      const id = interaction.options.getString('id');
+      const value = interaction.options.getBoolean('value');
+      setServer(id, { java: value });
+      return interaction.editReply('✅ Java flag updated.');
+    }
 
-  if (sub === 'enable' || sub === 'disable') {
-    const id = interaction.options.getString('id');
-    setServer(id, { enabled: sub === 'enable' });
-    return interaction.editReply(`✅ Server **${id}** updated.`);
-  }
+    if (sub === 'set-steam') {
+      const id = interaction.options.getString('id');
+      const value = interaction.options.getBoolean('value');
+      setServer(id, { steam: value });
+      return interaction.editReply('✅ Steam flag updated.');
+    }
 
-  if (sub === 'rename') {
-    const id = interaction.options.getString('id');
-    const name = interaction.options.getString('name');
-    setServer(id, { name });
-    return interaction.editReply(`✅ Server renamed to **${name}**.`);
+    if (sub === 'set-process') {
+      const id = interaction.options.getString('id');
+      const name = interaction.options.getString('name');
+      setServer(id, { processName: name });
+      return interaction.editReply(`✅ Process fallback set to **${name}**.`);
+    }
   }
-
-  if (sub === 'set-java') {
-    const id = interaction.options.getString('id');
-    const value = interaction.options.getBoolean('value');
-    setServer(id, { java: value });
-    return interaction.editReply(`✅ Java flag updated.`);
-  }
-
-  if (sub === 'set-steam') {
-    const id = interaction.options.getString('id');
-    const value = interaction.options.getBoolean('value');
-    setServer(id, { steam: value });
-    return interaction.editReply(`✅ Steam flag updated.`);
-  }
-
-  if (sub === 'set-process') {
-    const id = interaction.options.getString('id');
-    const name = interaction.options.getString('name');
-    setServer(id, { processName: name });
-    return interaction.editReply(`✅ Process fallback set to **${name}**.`);
-  }
-}
 
 
   /* ======================================================
@@ -260,27 +253,42 @@ if (cmd === 'config') {
    STEAM
 ====================================================== */
 
-if (cmd === 'steam') {
-  const sub = interaction.options.getSubcommand();
+  if (cmd === 'steam') {
+    const monitorState = getIdracMonitorState();
+    const shouldRefresh = !monitorState.lastCheck ||
+      Date.now() - monitorState.lastCheck > 30000;
 
-  /* ---------- LIST STEAM GAMES ---------- */
-  if (sub === 'list') {
-    const games = listSteamGames();
-
-    if (!games.length) {
-      return interaction.editReply('❌ No Steam games registered.');
+    if (shouldRefresh) {
+      await refreshIdracMonitor();
     }
 
-    return interaction.editReply(
-      games.map(g => `• **${g.name}** (${g.appid})`).join('\n')
-    );
-  }
+    if (!getIdracMonitorState().reachable) {
+      return interaction.editReply(
+        '⚠️ Steam features are disabled while iDRAC is unreachable. ' +
+        'Use `/idrac status` and power on the system first.'
+      );
+    }
+
+    const sub = interaction.options.getSubcommand();
+
+  /* ---------- LIST STEAM GAMES ---------- */
+    if (sub === 'list') {
+      const games = listSteamGames();
+
+      if (!games.length) {
+        return interaction.editReply('❌ No Steam games registered.');
+      }
+
+      return interaction.editReply(
+        games.map(g => `• **${g.name}** (${g.appid})`).join('\n')
+      );
+    }
 
   /* ---------- ADD STEAM SERVER ---------- */
-if (sub === 'add') {
-    const id = interaction.options.getString('id', true);
-    const appid = interaction.options.getInteger('appid', true);
-    const customDir = interaction.options.getString('dir');
+    if (sub === 'add') {
+      const id = interaction.options.getString('id', true);
+      const appid = interaction.options.getInteger('appid', true);
+      const customDir = interaction.options.getString('dir');
 
     // const baseDir =
     //   process.env.STEAM_BASE_DIR || 'C:\\Servers\\Steam';
@@ -302,95 +310,95 @@ if (sub === 'add') {
     //   java: false
     // });
 
-    return interaction.editReply(
-      // `✅ Steam server **${id}** registered\n` +
-      // `📦 AppID: ${appid}\n` +
-      // `📁 ${serverDir}\n\n` +
-      `⚠ Installation disabled — add files manually`
-    );
-  }
-
-
-  /* ---------- UPDATE STEAM SERVER ---------- */
-  if (sub === 'update') {
-    const updateAll = interaction.options.getBoolean('all') === true;
-    const id = interaction.options.getString('id');
-
-    if (!updateAll && !id) {
-      return interaction.editReply('❌ Provide a server id or set `all` to true.');
-    }
-
-    const targets = updateAll
-      ? loadServers({ includeDisabled: false }).filter(s => s.steam)
-      : [getServer(id)].filter(Boolean);
-
-    if (!targets.length) {
-      return interaction.editReply('❌ No matching Steam servers found.');
-    }
-
-    const ok = [];
-    const fail = [];
-
-    for (const server of targets) {
-      try {
-        const taskName = await runUpdateTask(server);
-        ok.push(`✅ **${server.name}** via task \`${taskName}\``);
-      } catch (err) {
-        fail.push(`❌ **${server.name}**: ${err.message || 'failed'}`);
-      }
-    }
-
-    return interaction.editReply([
-      `🔄 Update request complete (${ok.length}/${targets.length} started).`,
-      ...ok,
-      ...fail
-    ].join('\n'));
-  }
-
-  /* ---------- SEARCH REGISTRY ---------- */
-  if (sub === 'search') {
-    const query = interaction.options.getString('query').toLowerCase();
-    const games = listSteamGames();
-
-    const results = games.filter(g =>
-      g.name.toLowerCase().includes(query) ||
-      String(g.appid).includes(query)
-    );
-
-    if (!results.length) {
       return interaction.editReply(
-        '❌ No results found.'
+        // `✅ Steam server **${id}** registered\n` +
+        // `📦 AppID: ${appid}\n` +
+        // `📁 ${serverDir}\n\n` +
+        '⚠ Installation disabled — add files manually'
       );
     }
 
-    saveSearch(interaction.user.id, results, 0);
 
-    const existing = new Set(games.map(g => g.appid));
-    return interaction.editReply(
-      buildSearchPage(results, 0, existing)
-    );
-  }
+  /* ---------- UPDATE STEAM SERVER ---------- */
+    if (sub === 'update') {
+      const updateAll = interaction.options.getBoolean('all') === true;
+      const id = interaction.options.getString('id');
+
+      if (!updateAll && !id) {
+        return interaction.editReply('❌ Provide a server id or set `all` to true.');
+      }
+
+      const targets = updateAll
+        ? loadServers({ includeDisabled: false }).filter(s => s.steam)
+        : [getServer(id)].filter(Boolean);
+
+      if (!targets.length) {
+        return interaction.editReply('❌ No matching Steam servers found.');
+      }
+
+      const ok = [];
+      const fail = [];
+
+      for (const server of targets) {
+        try {
+          const taskName = await runUpdateTask(server);
+          ok.push(`✅ **${server.name}** via task \`${taskName}\``);
+        } catch (err) {
+          fail.push(`❌ **${server.name}**: ${err.message || 'failed'}`);
+        }
+      }
+
+      return interaction.editReply([
+        `🔄 Update request complete (${ok.length}/${targets.length} started).`,
+        ...ok,
+        ...fail
+      ].join('\n'));
+    }
+
+  /* ---------- SEARCH REGISTRY ---------- */
+    if (sub === 'search') {
+      const query = interaction.options.getString('query').toLowerCase();
+      const games = listSteamGames();
+
+      const results = games.filter(g =>
+        g.name.toLowerCase().includes(query) ||
+        String(g.appid).includes(query)
+      );
+
+      if (!results.length) {
+        return interaction.editReply(
+          '❌ No results found.'
+        );
+      }
+
+      saveSearch(interaction.user.id, results, 0);
+
+      const existing = new Set(games.map(g => g.appid));
+      return interaction.editReply(
+        buildSearchPage(results, 0, existing)
+      );
+    }
 
   /* ---------- ADD GAME TO REGISTRY ---------- */
-  if (sub === 'addgame') {
-    const appid = interaction.options.getInteger('appid', true);
-    const name = interaction.options.getString('name', true);
+    if (sub === 'addgame') {
+      const appid = interaction.options.getInteger('appid', true);
+      const name = interaction.options.getString('name', true);
 
-    addSteamGame({ appid, name });
-    return interaction.editReply(
-      `✅ Added **${name}** (${appid})`
-    );
-  }
+      addSteamGame({ appid, name });
+      return interaction.editReply(
+        `✅ Added **${name}** (${appid})`
+      );
+    }
 
   /* ---------- REMOVE GAME ---------- */
-  if (sub === 'removegame') {
-    const appid = interaction.options.getInteger('appid', true);
-    removeSteamGame(appid);
-    return interaction.editReply(
-      `🗑 Removed Steam game (${appid})`
-    );
+    if (sub === 'removegame') {
+      const appid = interaction.options.getInteger('appid', true);
+      removeSteamGame(appid);
+      return interaction.editReply(
+        `🗑 Removed Steam game (${appid})`
+      );
+    }
   }
-}
 
 
   /* ======================================================
