@@ -5,8 +5,7 @@ import { fileURLToPath } from 'url';
 import {
   Client,
   GatewayIntentBits,
-  EmbedBuilder,
-  MessageFlags
+  EmbedBuilder
 } from 'discord.js';
 
 import { autoDeployIfEnabled } from './autoDeploy.mjs';
@@ -141,7 +140,7 @@ client.on('interactionCreate', async interaction => {
   // SLASH COMMANDS
   if (interaction.isChatInputCommand()) {
     try {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      await interaction.deferReply({ ephemeral: true });
       await handleCommand(interaction);
     } catch (err) {
       console.error('❌ Command error:', err);
