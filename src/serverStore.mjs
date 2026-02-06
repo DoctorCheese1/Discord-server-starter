@@ -20,7 +20,12 @@ export function loadRawConfig() {
   if (!fs.existsSync(FILE)) {
     return { servers: [] };
   }
-  return JSON.parse(fs.readFileSync(FILE, 'utf8'));
+
+  try {
+    return JSON.parse(fs.readFileSync(FILE, 'utf8'));
+  } catch {
+    return { servers: [] };
+  }
 }
 
 export function saveRawConfig(raw) {
@@ -55,7 +60,14 @@ function normalizeServer(s) {
 ================================ */
 
 export function loadServers({ includeDisabled = false } = {}) {
-  const raw = loadRawConfig();
+  let raw;
+
+  try {
+    raw = loadRawConfig();
+  } catch {
+    raw = { servers: [] };
+  }
+
   let servers = (raw.servers || []).map(normalizeServer);
 
   if (!includeDisabled) {
