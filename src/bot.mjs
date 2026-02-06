@@ -12,6 +12,7 @@ import {
 import { autoDeployIfEnabled } from './autoDeploy.mjs';
 import { startPresenceLoop } from './presence.mjs';
 import { handleCommand } from './commands.mjs';
+import { startIdracMonitor } from './idrac/idracMonitor.mjs';
 
 import {
   getSearch,
@@ -73,6 +74,9 @@ client.once('clientReady', async () => {
 
   // ---------- PRESENCE ----------
   startPresenceLoop(client);
+
+  // ---------- IDRAC MONITOR ----------
+  startIdracMonitor();
 
   // ---------- AUTH CHECK LOOP ----------
   setInterval(async () => {

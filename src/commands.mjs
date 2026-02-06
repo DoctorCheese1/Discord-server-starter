@@ -32,6 +32,10 @@ import {
   getIdracStatus,
   idracPower
 } from './idrac/idrac.mjs';
+import {
+  getIdracMonitorState,
+  refreshIdracMonitor
+} from './idrac/idracMonitor.mjs';
 
 /* ======================================================
    MAIN HANDLER
