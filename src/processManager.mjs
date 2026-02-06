@@ -1,9 +1,9 @@
 import fs from 'fs';
-import path from 'path';
 import { execWindows } from './windows-exec.mjs';
 
 /* ======================================================
    PID HELPERS
+   (PID FILE MUST BE ON A SHARED PATH, e.g. CIFS)
 ====================================================== */
 
 function getPid(server) {
@@ -14,77 +14,13 @@ function getPid(server) {
   return pid || null;
 }
 
-function savePid(server, pid) {
-  if (!server?.pidFile || !pid) return;
-
-  try {
-    fs.mkdirSync(path.dirname(server.pidFile), { recursive: true });
-    fs.writeFileSync(server.pidFile, String(pid));
-  } catch {
-    // ignore pid persistence errors
-  }
-}
-
 function sanitizeTaskName(name) {
   return String(name).replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
-function parseWmicCsv(stdout) {
-  const rows = stdout
-    .split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(Boolean)
-    .filter(line => line.includes(','));
-
-  if (!rows.length) return [];
-
-  const header = rows[0].toLowerCase();
-  const cmdIndex = header.split(',').findIndex(v => v === 'commandline');
-  const pidIndex = header.split(',').findIndex(v => v === 'processid');
-
-  if (cmdIndex < 0 || pidIndex < 0) return [];
-
-  return rows.slice(1).map(line => {
-    const parts = line.split(',');
-    return {
-      commandLine: (parts[cmdIndex] || '').toLowerCase(),
-      pid: (parts[pidIndex] || '').trim()
-    };
-  });
-}
-
-function getJarTokenFromStartBat(server) {
-  if (!server?.startBat || !fs.existsSync(server.startBat)) return null;
-
-  try {
-    const script = fs.readFileSync(server.startBat, 'utf8');
-    const m = script.match(/-jar\s+"?([^"\r\n\s]+\.jar)"?/i);
-    if (!m?.[1]) return null;
-    return path.basename(m[1]).toLowerCase();
-  } catch {
-    return null;
-  }
-}
-
-async function findJavaPid(server) {
-  const jarToken = getJarTokenFromStartBat(server);
-  if (!jarToken) return null;
-
-  try {
-    const { stdout } = await execWindows(
-      'wmic process where "name=\'java.exe\' or name=\'javaw.exe\'" get CommandLine,ProcessId /format:csv'
-    );
-
-    const rows = parseWmicCsv(stdout);
-    const hit = rows.find(r => r.commandLine.includes(jarToken));
-    return hit?.pid || null;
-  } catch {
-    return null;
-  }
-}
-
 /* ======================================================
    START / STOP / STATUS
+   (ALL EXECUTED ON WINDOWS)
 ====================================================== */
 
 export async function startServer(server) {
@@ -92,73 +28,34 @@ export async function startServer(server) {
     throw new Error('Server has no startBat defined');
   }
 
+  // Run on Windows, not Linux
   await execWindows(`cmd /c start "" "${server.startBat}"`);
 }
 
 export async function stopServer(server) {
   const pid = getPid(server);
-  if (pid) {
-    try {
-      await execWindows(`taskkill /PID ${pid} /F`);
-      return true;
-    } catch {
-      // fall through to other stop methods
-    }
-  }
+  if (!pid) return false;
 
-  if (server?.java) {
-    const javaPid = await findJavaPid(server);
-    if (javaPid) {
-      try {
-        await execWindows(`taskkill /PID ${javaPid} /F`);
-        return true;
-      } catch {
-        return false;
-      }
-    }
+  try {
+    await execWindows(`taskkill /PID ${pid} /F`);
+    return true;
+  } catch {
+    return false;
   }
-
-  if (server?.processName) {
-    try {
-      await execWindows(`taskkill /IM "${server.processName}" /F`);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  return false;
 }
 
 export async function isRunning(server) {
   const pid = getPid(server);
-  if (pid) {
-    try {
-      const { stdout } = await execWindows(`tasklist /FI "PID eq ${pid}"`);
-      if (stdout.includes(pid)) return true;
-    } catch {
-      // continue to fallbacks
-    }
-  }
+  if (!pid) return false;
 
-  if (server?.java) {
-    const javaPid = await findJavaPid(server);
-    if (javaPid) {
-      savePid(server, javaPid);
-      return true;
-    }
+  try {
+    const { stdout } = await execWindows(
+      `tasklist /FI "PID eq ${pid}"`
+    );
+    return stdout.includes(pid);
+  } catch {
+    return false;
   }
-
-  if (server?.processName) {
-    try {
-      const { stdout } = await execWindows(`tasklist /FI "IMAGENAME eq ${server.processName}"`);
-      return stdout.toLowerCase().includes(server.processName.toLowerCase());
-    } catch {
-      return false;
-    }
-  }
-
-  return false;
 }
 
 /* ======================================================
@@ -172,6 +69,7 @@ export async function runUpdateTask(server) {
 
   const taskName = `ServerStarter_Update_${sanitizeTaskName(server.id || server.name || 'server')}`;
 
+  // Create/replace one-shot task and execute immediately.
   await execWindows(
     `schtasks /Create /TN "${taskName}" /TR "\"${server.updateBat}\"" /SC ONCE /ST 00:00 /F`
   );

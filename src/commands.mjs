@@ -195,13 +195,6 @@ if (cmd === 'config') {
     setServer(id, { steam: value });
     return interaction.editReply(`✅ Steam flag updated.`);
   }
-
-  if (sub === 'set-process') {
-    const id = interaction.options.getString('id');
-    const name = interaction.options.getString('name');
-    setServer(id, { processName: name });
-    return interaction.editReply(`✅ Process fallback set to **${name}**.`);
-  }
 }
 
 
