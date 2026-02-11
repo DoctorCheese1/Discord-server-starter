@@ -258,21 +258,6 @@ export async function handleCommand(interaction) {
 ====================================================== */
 
   if (cmd === 'steam') {
-    const monitorState = getIdracMonitorState();
-    const shouldRefresh = !monitorState.lastCheck ||
-      Date.now() - monitorState.lastCheck > 30000;
-
-    if (shouldRefresh) {
-      await refreshIdracMonitor();
-    }
-
-    if (!getIdracMonitorState().reachable) {
-      return interaction.editReply(
-        '⚠️ Steam features are disabled while iDRAC is unreachable. ' +
-        'Use `/idrac status` and power on the system first.'
-      );
-    }
-
     const sub = interaction.options.getSubcommand();
 
   /* ---------- LIST STEAM GAMES ---------- */
