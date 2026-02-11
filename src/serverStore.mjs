@@ -44,6 +44,7 @@ function normalizeServer(s) {
 
     steam: s.steam === true || s.type === 'steam',
     java: s.java === true,
+    processName: s.processName,
 
     startBat: path.join(s.cwd, 'start.bat'),
     stopBat: path.join(s.cwd, 'stop.bat'),
@@ -111,7 +112,8 @@ export function addServer(server) {
     cwd: server.cwd,
     steam: server.steam === true,
     java: server.java === true,
-    appid: server.appid
+    appid: server.appid,
+    processName: server.processName
   });
 
   saveRawConfig(raw);

@@ -7,7 +7,14 @@ import {
 } from './serverStore.mjs';
 import fs from 'fs';
 import { EmbedBuilder } from 'discord.js';
-import { ensureUpdateTask, isRunning, runUpdateTask } from './processManager.mjs';
+import {
+  ensureInstalledUpdateTasks,
+  ensureUpdateTask,
+  isRunning,
+  runUpdateTask,
+  startServer,
+  stopServer
+} from './processManager.mjs';
 
 import {
   listSteamGames,
@@ -67,6 +74,31 @@ async function getServerState(server) {
   return { emoji: '🔴', label: 'Stopped', color: 0xe74c3c };
 }
 
+
+
+async function requireIdracOnline(interaction, actionLabel = 'run this command') {
+  const monitor = await refreshIdracMonitor();
+
+  if (!monitor.reachable) {
+    return interaction.editReply(
+      `⛔ iDRAC is offline/unreachable. Start iDRAC first before trying to ${actionLabel}.`
+    );
+  }
+
+  const status = await getIdracStatus();
+
+  if (!status.reachable || status.state !== 'online') {
+    return interaction.editReply(
+      `⛔ Server host is not online via iDRAC (state: **${status.state || 'unknown'}**). Start it first.`
+    );
+  }
+
+  return null;
+}
+
+function isMutatingConfigSubcommand(sub) {
+  return ['enable', 'disable', 'rename', 'set-java', 'set-steam', 'set-process'].includes(sub);
+}
 export async function handleCommand(interaction) {
   const cmd = interaction.commandName;
 
@@ -171,10 +203,34 @@ export async function handleCommand(interaction) {
       return interaction.editReply('❌ Server not found.');
     }
 
-    return interaction.editReply(
-      `🛠 **${cmd.toUpperCase()}** requested for **${server.name}**`
-    );
-    // actual execution handled by your process manager
+    const gateReply = await requireIdracOnline(interaction, `${cmd} **${server.name}**`);
+    if (gateReply) return gateReply;
+
+    try {
+      if (cmd === 'start') {
+        await startServer(server);
+        return interaction.editReply(`✅ Start triggered for **${server.name}**.`);
+      }
+
+      if (cmd === 'stop') {
+        const stopped = await stopServer(server);
+        if (!stopped) {
+          return interaction.editReply('⚠ Stop command sent, but no PID/process match was found.');
+        }
+
+        return interaction.editReply(`✅ Stop triggered for **${server.name}**.`);
+      }
+
+      const stopped = await stopServer(server);
+      if (!stopped) {
+        return interaction.editReply('⚠ Restart blocked: could not find running process to stop.');
+      }
+
+      await startServer(server);
+      return interaction.editReply(`✅ Restart triggered for **${server.name}**.`);
+    } catch (error) {
+      return interaction.editReply(`❌ ${cmd} failed: ${error?.message || 'unknown error'}`);
+    }
   }
 
   /* ======================================================
@@ -183,6 +239,11 @@ export async function handleCommand(interaction) {
 
   if (cmd === 'config') {
     const sub = interaction.options.getSubcommand();
+
+    if (isMutatingConfigSubcommand(sub)) {
+      const gateReply = await requireIdracOnline(interaction, `modify server config (${sub})`);
+      if (gateReply) return gateReply;
+    }
 
     if (sub === 'list') {
       const all = interaction.options.getBoolean('all') === true;
@@ -208,11 +269,23 @@ export async function handleCommand(interaction) {
 
     if (sub === 'validate') {
       const servers = loadServers({ includeDisabled: true });
+      const results = await ensureInstalledUpdateTasks(servers);
+      const synced = results.filter(r => r.status === 'synced').length;
+      const skipped = results.filter(r => r.status === 'skipped').length;
+      const failed = results.filter(r => r.status === 'failed').length;
+
+      const details = results
+        .map(r => {
+          if (r.status === 'synced') return `🟢 ${r.id} → ${r.taskName}`;
+          if (r.status === 'skipped') return `🟡 ${r.id} → skipped (${r.reason})`;
+          return `🔴 ${r.id} → failed (${r.reason})`;
+        })
+        .join('\n');
+
       return interaction.editReply(
-        `✅ Config valid\nServers: ${servers.length}`
+        `✅ Config checked (${servers.length} servers)\nTask Scheduler: ${synced} synced, ${skipped} skipped, ${failed} failed.\n${details}`
       );
     }
-
     if (sub === 'enable' || sub === 'disable') {
       const id = interaction.options.getString('id');
       setServer(id, { enabled: sub === 'enable' });
@@ -259,6 +332,11 @@ export async function handleCommand(interaction) {
 
   if (cmd === 'steam') {
     const sub = interaction.options.getSubcommand();
+
+    if (['add', 'update', 'addgame', 'removegame'].includes(sub)) {
+      const gateReply = await requireIdracOnline(interaction, `run steam ${sub}`);
+      if (gateReply) return gateReply;
+    }
 
   /* ---------- LIST STEAM GAMES ---------- */
     if (sub === 'list') {
@@ -408,18 +486,30 @@ export async function handleCommand(interaction) {
     }
 
     if (sub === 'on') {
-      await idracPower('on');
-      return interaction.editReply('🟢 iDRAC power **ON** command sent.');
+      try {
+        await idracPower('on');
+        return interaction.editReply('🟢 iDRAC power **ON** command sent.');
+      } catch (error) {
+        return interaction.editReply(`❌ iDRAC ON failed: ${error?.message || 'unknown error'}`);
+      }
     }
 
     if (sub === 'off') {
-      await idracPower('off');
-      return interaction.editReply('🔴 iDRAC power **OFF** command sent.');
+      try {
+        await idracPower('off');
+        return interaction.editReply('🔴 iDRAC power **OFF** command sent.');
+      } catch (error) {
+        return interaction.editReply(`❌ iDRAC OFF failed: ${error?.message || 'unknown error'}`);
+      }
     }
 
     if (sub === 'reboot') {
-      await idracPower('reboot');
-      return interaction.editReply('🔄 iDRAC **REBOOT** command sent.');
+      try {
+        await idracPower('reboot');
+        return interaction.editReply('🔄 iDRAC **REBOOT** command sent.');
+      } catch (error) {
+        return interaction.editReply(`❌ iDRAC reboot failed: ${error?.message || 'unknown error'}`);
+      }
     }
   }
 
