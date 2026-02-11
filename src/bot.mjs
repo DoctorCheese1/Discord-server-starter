@@ -13,6 +13,8 @@ import { autoDeployIfEnabled } from './autoDeploy.mjs';
 import { startPresenceLoop } from './presence.mjs';
 import { handleCommand } from './commands.mjs';
 import { startIdracMonitor } from './idrac/idracMonitor.mjs';
+import { loadServers } from './serverStore.mjs';
+import { ensureInstalledUpdateTasks } from './processManager.mjs';
 
 import {
   getSearch,
@@ -77,6 +79,16 @@ client.once('clientReady', async () => {
 
   // ---------- IDRAC MONITOR ----------
   startIdracMonitor();
+
+  // ---------- TASK SCHEDULER SYNC ----------
+  try {
+    const taskSync = await ensureInstalledUpdateTasks(loadServers({ includeDisabled: true }));
+    const synced = taskSync.filter(r => r.status === 'synced').length;
+    const failed = taskSync.filter(r => r.status === 'failed').length;
+    console.log(`🗓 Update task sync complete: ${synced} synced, ${failed} failed.`);
+  } catch (err) {
+    console.error('❌ Update task sync failed:', err);
+  }
 
   // ---------- AUTH CHECK LOOP ----------
   setInterval(async () => {
