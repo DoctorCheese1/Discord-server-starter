@@ -97,6 +97,10 @@ export async function handleCommand(interaction) {
             return { id: s.id, status: 'skipped', reason: 'no updateBat' };
           }
 
+          if (!fs.existsSync(s.updateBat)) {
+            return { id: s.id, status: 'failed', reason: 'updateBat missing' };
+          }
+
           try {
             const taskName = await ensureUpdateTask(s);
             return { id: s.id, status: 'synced', taskName };
