@@ -7,23 +7,49 @@ dotenv.config();
 
 const { IDRAC_PLATFORM } = process.env;
 
-if (!IDRAC_PLATFORM) {
-  throw new Error('❌ IDRAC_PLATFORM not set (linux | windows)');
-}
+let backend = {
+  async getIdracStatus() {
+    return {
+      power: 'UNKNOWN',
+      state: 'offline',
+      reachable: false,
+      error: 'IDRAC_PLATFORM not set (linux | windows)'
+    };
+  },
+  async idracPower() {
+    throw new Error('IDRAC backend unavailable: set IDRAC_PLATFORM (linux | windows)');
+  }
+};
 
-let backend;
+if (IDRAC_PLATFORM) {
+  try {
+    switch (IDRAC_PLATFORM.toLowerCase()) {
+      case 'linux':
+        backend = await import('./idrac-linux.mjs');
+        break;
 
-switch (IDRAC_PLATFORM.toLowerCase()) {
-  case 'linux':
-    backend = await import('./idrac-linux.mjs');
-    break;
+      case 'windows':
+        backend = await import('./idrac-windows.mjs');
+        break;
 
-  case 'windows':
-    backend = await import('./idrac-windows.mjs');
-    break;
-
-  default:
-    throw new Error(`❌ Invalid IDRAC_PLATFORM: ${IDRAC_PLATFORM}`);
+      default:
+        throw new Error(`Invalid IDRAC_PLATFORM: ${IDRAC_PLATFORM}`);
+    }
+  } catch (error) {
+    backend = {
+      async getIdracStatus() {
+        return {
+          power: 'UNKNOWN',
+          state: 'offline',
+          reachable: false,
+          error: error?.message || 'iDRAC backend load failed'
+        };
+      },
+      async idracPower() {
+        throw new Error(error?.message || 'iDRAC backend load failed');
+      }
+    };
+  }
 }
 
 /* ======================================================

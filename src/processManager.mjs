@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 import { execWindows } from './windows-exec.mjs';
 
 /* ======================================================
@@ -12,6 +13,21 @@ function getPid(server) {
 
   const pid = fs.readFileSync(server.pidFile, 'utf8').trim();
   return pid || null;
+}
+
+function hasPidFile(server) {
+  return Boolean(server?.pidFile && fs.existsSync(server.pidFile));
+}
+
+function writePid(server, pid) {
+  if (!server?.pidFile || !pid) return;
+  fs.mkdirSync(path.dirname(server.pidFile), { recursive: true });
+  fs.writeFileSync(server.pidFile, String(pid));
+}
+
+function removePid(server) {
+  if (!hasPidFile(server)) return;
+  fs.rmSync(server.pidFile, { force: true });
 }
 
 function sanitizeTaskName(name) {
@@ -28,34 +44,80 @@ export async function startServer(server) {
     throw new Error('Server has no startBat defined');
   }
 
-  // Run on Windows, not Linux
-  await execWindows(`cmd /c start "" "${server.startBat}"`);
+  if (!fs.existsSync(server.startBat)) {
+    throw new Error(`start.bat not found: ${server.startBat}`);
+  }
+
+  const escapedStartBat = server.startBat.replace(/'/g, "''");
+
+  const { stdout } = await execWindows(
+    `powershell -NoProfile -Command "$p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c','\"${escapedStartBat}\"' -WorkingDirectory '${server.cwd}' -PassThru; $p.Id"`
+  );
+
+  const pid = String(stdout || '').trim();
+  if (!pid) {
+    throw new Error('Unable to capture process PID from start.bat launch');
+  }
+
+  writePid(server, pid);
+
+  return pid;
 }
 
 export async function stopServer(server) {
+  let stopExecuted = false;
+
+  if (server.stopBat && fs.existsSync(server.stopBat)) {
+    await execWindows(`cmd /c "${server.stopBat}"`);
+    stopExecuted = true;
+  }
+
   const pid = getPid(server);
-  if (!pid) return false;
+  if (!pid) {
+    return stopExecuted;
+  }
 
   try {
     await execWindows(`taskkill /PID ${pid} /F`);
+    removePid(server);
     return true;
   } catch {
-    return false;
+    return stopExecuted;
   }
 }
 
 export async function isRunning(server) {
   const pid = getPid(server);
-  if (!pid) return false;
+  if (!pid && !server.processName) return false;
 
-  try {
-    const { stdout } = await execWindows(
-      `tasklist /FI "PID eq ${pid}"`
-    );
-    return stdout.includes(pid);
-  } catch {
-    return false;
+  if (pid) {
+    try {
+      const { stdout } = await execWindows(
+        `tasklist /FI "PID eq ${pid}"`
+      );
+      if (stdout.includes(pid)) return true;
+      removePid(server);
+    } catch {
+      return false;
+    }
   }
+
+  if (server.processName) {
+    try {
+      const { stdout } = await execWindows(
+        `tasklist /FI "IMAGENAME eq ${server.processName}"`
+      );
+      return stdout.toLowerCase().includes(server.processName.toLowerCase());
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+}
+
+function buildTaskRunCommand(updateBat) {
+  return `cmd /c \"${updateBat}\"`;
 }
 
 /* ======================================================
@@ -69,9 +131,13 @@ export async function runUpdateTask(server) {
 
   const taskName = `ServerStarter_Update_${sanitizeTaskName(server.id || server.name || 'server')}`;
 
+  if (!fs.existsSync(server.updateBat)) {
+    throw new Error(`update.bat not found: ${server.updateBat}`);
+  }
+
   // Create/replace one-shot task and execute immediately.
   await execWindows(
-    `schtasks /Create /TN "${taskName}" /TR "\"${server.updateBat}\"" /SC ONCE /ST 00:00 /F`
+    `schtasks /Create /TN "${taskName}" /TR "${buildTaskRunCommand(server.updateBat)}" /SC ONCE /ST 00:00 /F`
   );
 
   await execWindows(`schtasks /Run /TN "${taskName}"`);
@@ -84,6 +150,10 @@ export async function ensureUpdateTask(server) {
     throw new Error('Server has no updateBat defined');
   }
 
+  if (!fs.existsSync(server.updateBat)) {
+    throw new Error(`update.bat not found: ${server.updateBat}`);
+  }
+
   const taskName = `ServerStarter_Update_${sanitizeTaskName(server.id || server.name || 'server')}`;
 
   try {
@@ -91,8 +161,36 @@ export async function ensureUpdateTask(server) {
     return taskName;
   } catch {
     await execWindows(
-      `schtasks /Create /TN "${taskName}" /TR "\"${server.updateBat}\"" /SC ONCE /ST 00:00 /F`
+      `schtasks /Create /TN "${taskName}" /TR "${buildTaskRunCommand(server.updateBat)}" /SC ONCE /ST 00:00 /F`
     );
     return taskName;
   }
+}
+
+
+export async function ensureUpdateTasksForServers(servers = []) {
+  const result = {
+    synced: [],
+    skipped: [],
+    failed: []
+  };
+
+  for (const server of servers) {
+    if (!server?.updateBat || !fs.existsSync(server.updateBat)) {
+      result.skipped.push({ id: server?.id, reason: 'no update.bat' });
+      continue;
+    }
+
+    try {
+      const taskName = await ensureUpdateTask(server);
+      result.synced.push({ id: server.id, taskName });
+    } catch (error) {
+      result.failed.push({
+        id: server?.id,
+        reason: error?.message || 'failed'
+      });
+    }
+  }
+
+  return result;
 }

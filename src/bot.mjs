@@ -12,6 +12,8 @@ import {
 import { autoDeployIfEnabled } from './autoDeploy.mjs';
 import { startPresenceLoop } from './presence.mjs';
 import { handleCommand } from './commands.mjs';
+import { loadServers } from './serverStore.mjs';
+import { ensureUpdateTasksForServers } from './processManager.mjs';
 import { startIdracMonitor } from './idrac/idracMonitor.mjs';
 
 import {
@@ -77,6 +79,21 @@ client.once('clientReady', async () => {
 
   // ---------- IDRAC MONITOR ----------
   startIdracMonitor();
+
+  // ---------- UPDATE TASK AUTO-SYNC ----------
+  try {
+    const sync = await ensureUpdateTasksForServers(
+      loadServers({ includeDisabled: true })
+    );
+
+    if (sync.synced.length || sync.failed.length) {
+      console.log(
+        `🗓 Update tasks synced: ${sync.synced.length} ok, ${sync.failed.length} failed, ${sync.skipped.length} skipped.`
+      );
+    }
+  } catch (err) {
+    console.error('❌ Update task auto-sync failed:', err);
+  }
 
   // ---------- AUTH CHECK LOOP ----------
   setInterval(async () => {

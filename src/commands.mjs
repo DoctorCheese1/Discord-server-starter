@@ -7,7 +7,7 @@ import {
 } from './serverStore.mjs';
 import fs from 'fs';
 import { EmbedBuilder } from 'discord.js';
-import { ensureUpdateTask, isRunning, runUpdateTask } from './processManager.mjs';
+import { ensureUpdateTask, isRunning, runUpdateTask, startServer, stopServer } from './processManager.mjs';
 
 import {
   listSteamGames,
@@ -40,6 +40,40 @@ import {
 /* ======================================================
    MAIN HANDLER
 ====================================================== */
+
+
+async function getIdracGateState() {
+  const monitor = await refreshIdracMonitor();
+  const status = await getIdracStatus();
+
+  return {
+    monitor,
+    status,
+    online: monitor.reachable && status.reachable && status.power === 'ON'
+  };
+}
+
+async function denyIfIdracOffline(interaction) {
+  const gate = await getIdracGateState();
+
+  if (gate.online) {
+    return null;
+  }
+
+  const reason = [
+    gate.monitor.reachable ? null : 'network unreachable',
+    gate.status.reachable ? null : 'status check failed',
+    gate.status.power === 'ON' ? null : `power=${gate.status.power}`
+  ].filter(Boolean).join(', ');
+
+  await interaction.editReply(
+    `⛔ Command blocked. iDRAC target is not online yet (${reason || 'unknown'}). ` +
+    'Use `/idrac status` and power it on first.'
+  );
+
+  return gate;
+}
+
 async function getServerState(server) {
   if (server.enabled === false) {
     return { emoji: '⚫', label: 'Disabled', color: 0x2f3136 };
@@ -93,7 +127,7 @@ export async function handleCommand(interaction) {
 
       const results = await Promise.all(
         servers.map(async s => {
-          if (!s.updateBat) {
+          if (!s.updateBat || !fs.existsSync(s.updateBat)) {
             return { id: s.id, status: 'skipped', reason: 'no updateBat' };
           }
 
@@ -125,10 +159,18 @@ export async function handleCommand(interaction) {
 
   if (cmd === 'status') {
     const servers = loadServers({ includeDisabled: true });
+    const monitor = getIdracMonitorState();
+    const idracLine = monitor.reachable
+      ? '🟢 iDRAC network reachable'
+      : `🔴 iDRAC offline (${monitor.lastError || 'no response'})`;
+
     return interaction.editReply(
-      servers.length
-        ? servers.map(s => `• ${s.name}`).join('\n')
-        : 'No servers configured.'
+      [
+        idracLine,
+        servers.length
+          ? servers.map(s => `• ${s.name}`).join('\n')
+          : 'No servers configured.'
+      ].join('\n')
     );
   }
 
@@ -160,6 +202,9 @@ export async function handleCommand(interaction) {
   ====================================================== */
 
   if (['start', 'stop', 'restart'].includes(cmd)) {
+    const gate = await denyIfIdracOffline(interaction);
+    if (gate) return;
+
     const id = interaction.options.getString('id');
     const server = getServer(id);
 
@@ -167,10 +212,27 @@ export async function handleCommand(interaction) {
       return interaction.editReply('❌ Server not found.');
     }
 
-    return interaction.editReply(
-      `🛠 **${cmd.toUpperCase()}** requested for **${server.name}**`
-    );
-    // actual execution handled by your process manager
+    try {
+      if (cmd === 'start') {
+        const pid = await startServer(server);
+        return interaction.editReply(`✅ Started **${server.name}** (PID: ${pid}).`);
+      }
+
+      if (cmd === 'stop') {
+        const stopped = await stopServer(server);
+        return interaction.editReply(
+          stopped
+            ? `🛑 Stopped **${server.name}**.`
+            : `⚠ Stop command sent for **${server.name}**, but no tracked PID was found.`
+        );
+      }
+
+      await stopServer(server);
+      const pid = await startServer(server);
+      return interaction.editReply(`🔄 Restarted **${server.name}** (PID: ${pid}).`);
+    } catch (error) {
+      return interaction.editReply(`❌ ${cmd} failed: ${error?.message || 'unknown error'}`);
+    }
   }
 
   /* ======================================================
@@ -210,12 +272,16 @@ export async function handleCommand(interaction) {
     }
 
     if (sub === 'enable' || sub === 'disable') {
+      const gate = await denyIfIdracOffline(interaction);
+      if (gate) return;
       const id = interaction.options.getString('id');
       setServer(id, { enabled: sub === 'enable' });
       return interaction.editReply(`✅ Server **${id}** updated.`);
     }
 
     if (sub === 'rename') {
+      const gate = await denyIfIdracOffline(interaction);
+      if (gate) return;
       const id = interaction.options.getString('id');
       const name = interaction.options.getString('name');
       setServer(id, { name });
@@ -223,6 +289,8 @@ export async function handleCommand(interaction) {
     }
 
     if (sub === 'set-java') {
+      const gate = await denyIfIdracOffline(interaction);
+      if (gate) return;
       const id = interaction.options.getString('id');
       const value = interaction.options.getBoolean('value');
       setServer(id, { java: value });
@@ -230,6 +298,8 @@ export async function handleCommand(interaction) {
     }
 
     if (sub === 'set-steam') {
+      const gate = await denyIfIdracOffline(interaction);
+      if (gate) return;
       const id = interaction.options.getString('id');
       const value = interaction.options.getBoolean('value');
       setServer(id, { steam: value });
@@ -237,6 +307,8 @@ export async function handleCommand(interaction) {
     }
 
     if (sub === 'set-process') {
+      const gate = await denyIfIdracOffline(interaction);
+      if (gate) return;
       const id = interaction.options.getString('id');
       const name = interaction.options.getString('name');
       setServer(id, { processName: name });
@@ -271,6 +343,8 @@ export async function handleCommand(interaction) {
 
   /* ---------- ADD STEAM SERVER ---------- */
     if (sub === 'add') {
+      const gate = await denyIfIdracOffline(interaction);
+      if (gate) return;
       const id = interaction.options.getString('id', true);
       const appid = interaction.options.getInteger('appid', true);
       const customDir = interaction.options.getString('dir');
@@ -306,6 +380,8 @@ export async function handleCommand(interaction) {
 
   /* ---------- UPDATE STEAM SERVER ---------- */
     if (sub === 'update') {
+      const gate = await denyIfIdracOffline(interaction);
+      if (gate) return;
       const updateAll = interaction.options.getBoolean('all') === true;
       const id = interaction.options.getString('id');
 
@@ -366,6 +442,8 @@ export async function handleCommand(interaction) {
 
   /* ---------- ADD GAME TO REGISTRY ---------- */
     if (sub === 'addgame') {
+      const gate = await denyIfIdracOffline(interaction);
+      if (gate) return;
       const appid = interaction.options.getInteger('appid', true);
       const name = interaction.options.getString('name', true);
 
@@ -377,6 +455,8 @@ export async function handleCommand(interaction) {
 
   /* ---------- REMOVE GAME ---------- */
     if (sub === 'removegame') {
+      const gate = await denyIfIdracOffline(interaction);
+      if (gate) return;
       const appid = interaction.options.getInteger('appid', true);
       removeSteamGame(appid);
       return interaction.editReply(
@@ -396,10 +476,13 @@ export async function handleCommand(interaction) {
     if (sub === 'status') {
       const status = await getIdracStatus();
 
+      const monitor = await refreshIdracMonitor();
       return interaction.editReply(
         `🖥 **iDRAC Status**\n` +
         `Power: **${status.power}**\n` +
-        `State: **${status.state ?? 'unknown'}**`
+        `State: **${status.state ?? 'unknown'}**\n` +
+        `Reachable: **${monitor.reachable ? 'yes' : 'no'}**` +
+        `${monitor.lastError ? `\nError: ${monitor.lastError}` : ''}`
       );
     }
 
