@@ -35,6 +35,8 @@ export async function startServer(server) {
 
   // Launch exactly like the legacy flow: start the server's start.bat directly.
   // Keeping this as a simple cmd invocation avoids PowerShell quoting/working-dir issues.
+  // NOTE: Future improvement planned in a follow-up PR: add a dedicated SSH-native start path
+  // for remote Windows hosts while keeping this .bat fallback for compatibility.
   await execWindows(`cmd /c start "" "${server.startBat}"`);
 }
 
