@@ -203,9 +203,6 @@ export async function handleCommand(interaction) {
       return interaction.editReply('❌ Server not found.');
     }
 
-    const gateReply = await requireIdracOnline(interaction, `${cmd} **${server.name}**`);
-    if (gateReply) return gateReply;
-
     try {
       if (cmd === 'start') {
         await startServer(server);

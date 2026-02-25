@@ -14,9 +14,6 @@ function getPid(server) {
   return pid || null;
 }
 
-function shellQuote(value) {
-  return String(value).replace(/'/g, "''");
-}
 
 function hasProcessFallback(server) {
   return Boolean(server?.processName);
@@ -36,22 +33,9 @@ export async function startServer(server) {
     throw new Error('Server has no startBat defined');
   }
 
-  const startBat = shellQuote(server.startBat);
-  const cwd = shellQuote(server.cwd || '.');
-  const pidFile = shellQuote(server.pidFile || '');
-
-  const command = [
-    '$ErrorActionPreference = "Stop";',
-    `$p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c \"${startBat}\"" -WorkingDirectory '${cwd}' -PassThru;`
-  ];
-
-  if (server.pidFile) {
-    command.push(
-      `Set-Content -Path '${pidFile}' -Value $p.Id -Encoding ascii;`
-    );
-  }
-
-  await execWindows(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${command.join(' ')}"`);
+  // Launch exactly like the legacy flow: start the server's start.bat directly.
+  // Keeping this as a simple cmd invocation avoids PowerShell quoting/working-dir issues.
+  await execWindows(`cmd /c start "" "${server.startBat}"`);
 }
 
 export async function stopServer(server) {
