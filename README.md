@@ -27,6 +27,8 @@ This bot is **control-only** by design. It does not install servers, download fi
 
 All servers **must already exist and work manually** before being added.
 
+> New: folders inside `BASE_SERVER_DIR` (or `C:/Servers` by default) are now auto-added to `data/servers.json`.
+
 ---
 
 ## Basic Concept (Important)
@@ -88,14 +90,26 @@ C:\Servers\MyServer
 
 ## Registering a Server
 
-Servers are added through Discord commands.
+Servers can be added through Discord commands **or** auto-discovered from your servers folder.
 
-When registering a server, you provide:
+### Auto-discovery
 
-* a unique server ID
-* the server directory path
+On config read, the bot scans:
 
-Once registered, the bot can control it.
+* `BASE_SERVER_DIR` (if set), otherwise
+* `C:/Servers` by default
+
+Every direct subfolder is auto-added into `data/servers.json` if it is not already present.
+
+### Type auto-detection
+
+Newly discovered folders are classified as:
+
+* `minecraft` if common Minecraft files exist (`eula.txt`, `server.properties`, or a `minecraft*.jar`)
+* `steam` if Steam artifacts are found (`steam_appid`, `steamcmd`, or `.acf`)
+* `generic` otherwise
+
+You can still edit server metadata later with `/config` commands.
 
 ---
 
@@ -219,7 +233,7 @@ This avoids:
 BASE_SERVER_DIR=C:\Servers
 ```
 
-Used as a default location when registering servers.
+Used as the auto-discovery root for server folders.
 
 ---
 
