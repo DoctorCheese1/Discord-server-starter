@@ -77,6 +77,14 @@ async function getServerState(server) {
 
 
 async function requireIdracOnline(interaction, actionLabel = 'run this command') {
+  const idracPlatform = process.env.IDRAC_PLATFORM?.toLowerCase();
+
+  // Only enforce iDRAC host gating when running in linux mode.
+  // On windows mode, commands can continue without iDRAC checks.
+  if (idracPlatform !== 'linux') {
+    return null;
+  }
+
   const monitor = await refreshIdracMonitor();
 
   if (!monitor.reachable) {
