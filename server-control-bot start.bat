@@ -2,7 +2,7 @@
 setlocal
 title server control bot
 REM Go to the folder this .bat is in
-cd /d C:\Users\primeplaymain\Documents\server-control-bot
+cd /d C:\Users\primeplaymain\Documents\Discord-server-starter
 node src/bot.mjs
 
 
