@@ -58,6 +58,11 @@ export function buildCommands() {
       .setDMPermission(true),
 
     new SlashCommandBuilder()
+      .setName('webeditor')
+      .setDescription('Show web editor status and URL')
+      .setDMPermission(true),
+
+    new SlashCommandBuilder()
       .setName('info')
       .setDescription('Server info')
       .setDMPermission(true)

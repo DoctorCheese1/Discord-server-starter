@@ -176,6 +176,25 @@ export async function handleCommand(interaction) {
     );
   }
 
+
+  if (cmd === 'webeditor') {
+    const enabled = process.env.WEB_EDITOR_ENABLED === 'true';
+    const port = process.env.WEB_EDITOR_PORT || '8787';
+    const hasKey = Boolean(process.env.WEB_EDITOR_API_KEY);
+
+    if (!enabled) {
+      return interaction.editReply(
+        '⚠ Web editor is disabled. Set `WEB_EDITOR_ENABLED=true` and restart the bot.'
+      );
+    }
+
+    return interaction.editReply(
+      `🌐 Web editor is enabled.\n` +
+      `URL: **http://<host>:${port}/**\n` +
+      `API key required: **${hasKey ? 'yes' : 'no'}**`
+    );
+  }
+
   if (cmd === 'info') {
     const id = interaction.options.getString('id', true);
     const server = getServer(id, { includeDisabled: true });
