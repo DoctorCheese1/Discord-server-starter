@@ -77,6 +77,14 @@ async function getServerState(server) {
 
 
 async function requireIdracOnline(interaction, actionLabel = 'run this command') {
+  const idracPlatform = process.env.IDRAC_PLATFORM?.toLowerCase();
+
+  // Only enforce iDRAC host gating when running in linux mode.
+  // On windows mode, commands can continue without iDRAC checks.
+  if (idracPlatform !== 'linux') {
+    return null;
+  }
+
   const monitor = await refreshIdracMonitor();
 
   if (!monitor.reachable) {
@@ -165,6 +173,25 @@ export async function handleCommand(interaction) {
       servers.length
         ? servers.map(s => `• ${s.name}`).join('\n')
         : 'No servers configured.'
+    );
+  }
+
+
+  if (cmd === 'webeditor') {
+    const enabled = process.env.WEB_EDITOR_ENABLED === 'true';
+    const port = process.env.WEB_EDITOR_PORT || '8787';
+    const hasKey = Boolean(process.env.WEB_EDITOR_API_KEY);
+
+    if (!enabled) {
+      return interaction.editReply(
+        '⚠ Web editor is disabled. Set `WEB_EDITOR_ENABLED=true` and restart the bot.'
+      );
+    }
+
+    return interaction.editReply(
+      `🌐 Web editor is enabled.\n` +
+      `URL: **http://<host>:${port}/**\n` +
+      `API key required: **${hasKey ? 'yes' : 'no'}**`
     );
   }
 

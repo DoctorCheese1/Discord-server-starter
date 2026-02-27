@@ -27,6 +27,8 @@ This bot is **control-only** by design. It does not install servers, download fi
 
 All servers **must already exist and work manually** before being added.
 
+> New: folders inside `BASE_SERVER_DIR` (or `C:/Servers` by default) are now auto-added to `data/servers.json`.
+
 ---
 
 ## Basic Concept (Important)
@@ -88,14 +90,26 @@ C:\Servers\MyServer
 
 ## Registering a Server
 
-Servers are added through Discord commands.
+Servers can be added through Discord commands **or** auto-discovered from your servers folder.
 
-When registering a server, you provide:
+### Auto-discovery
 
-* a unique server ID
-* the server directory path
+On config read, the bot scans:
 
-Once registered, the bot can control it.
+* `BASE_SERVER_DIR` (if set), otherwise
+* `C:/Servers` by default
+
+Every direct subfolder is auto-added into `data/servers.json` if it is not already present.
+
+### Type auto-detection
+
+Newly discovered folders are classified as:
+
+* `minecraft` if common Minecraft files exist (`eula.txt`, `server.properties`, or a `minecraft*.jar`)
+* `steam` if Steam artifacts are found (`steam_appid`, `steamcmd`, or `.acf`)
+* `generic` otherwise
+
+You can still edit server metadata later with `/config` commands.
 
 ---
 
@@ -110,6 +124,12 @@ Lists all registered servers and their current state.
 ### /status
 
 Shows a short list of configured servers.
+
+---
+
+### /webeditor
+
+Shows whether the web editor is enabled and the URL/port to open in your browser.
 
 ---
 
@@ -219,7 +239,60 @@ This avoids:
 BASE_SERVER_DIR=C:\Servers
 ```
 
-Used as a default location when registering servers.
+Used as the auto-discovery root for server folders.
+
+---
+
+
+## Web File Editor (Optional)
+
+You can run a built-in browser editor to change text-based game/server files without building a separate website.
+
+Set environment variables:
+
+```env
+WEB_EDITOR_ENABLED=true
+WEB_EDITOR_PORT=8787
+WEB_EDITOR_API_KEY=your-strong-key
+```
+
+Then open: `http://<host>:8787/`
+
+Features:
+* lists registered servers
+* lists editable text files under each server folder
+* load/save files directly from browser
+
+Safety limits:
+* path traversal blocked (file must stay under server folder)
+* allowed extensions only (`.txt`, `.json`, `.cfg`, `.ini`, `.properties`, `.yaml`, `.yml`, `.xml`, `.bat`, `.sh`, `.log`, `.conf`)
+* max file size/content: 1MB
+
+> Use `WEB_EDITOR_API_KEY` in production.
+
+### How to generate an API key
+
+`WEB_EDITOR_API_KEY` is a secret string you create yourself.
+
+Example generators:
+
+**PowerShell (Windows):**
+```powershell
+[guid]::NewGuid().ToString("N") + [guid]::NewGuid().ToString("N")
+```
+
+**Node.js:**
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Then paste the generated value into your `.env`:
+
+```env
+WEB_EDITOR_API_KEY=<paste-generated-key-here>
+```
+
+Keep this key private and rotate it if it is ever shared.
 
 ---
 
