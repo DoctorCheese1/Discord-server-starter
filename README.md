@@ -127,12 +127,6 @@ Shows a short list of configured servers.
 
 ---
 
-### /webeditor
-
-Shows whether the web editor is enabled and the URL/port to open in your browser.
-
----
-
 ### /info id:<serverId>
 
 Displays detailed information about a server:
@@ -269,30 +263,6 @@ Safety limits:
 * max file size/content: 1MB
 
 > Use `WEB_EDITOR_API_KEY` in production.
-
-### How to generate an API key
-
-`WEB_EDITOR_API_KEY` is a secret string you create yourself.
-
-Example generators:
-
-**PowerShell (Windows):**
-```powershell
-[guid]::NewGuid().ToString("N") + [guid]::NewGuid().ToString("N")
-```
-
-**Node.js:**
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-Then paste the generated value into your `.env`:
-
-```env
-WEB_EDITOR_API_KEY=<paste-generated-key-here>
-```
-
-Keep this key private and rotate it if it is ever shared.
 
 ---
 
