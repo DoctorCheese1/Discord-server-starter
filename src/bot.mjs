@@ -15,6 +15,7 @@ import { handleCommand } from './commands.mjs';
 import { startIdracMonitor } from './idrac/idracMonitor.mjs';
 import { loadServers } from './serverStore.mjs';
 import { ensureInstalledUpdateTasks } from './processManager.mjs';
+import { startWebEditor } from './webEditor.mjs';
 
 import {
   getSearch,
@@ -76,6 +77,9 @@ client.once('clientReady', async () => {
 
   // ---------- PRESENCE ----------
   startPresenceLoop(client);
+
+  // ---------- WEB FILE EDITOR ----------
+  startWebEditor();
 
   // ---------- IDRAC MONITOR ----------
   startIdracMonitor();

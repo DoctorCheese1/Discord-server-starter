@@ -237,6 +237,35 @@ Used as the auto-discovery root for server folders.
 
 ---
 
+
+## Web File Editor (Optional)
+
+You can run a built-in browser editor to change text-based game/server files without building a separate website.
+
+Set environment variables:
+
+```env
+WEB_EDITOR_ENABLED=true
+WEB_EDITOR_PORT=8787
+WEB_EDITOR_API_KEY=your-strong-key
+```
+
+Then open: `http://<host>:8787/`
+
+Features:
+* lists registered servers
+* lists editable text files under each server folder
+* load/save files directly from browser
+
+Safety limits:
+* path traversal blocked (file must stay under server folder)
+* allowed extensions only (`.txt`, `.json`, `.cfg`, `.ini`, `.properties`, `.yaml`, `.yml`, `.xml`, `.bat`, `.sh`, `.log`, `.conf`)
+* max file size/content: 1MB
+
+> Use `WEB_EDITOR_API_KEY` in production.
+
+---
+
 ## Startup Behavior (Current)
 
 - Server startup uses a direct Windows `.bat` launch flow (`cmd /c start "" "<start.bat>"`).
