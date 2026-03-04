@@ -238,6 +238,26 @@ Used as the auto-discovery root for server folders.
 ---
 
 
+For Raspberry Pi / iDRAC-only control, you can run a lightweight mode:
+
+```env
+IDRAC_ONLY_MODE=true
+```
+
+`IDRAC_ONLY_MODE` is a boolean-like flag. The bot treats these values as **enabled**:
+
+- `1`
+- `true`
+- `yes`
+- `on`
+
+Values are case-insensitive and trimmed, so `TRUE`, ` Yes `, and `on` all work. Any other value (or leaving it unset) means the mode is off.
+
+When enabled, only `/idrac` commands are registered and startup skips server, Steam, web editor, and task-sync subsystems. Presence switches to an iDRAC-only status mode: **green/online + `iDRAC ON`** when power is on, and **red/dnd + `iDRAC OFF`** when power is off.
+
+---
+
+
 ## Web File Editor (Optional)
 
 You can run a built-in browser editor to change text-based game/server files without building a separate website.

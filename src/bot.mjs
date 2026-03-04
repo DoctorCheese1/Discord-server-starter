@@ -10,7 +10,7 @@ import {
 } from 'discord.js';
 
 import { autoDeployIfEnabled } from './autoDeploy.mjs';
-import { startPresenceLoop } from './presence.mjs';
+import { startPresenceLoop, startIdracPresenceLoop } from './presence.mjs';
 import { handleCommand } from './commands.mjs';
 import { startIdracMonitor } from './idrac/idracMonitor.mjs';
 import { loadServers } from './serverStore.mjs';
@@ -29,6 +29,7 @@ import {
 } from './steam/steamGameStore.mjs';
 
 import { buildSearchPage } from './steam/steamSearchUI.mjs';
+import { isIdracOnlyMode } from './mode.mjs';
 
 /* ================= ENV ================= */
 dotenv.config({
@@ -67,31 +68,46 @@ const client = new Client({
 /* ================= READY ================= */
 client.once('clientReady', async () => {
   console.log(`✅ DM-only bot online as ${client.user.tag}`);
+  const idracOnly = isIdracOnlyMode();
+
+  if (idracOnly) {
+    console.log('🧩 IDRAC_ONLY_MODE enabled: skipping server/steam/web subsystems.');
+  }
 
   // ---------- AUTO DEPLOY ----------
-  try {
-    await autoDeployIfEnabled();
-  } catch (err) {
-    console.error('❌ Auto-deploy failed:', err);
+  if (!idracOnly) {
+    try {
+      await autoDeployIfEnabled();
+    } catch (err) {
+      console.error('❌ Auto-deploy failed:', err);
+    }
   }
 
   // ---------- PRESENCE ----------
-  startPresenceLoop(client);
+  if (idracOnly) {
+    startIdracPresenceLoop(client);
+  } else {
+    startPresenceLoop(client);
+  }
 
   // ---------- WEB FILE EDITOR ----------
-  startWebEditor();
+  if (!idracOnly) {
+    startWebEditor();
+  }
 
   // ---------- IDRAC MONITOR ----------
   startIdracMonitor();
 
   // ---------- TASK SCHEDULER SYNC ----------
-  try {
-    const taskSync = await ensureInstalledUpdateTasks(loadServers({ includeDisabled: true }));
-    const synced = taskSync.filter(r => r.status === 'synced').length;
-    const failed = taskSync.filter(r => r.status === 'failed').length;
-    console.log(`🗓 Update task sync complete: ${synced} synced, ${failed} failed.`);
-  } catch (err) {
-    console.error('❌ Update task sync failed:', err);
+  if (!idracOnly) {
+    try {
+      const taskSync = await ensureInstalledUpdateTasks(loadServers({ includeDisabled: true }));
+      const synced = taskSync.filter(r => r.status === 'synced').length;
+      const failed = taskSync.filter(r => r.status === 'failed').length;
+      console.log(`🗓 Update task sync complete: ${synced} synced, ${failed} failed.`);
+    } catch (err) {
+      console.error('❌ Update task sync failed:', err);
+    }
   }
 
   // ---------- AUTH CHECK LOOP ----------
@@ -158,6 +174,8 @@ client.once('clientReady', async () => {
 
 /* ================= INTERACTIONS ================= */
 client.on('interactionCreate', async interaction => {
+  const idracOnly = isIdracOnlyMode();
+
   // SLASH COMMANDS
   if (interaction.isChatInputCommand()) {
     try {
@@ -171,6 +189,10 @@ client.on('interactionCreate', async interaction => {
 
   // BUTTONS
   if (!interaction.isButton()) return;
+
+  if (idracOnly) {
+    return;
+  }
 
   try {
     await interaction.deferUpdate();

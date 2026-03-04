@@ -3,6 +3,7 @@ import pidusage from 'pidusage';
 import { ActivityType } from 'discord.js';
 import { loadServers } from './serverStore.mjs';
 import { isRunning } from './processManager.mjs';
+import { getIdracStatus } from './idrac/idrac.mjs';
 
 /* ======================================================
    CONFIG
@@ -13,6 +14,33 @@ const UPDATE_INTERVAL_MS = 15000; // 15 seconds (safe)
 /* ======================================================
    PRESENCE LOOP
 ====================================================== */
+
+
+
+export function startIdracPresenceLoop(client) {
+  let lastText = null;
+  let lastStatus = null;
+
+  async function updateIdracPresence() {
+    try {
+      const status = await getIdracStatus();
+      const isOn = String(status?.power || '').toUpperCase() === 'ON';
+      const presenceStatus = isOn ? 'online' : 'dnd';
+      const text = isOn ? 'iDRAC ON' : 'iDRAC OFF';
+
+      if (text !== lastText || presenceStatus !== lastStatus) {
+        setPresence(client, presenceStatus, text);
+        lastText = text;
+        lastStatus = presenceStatus;
+      }
+    } catch (err) {
+      console.error('❌ iDRAC presence update failed:', err);
+    }
+  }
+
+  updateIdracPresence();
+  setInterval(updateIdracPresence, UPDATE_INTERVAL_MS);
+}
 
 export function startPresenceLoop(client) {
   let lastText = null;
