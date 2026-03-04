@@ -10,7 +10,7 @@ import {
 } from 'discord.js';
 
 import { autoDeployIfEnabled } from './autoDeploy.mjs';
-import { startPresenceLoop } from './presence.mjs';
+import { startPresenceLoop, startIdracPresenceLoop } from './presence.mjs';
 import { handleCommand } from './commands.mjs';
 import { startIdracMonitor } from './idrac/idracMonitor.mjs';
 import { loadServers } from './serverStore.mjs';
