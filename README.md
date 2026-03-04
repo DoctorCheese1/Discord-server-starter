@@ -244,6 +244,15 @@ For Raspberry Pi / iDRAC-only control, you can run a lightweight mode:
 IDRAC_ONLY_MODE=true
 ```
 
+`IDRAC_ONLY_MODE` is a boolean-like flag. The bot treats these values as **enabled**:
+
+- `1`
+- `true`
+- `yes`
+- `on`
+
+Values are case-insensitive and trimmed, so `TRUE`, ` Yes `, and `on` all work. Any other value (or leaving it unset) means the mode is off.
+
 When enabled, only `/idrac` commands are registered and startup skips server, Steam, web editor, presence, and task-sync subsystems.
 
 ---
