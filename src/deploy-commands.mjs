@@ -6,6 +6,7 @@ import { REST, Routes, SlashCommandBuilder } from 'discord.js';
 
 import { serverChoices } from './serverStore.mjs';
 import { steamGameChoices } from './steam/steamGameStore.mjs';
+import { isIdracOnlyMode } from './mode.mjs';
 
 /* ================= PATHS ================= */
 const __filename = fileURLToPath(import.meta.url);
@@ -44,6 +45,22 @@ function safeSteamGameChoices() {
 
 /* ================= BUILD ================= */
 export function buildCommands() {
+  const idracOnly = isIdracOnlyMode();
+
+  if (idracOnly) {
+    return [
+      new SlashCommandBuilder()
+        .setName('idrac')
+        .setDescription('iDRAC power control')
+        .setDMPermission(true)
+        .addSubcommand(sc => sc.setName('status').setDescription('Power status'))
+        .addSubcommand(sc => sc.setName('on').setDescription('Power on'))
+        .addSubcommand(sc => sc.setName('off').setDescription('Power off'))
+        .addSubcommand(sc => sc.setName('reboot').setDescription('Reboot'))
+        .toJSON()
+    ];
+  }
+
   const cmds = [
 
     /* ===== BASIC ===== */

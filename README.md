@@ -238,6 +238,17 @@ Used as the auto-discovery root for server folders.
 ---
 
 
+For Raspberry Pi / iDRAC-only control, you can run a lightweight mode:
+
+```env
+IDRAC_ONLY_MODE=true
+```
+
+When enabled, only `/idrac` commands are registered and startup skips server, Steam, web editor, presence, and task-sync subsystems.
+
+---
+
+
 ## Web File Editor (Optional)
 
 You can run a built-in browser editor to change text-based game/server files without building a separate website.

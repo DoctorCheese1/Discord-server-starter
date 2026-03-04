@@ -43,6 +43,7 @@ import {
   getIdracMonitorState,
   refreshIdracMonitor
 } from './idrac/idracMonitor.mjs';
+import { isIdracOnlyMode } from './mode.mjs';
 
 /* ======================================================
    MAIN HANDLER
@@ -109,6 +110,11 @@ function isMutatingConfigSubcommand(sub) {
 }
 export async function handleCommand(interaction) {
   const cmd = interaction.commandName;
+  const idracOnly = isIdracOnlyMode();
+
+  if (idracOnly && cmd !== 'idrac') {
+    return interaction.editReply('⚙️ This bot is running in iDRAC-only mode. Use `/idrac` commands.');
+  }
 
   /* ======================================================
      BASIC
