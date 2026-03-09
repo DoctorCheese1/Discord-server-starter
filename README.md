@@ -318,4 +318,3 @@ Safety limits:
 * The bot remains game-agnostic and stable
 
 ---
-
