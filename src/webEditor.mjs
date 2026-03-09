@@ -42,6 +42,11 @@ function isAuthorized(req, apiKey) {
   return fromQuery === apiKey || fromHeader === apiKey;
 }
 
+
+function isEditorShellRequest(req, pathname) {
+  return req.method === 'GET' && pathname === '/';
+}
+
 function findServer(serverId) {
   return loadServers({ includeDisabled: true }).find(s => s.id === serverId);
 }
@@ -197,12 +202,17 @@ export function startWebEditor() {
     try {
       const url = new URL(req.url, 'http://localhost');
 
-      if (!isAuthorized(req, apiKey)) {
-        return sendJson(res, 401, { error: 'Unauthorized' });
+      if (isEditorShellRequest(req, url.pathname)) {
+        return sendHtml(res, editorPage());
       }
 
-      if (req.method === 'GET' && url.pathname === '/') {
-        return sendHtml(res, editorPage());
+      if (req.method === 'GET' && url.pathname === '/favicon.ico') {
+        res.writeHead(204);
+        return res.end();
+      }
+
+      if (!isAuthorized(req, apiKey)) {
+        return sendJson(res, 401, { error: 'Unauthorized' });
       }
 
       if (req.method === 'GET' && url.pathname === '/api/servers') {
