@@ -268,9 +268,18 @@ Set environment variables:
 WEB_EDITOR_ENABLED=true
 WEB_EDITOR_PORT=8787
 WEB_EDITOR_API_KEY=your-strong-key
+# Optional: auth state polling interval in ms (min 1000, default 3600000)
+AUTH_CHECK_INTERVAL_MS=1000
 ```
 
 Then open: `http://<host>:8787/`
+
+Access tips:
+* If running on the same machine: `http://localhost:8787/`
+* If running on another host/LAN: `http://<server-ip>:8787/`
+* If `WEB_EDITOR_API_KEY` is set, paste it into the **API Key** field in the page before loading files
+* If API calls show `Unauthorized` / `access denied`, verify the key matches `WEB_EDITOR_API_KEY` and then click into another field to trigger reload
+* You can also run `/webeditor` in Discord to confirm the URL/port and whether API-key auth is enabled
 
 Features:
 * lists registered servers
