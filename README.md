@@ -284,7 +284,9 @@ Access tips:
 Features:
 * lists registered servers
 * lists editable text files under each server folder
+* search files by name/path from inside the editor
 * load/save files directly from browser
+* remembers API key in browser local storage for easier reconnects
 
 Safety limits:
 * path traversal blocked (file must stay under server folder)
