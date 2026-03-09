@@ -42,6 +42,11 @@ function isAuthorized(req, apiKey) {
   return fromQuery === apiKey || fromHeader === apiKey;
 }
 
+
+function isEditorShellRequest(req, pathname) {
+  return req.method === 'GET' && pathname === '/';
+}
+
 function findServer(serverId) {
   return loadServers({ includeDisabled: true }).find(s => s.id === serverId);
 }
@@ -79,7 +84,7 @@ function listEditableFiles(cwd, maxDepth = 3) {
   return results.sort();
 }
 
-function editorPage() {
+function editorPage(prefilledApiKey = '') {
   return `<!doctype html>
 <html>
 <head>
@@ -92,6 +97,8 @@ function editorPage() {
     textarea { min-height: 55vh; font-family: Consolas, monospace; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
     .muted { color: #aaa; font-size: .9rem; }
+    .popup { position: fixed; top: 1rem; right: 1rem; background: #1f6f43; color: #fff; border: 1px solid #2ecc71; border-radius: .5rem; padding: .8rem 1rem; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity .2s, transform .2s; }
+    .popup.show { opacity: 1; transform: translateY(0); }
   </style>
 </head>
 <body>
@@ -99,7 +106,7 @@ function editorPage() {
   <p class="muted">Use this page to edit text config files under discovered server folders.</p>
 
   <label>API Key (if configured)</label>
-  <input id="key" placeholder="WEB_EDITOR_API_KEY" />
+  <input id="key" placeholder="WEB_EDITOR_API_KEY" autocomplete="off" />
 
   <div class="row">
     <div>
@@ -108,6 +115,7 @@ function editorPage() {
     </div>
     <div>
       <label>File</label>
+      <input id="fileSearch" placeholder="Search files..." />
       <select id="file"></select>
     </div>
   </div>
@@ -116,6 +124,7 @@ function editorPage() {
   <textarea id="content" placeholder="File contents..."></textarea>
   <button id="save">Save File</button>
   <div id="status" class="muted"></div>
+  <div id="savePopup" class="popup">✅ File saved successfully</div>
 
   <script>
     const status = document.getElementById('status');
@@ -123,6 +132,33 @@ function editorPage() {
     const fileSel = document.getElementById('file');
     const content = document.getElementById('content');
     const keyInput = document.getElementById('key');
+    const fileSearchInput = document.getElementById('fileSearch');
+    const savePopup = document.getElementById('savePopup');
+
+    const KEY_STORAGE_NAME = 'web_editor_api_key';
+    const SERVER_PROVIDED_KEY = ${JSON.stringify(prefilledApiKey)};
+    let allFiles = [];
+    let popupTimer;
+
+    function showSavePopup(file) {
+      savePopup.textContent = '✅ Saved ' + file;
+      savePopup.classList.add('show');
+      clearTimeout(popupTimer);
+      popupTimer = setTimeout(() => savePopup.classList.remove('show'), 1800);
+    }
+
+    function renderFiles(filter = '') {
+      const query = filter.trim().toLowerCase();
+      const files = query
+        ? allFiles.filter(f => f.toLowerCase().includes(query))
+        : allFiles;
+
+      const current = fileSel.value;
+      fileSel.innerHTML = files.map(f => '<option value="' + f + '">' + f + '</option>').join('');
+      if (current && files.includes(current)) {
+        fileSel.value = current;
+      }
+    }
 
     function withKey(url) {
       const key = keyInput.value.trim();
@@ -146,7 +182,8 @@ function editorPage() {
     async function loadFiles() {
       const id = serverSel.value;
       const data = await fetchJson('/api/files?serverId=' + encodeURIComponent(id));
-      fileSel.innerHTML = data.files.map(f => '<option value="' + f + '">' + f + '</option>').join('');
+      allFiles = data.files;
+      renderFiles(fileSearchInput.value);
     }
 
     document.getElementById('load').onclick = async () => {
@@ -171,19 +208,41 @@ function editorPage() {
           body: JSON.stringify({ serverId: id, path: file, content: content.value })
         });
         status.textContent = '✅ Saved ' + file;
+        showSavePopup(file);
       } catch (err) {
         status.textContent = '❌ ' + err.message;
       }
     };
 
     serverSel.onchange = loadFiles;
-    keyInput.onchange = loadServers;
+    fileSearchInput.oninput = () => renderFiles(fileSearchInput.value);
+    keyInput.onchange = () => {
+      localStorage.setItem(KEY_STORAGE_NAME, keyInput.value.trim());
+      loadServers().catch(err => status.textContent = '❌ ' + err.message);
+    };
+
+    const params = new URLSearchParams(window.location.search);
+    const keyFromUrl = params.get('key');
+    const storedKey = localStorage.getItem(KEY_STORAGE_NAME);
+    const initialKey = keyFromUrl || storedKey || SERVER_PROVIDED_KEY || '';
+
+    if (initialKey) {
+      keyInput.value = initialKey;
+      localStorage.setItem(KEY_STORAGE_NAME, initialKey);
+    }
+
+    if (keyFromUrl) {
+      params.delete('key');
+      const nextQuery = params.toString();
+      const nextUrl = window.location.pathname + (nextQuery ? '?' + nextQuery : '') + window.location.hash;
+      window.history.replaceState({}, '', nextUrl);
+    }
+
     loadServers().catch(err => status.textContent = '❌ ' + err.message);
   </script>
 </body>
 </html>`;
 }
-
 export function startWebEditor() {
   const enabled = process.env.WEB_EDITOR_ENABLED === 'true';
   if (!enabled) {
@@ -197,12 +256,17 @@ export function startWebEditor() {
     try {
       const url = new URL(req.url, 'http://localhost');
 
-      if (!isAuthorized(req, apiKey)) {
-        return sendJson(res, 401, { error: 'Unauthorized' });
+      if (isEditorShellRequest(req, url.pathname)) {
+        return sendHtml(res, editorPage(apiKey));
       }
 
-      if (req.method === 'GET' && url.pathname === '/') {
-        return sendHtml(res, editorPage());
+      if (req.method === 'GET' && url.pathname === '/favicon.ico') {
+        res.writeHead(204);
+        return res.end();
+      }
+
+      if (!isAuthorized(req, apiKey)) {
+        return sendJson(res, 401, { error: 'Unauthorized' });
       }
 
       if (req.method === 'GET' && url.pathname === '/api/servers') {
