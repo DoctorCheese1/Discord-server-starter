@@ -257,7 +257,7 @@ export function startWebEditor() {
       const url = new URL(req.url, 'http://localhost');
 
       if (isEditorShellRequest(req, url.pathname)) {
-        return sendHtml(res, editorPage(apiKey));
+        return sendHtml(res, editorPage());
       }
 
       if (req.method === 'GET' && url.pathname === '/favicon.ico') {
