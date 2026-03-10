@@ -136,9 +136,18 @@ client.once('clientReady', async () => {
         const user = await client.users.fetch(userId);
 
         if (!entry.welcomed) {
-          const embed = new EmbedBuilder()
-            .setTitle('👋 Welcome to Server Starter 2.0')
-            .setDescription(
+          const welcomeDescription = idracOnly
+            ? (
+              `Your app authorization is active in **iDRAC-only mode**.\n\n` +
+              `**Quick start (iDRAC):**\n` +
+              `• \`/idrac status\` — Check power state\n` +
+              `• \`/idrac on\` — Power on the server\n` +
+              `• \`/idrac off\` — Power off the server\n` +
+              `• \`/idrac reboot\` — Reboot the server\n\n` +
+              `Presence reflects power state: **Server Online (iDRAC)** or **Server Offline (iDRAC)**.\n\n` +
+              `This welcome message is sent **once per authorization**.`
+            )
+            : (
               `Your app authorization is active.\n\n` +
               `**Quick start:**\n` +
               `• \`/servers\` — View all servers\n` +
@@ -146,7 +155,11 @@ client.once('clientReady', async () => {
               `• \`/steam add\` — Install a Steam server\n` +
               `• \`/idrac status\` — Check power state\n\n` +
               `This welcome message is sent **once per authorization**.`
-            )
+            );
+
+          const embed = new EmbedBuilder()
+            .setTitle('👋 Welcome to Server Starter 2.0')
+            .setDescription(welcomeDescription)
             .setColor(0x2ecc71)
             .setFooter({
               text: `Server Starter 2.0 • ${new Date().toLocaleString()}`
