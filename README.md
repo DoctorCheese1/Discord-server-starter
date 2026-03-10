@@ -277,18 +277,15 @@ Then open: `http://<host>:8787/`
 Access tips:
 * If running on the same machine: `http://localhost:8787/`
 * If running on another host/LAN: `http://<server-ip>:8787/`
-* If `WEB_EDITOR_API_KEY` is set, it auto-fills when you open `http://<host>:8787/` and is saved in browser storage for future visits
-* You can also open `http://<host>:8787/?key=YOUR_KEY` once; the page will auto-load it and store it for next time
+* If `WEB_EDITOR_API_KEY` is set, paste it into the **API Key** field in the page before loading files
 * If API calls show `Unauthorized` / `access denied`, verify the key matches `WEB_EDITOR_API_KEY` and then click into another field to trigger reload
 * You can also run `/webeditor` in Discord to confirm the URL/port and whether API-key auth is enabled
 
 Features:
 * lists registered servers
 * lists editable text files under each server folder
-* search files by name/path with type-ahead predictions (Discord-style)
-* search predictions are native browser suggestions: click/tap the search box and start typing to open the prediction dropdown
+* search files by name/path from inside the editor
 * load/save files directly from browser
-* shows a save confirmation popup after successful writes
 * remembers API key in browser local storage for easier reconnects
 
 Safety limits:
