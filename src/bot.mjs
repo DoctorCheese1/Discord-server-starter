@@ -42,7 +42,10 @@ const __dirname = path.dirname(__filename);
 const ROOT = path.join(__dirname, '..');
 
 const AUTH_FILE = path.join(ROOT, 'data', 'authUsers.json');
-const AUTH_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
+const DEFAULT_AUTH_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
+const AUTH_CHECK_INTERVAL = Number.isFinite(Number(process.env.AUTH_CHECK_INTERVAL_MS))
+  ? Math.max(1000, Number(process.env.AUTH_CHECK_INTERVAL_MS))
+  : DEFAULT_AUTH_CHECK_INTERVAL;
 
 /* ================= AUTH STATE ================= */
 
@@ -75,12 +78,12 @@ client.once('clientReady', async () => {
   }
 
   // ---------- AUTO DEPLOY ----------
-  if (!idracOnly) {
-    try {
-      await autoDeployIfEnabled();
-    } catch (err) {
-      console.error('❌ Auto-deploy failed:', err);
-    }
+  // Keep auto-deploy/hash behavior active in all modes so iDRAC-only command signatures
+  // are still tracked and can deploy `/idrac` when AUTO_DEPLOY=true.
+  try {
+    await autoDeployIfEnabled();
+  } catch (err) {
+    console.error('❌ Auto-deploy failed:', err);
   }
 
   // ---------- PRESENCE ----------
@@ -124,7 +127,7 @@ client.once('clientReady', async () => {
       const entry = state[userId] || {};
       const lastSeen = entry.lastSeen || 0;
 
-      // ⏱ Only once per hour
+      // ⏱ Respect configured auth check interval
       if (now - lastSeen < AUTH_CHECK_INTERVAL) continue;
 
       try {
