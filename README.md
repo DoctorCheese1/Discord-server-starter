@@ -253,7 +253,7 @@ IDRAC_ONLY_MODE=true
 
 Values are case-insensitive and trimmed, so `TRUE`, ` Yes `, and `on` all work. Any other value (or leaving it unset) means the mode is off.
 
-When enabled, only `/idrac` commands are registered and startup skips server, Steam, web editor, and task-sync subsystems. Presence switches to an iDRAC-only status mode: **green/online + `iDRAC ON`** when power is on, and **red/dnd + `iDRAC OFF`** when power is off.
+When enabled, only `/idrac` commands are registered and startup skips server, Steam, web editor, and task-sync subsystems. Presence switches to an iDRAC-only status mode: **green/online + `Server Online (iDRAC)`** when power is on, and **red/dnd + `Server Offline (iDRAC)`** when power is off. Auto-deploy/hash checks still run in this mode, using the iDRAC-only command set signature.
 
 ---
 

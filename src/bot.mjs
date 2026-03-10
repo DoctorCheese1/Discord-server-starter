@@ -78,16 +78,18 @@ client.once('clientReady', async () => {
   }
 
   // ---------- AUTO DEPLOY ----------
-  if (!idracOnly) {
-    try {
-      await autoDeployIfEnabled();
-    } catch (err) {
-      console.error('❌ Auto-deploy failed:', err);
-    }
+  // Keep auto-deploy/hash behavior active in all modes so iDRAC-only command signatures
+  // are still tracked and can deploy `/idrac` when AUTO_DEPLOY=true.
+  try {
+    await autoDeployIfEnabled();
+  } catch (err) {
+    console.error('❌ Auto-deploy failed:', err);
   }
 
   // ---------- PRESENCE ----------
-  if (!idracOnly) {
+  if (idracOnly) {
+    startIdracPresenceLoop(client);
+  } else {
     startPresenceLoop(client);
   }
 
