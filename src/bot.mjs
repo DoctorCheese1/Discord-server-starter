@@ -87,7 +87,9 @@ client.once('clientReady', async () => {
   }
 
   // ---------- PRESENCE ----------
-  if (!idracOnly) {
+  if (idracOnly) {
+    startIdracPresenceLoop(client);
+  } else {
     startPresenceLoop(client);
   }
 
