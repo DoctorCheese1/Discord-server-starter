@@ -115,9 +115,7 @@ function editorPage(prefilledApiKey = '') {
     </div>
     <div>
       <label>File</label>
-      <input id="fileSearch" placeholder="Search files..." list="filePredictions" />
-      <div class="muted">Tip: search by filename, folder path, or multiple words (e.g. <code>config json</code>).</div>
-      <datalist id="filePredictions"></datalist>
+      <input id="fileSearch" placeholder="Search files..." />
       <select id="file"></select>
     </div>
   </div>
@@ -135,7 +133,6 @@ function editorPage(prefilledApiKey = '') {
     const content = document.getElementById('content');
     const keyInput = document.getElementById('key');
     const fileSearchInput = document.getElementById('fileSearch');
-    const filePredictionList = document.getElementById('filePredictions');
     const savePopup = document.getElementById('savePopup');
 
     const KEY_STORAGE_NAME = 'web_editor_api_key';
@@ -150,96 +147,17 @@ function editorPage(prefilledApiKey = '') {
       popupTimer = setTimeout(() => savePopup.classList.remove('show'), 1800);
     }
 
-    function normalize(value) {
-      return String(value || '').trim().toLowerCase();
-    }
-
-    function baseName(filePath) {
-      const clean = String(filePath || '').replace(/\\/g, '/');
-      const parts = clean.split('/').filter(Boolean);
-      return parts.length ? parts[parts.length - 1] : clean;
-    }
-
-    function isSubsequence(needle, haystack) {
-      if (!needle) return true;
-      let i = 0;
-      for (const ch of haystack) {
-        if (ch === needle[i]) i += 1;
-        if (i >= needle.length) return true;
-      }
-      return false;
-    }
-
-    function scoreFileMatch(filePath, filter = '') {
-      const query = normalize(filter);
-      const file = normalize(filePath);
-      const name = normalize(baseName(filePath));
-      if (!query) return 1;
-
-      const terms = query.split(/\s+/).filter(Boolean);
-      if (!terms.length) return 1;
-
-      let score = 0;
-      for (const term of terms) {
-        if (file === term || name === term) {
-          score += 1200;
-          continue;
-        }
-        if (name.startsWith(term)) {
-          score += 850;
-          continue;
-        }
-        if (file.startsWith(term)) {
-          score += 700;
-          continue;
-        }
-        if (name.includes(term)) {
-          score += 550;
-          continue;
-        }
-        if (file.includes(term)) {
-          score += 350;
-          continue;
-        }
-        if (isSubsequence(term, name) || isSubsequence(term, file)) {
-          score += 120;
-          continue;
-        }
-
-        return -1;
-      }
-
-      // Prefer shorter, tighter paths for equal score
-      score += Math.max(0, 40 - file.length);
-      return score;
-    }
-
-    function rankFiles(filter = '') {
-      return allFiles
-        .map(file => ({ file, score: scoreFileMatch(file, filter) }))
-        .filter(item => item.score >= 0)
-        .sort((a, b) => b.score - a.score || a.file.localeCompare(b.file));
-    }
-
     function renderFiles(filter = '') {
-      const ranked = rankFiles(filter);
-      const files = ranked.map(item => item.file);
+      const query = filter.trim().toLowerCase();
+      const files = query
+        ? allFiles.filter(f => f.toLowerCase().includes(query))
+        : allFiles;
 
       const current = fileSel.value;
       fileSel.innerHTML = files.map(f => '<option value="' + f + '">' + f + '</option>').join('');
       if (current && files.includes(current)) {
         fileSel.value = current;
-      } else if (files.length) {
-        fileSel.value = files[0];
       }
-
-      updateFilePredictions(filter, ranked);
-    }
-
-
-    function updateFilePredictions(filter = '', ranked = rankFiles(filter)) {
-      const predicted = ranked.slice(0, 12).map(item => item.file);
-      filePredictionList.innerHTML = predicted.map(f => '<option value="' + f + '"></option>').join('');
     }
 
     function withKey(url) {
@@ -298,25 +216,6 @@ function editorPage(prefilledApiKey = '') {
 
     serverSel.onchange = loadFiles;
     fileSearchInput.oninput = () => renderFiles(fileSearchInput.value);
-    fileSearchInput.onchange = () => {
-      const query = fileSearchInput.value.trim();
-      if (query && allFiles.includes(query)) {
-        fileSel.value = query;
-        return;
-      }
-      const ranked = rankFiles(query);
-      if (ranked.length) {
-        fileSel.value = ranked[0].file;
-      }
-    };
-
-    fileSearchInput.onkeydown = event => {
-      if (event.key !== 'Enter') return;
-      const ranked = rankFiles(fileSearchInput.value);
-      if (!ranked.length) return;
-      fileSel.value = ranked[0].file;
-      event.preventDefault();
-    };
     keyInput.onchange = () => {
       localStorage.setItem(KEY_STORAGE_NAME, keyInput.value.trim());
       loadServers().catch(err => status.textContent = '❌ ' + err.message);
@@ -358,7 +257,7 @@ export function startWebEditor() {
       const url = new URL(req.url, 'http://localhost');
 
       if (isEditorShellRequest(req, url.pathname)) {
-        return sendHtml(res, editorPage(apiKey));
+        return sendHtml(res, editorPage());
       }
 
       if (req.method === 'GET' && url.pathname === '/favicon.ico') {
