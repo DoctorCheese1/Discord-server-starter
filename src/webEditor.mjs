@@ -115,8 +115,7 @@ function editorPage(prefilledApiKey = '') {
     </div>
     <div>
       <label>File</label>
-      <input id="fileSearch" placeholder="Search files..." list="filePredictions" />
-      <datalist id="filePredictions"></datalist>
+      <input id="fileSearch" placeholder="Search files..." />
       <select id="file"></select>
     </div>
   </div>
@@ -134,7 +133,6 @@ function editorPage(prefilledApiKey = '') {
     const content = document.getElementById('content');
     const keyInput = document.getElementById('key');
     const fileSearchInput = document.getElementById('fileSearch');
-    const filePredictionList = document.getElementById('filePredictions');
     const savePopup = document.getElementById('savePopup');
 
     const KEY_STORAGE_NAME = 'web_editor_api_key';
@@ -160,27 +158,6 @@ function editorPage(prefilledApiKey = '') {
       if (current && files.includes(current)) {
         fileSel.value = current;
       }
-
-      updateFilePredictions(filter);
-    }
-
-
-    function updateFilePredictions(filter = '') {
-      const query = filter.trim().toLowerCase();
-      const ranked = [...allFiles].sort((a, b) => {
-        const aLower = a.toLowerCase();
-        const bLower = b.toLowerCase();
-        const aStarts = query && aLower.startsWith(query);
-        const bStarts = query && bLower.startsWith(query);
-        if (aStarts !== bStarts) return aStarts ? -1 : 1;
-        return aLower.localeCompare(bLower);
-      });
-
-      const predicted = query
-        ? ranked.filter(f => f.toLowerCase().includes(query)).slice(0, 12)
-        : ranked.slice(0, 12);
-
-      filePredictionList.innerHTML = predicted.map(f => '<option value="' + f + '"></option>').join('');
     }
 
     function withKey(url) {
@@ -239,12 +216,6 @@ function editorPage(prefilledApiKey = '') {
 
     serverSel.onchange = loadFiles;
     fileSearchInput.oninput = () => renderFiles(fileSearchInput.value);
-    fileSearchInput.onchange = () => {
-      const query = fileSearchInput.value.trim();
-      if (query && allFiles.includes(query)) {
-        fileSel.value = query;
-      }
-    };
     keyInput.onchange = () => {
       localStorage.setItem(KEY_STORAGE_NAME, keyInput.value.trim());
       loadServers().catch(err => status.textContent = '❌ ' + err.message);
@@ -286,7 +257,7 @@ export function startWebEditor() {
       const url = new URL(req.url, 'http://localhost');
 
       if (isEditorShellRequest(req, url.pathname)) {
-        return sendHtml(res, editorPage(apiKey));
+        return sendHtml(res, editorPage());
       }
 
       if (req.method === 'GET' && url.pathname === '/favicon.ico') {
