@@ -26,7 +26,7 @@ export function startIdracPresenceLoop(client) {
       const status = await getIdracStatus();
       const isOn = String(status?.power || '').toUpperCase() === 'ON';
       const presenceStatus = isOn ? 'online' : 'dnd';
-      const text = isOn ? 'iDRAC ON' : 'iDRAC OFF';
+      const text = isOn ? 'Server Online (iDRAC)' : 'Server Offline (iDRAC)';
 
       if (text !== lastText || presenceStatus !== lastStatus) {
         setPresence(client, presenceStatus, text);
