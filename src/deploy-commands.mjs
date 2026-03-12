@@ -261,6 +261,11 @@ export function buildCommands() {
               .addChoices(...safeSteamGameChoices())
           )
           .addStringOption(o =>
+            o.setName('id')
+              .setDescription('Optional server id/folder name (defaults to game name)')
+              .setRequired(false)
+          )
+          .addStringOption(o =>
             o.setName('dir')
               .setDescription('Optional install dir (defaults to BASE_SERVER_DIR/<folder>)')
           )
