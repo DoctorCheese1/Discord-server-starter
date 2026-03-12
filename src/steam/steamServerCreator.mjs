@@ -97,7 +97,8 @@ export function createSteamServer({
   appid,
   serverDir,
   chosenExe,
-  launchArgs = ''
+  launchArgs = '',
+  serverName
 }) {
   if (!fs.existsSync(serverDir)) {
     fs.mkdirSync(serverDir, { recursive: true });
@@ -108,6 +109,14 @@ export function createSteamServer({
 
   const steamIds = loadJson(STEAM_IDS_FILE, { servers: {} });
 
+
+// ================= RUN STEAMCMD INSTALL =================
+console.log(`[STEAM] Installing AppID ${appid} to ${serverDir}`);
+
+execSync(
+  `"${STEAMCMD_EXE}" +force_install_dir "${serverDir}" +login anonymous +app_update ${appid} validate +quit`,
+  { stdio: 'inherit' }
+);
 
 const exes = findExecutables(serverDir);
 
@@ -130,14 +139,6 @@ if (!chosenExe && exes.length > 1 && !preferred) {
 
 const exePath = chosenExe || preferred;
 
-// ================= RUN STEAMCMD INSTALL =================
-console.log(`[STEAM] Installing AppID ${appid} to ${serverDir}`);
-
-execSync(
-  `"${STEAMCMD_EXE}" +force_install_dir "${serverDir}" +login anonymous +app_update ${appid} validate +quit`,
-  { stdio: 'inherit' }
-);
-
 
   steamIds.servers[serverId] = {
     appid: Number(appid),
@@ -150,7 +151,7 @@ execSync(
   saveJson(STEAM_IDS_FILE, steamIds);
 
   writeBats(steamIds.servers[serverId]);
-  autoAddToServersJson(serverId, game?.name || serverId, serverDir);
+  autoAddToServersJson(serverId, serverName || serverId, serverDir);
 
   return {
     success: true,

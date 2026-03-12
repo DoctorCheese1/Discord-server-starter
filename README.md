@@ -197,6 +197,20 @@ Sets whether the server is Steam-based (used internally only).
 
 ---
 
+### /steam add appid:<steamAppId> [id:<folderName>] [dir:<customPath>]
+
+Creates a Steam server from the AppID list in `src/steam/steam-games.json`.
+
+Defaults:
+
+* install folder root: `BASE_SERVER_DIR` (or `C:/Servers`)
+* folder/id: provided `id` or sanitized game name from `steam-games.json`
+* server type: `steam`
+* server display name: folder name
+* generated scripts: `start.bat`, `stop.bat`, and `update.bat`
+
+---
+
 ## Design Philosophy
 
 This bot follows a **control-first** architecture:
