@@ -25,18 +25,12 @@ const SERVERS_FILE    = path.join(ROOT, 'data', 'servers.json');
 
 /* ================= STEAMCMD DETECTION ================= */
 
-function normalizeSteamCmdEnvPath(rawPath) {
-  const trimmed = rawPath.trim();
-  const unwrapped = trimmed.replace(/^[\s'"]+|[\s'"]+$/g, '');
-
-  const windowsPathMatch = unwrapped.match(/[a-zA-Z]:[\\/][^\r\n"']+?\.exe/i);
-  return windowsPathMatch ? windowsPathMatch[0] : unwrapped;
-}
-
 function detectSteamCmd() {
   // 1️⃣ ENV
   if (process.env.STEAMCMD_EXE) {
-    const envPath = normalizeSteamCmdEnvPath(process.env.STEAMCMD_EXE);
+    const envPath = process.env.STEAMCMD_EXE
+      .trim()
+      .replace(/^[\s'"]+|[\s'"]+$/g, '');
     if (fs.existsSync(envPath)) {
       return envPath;
     }
@@ -141,6 +135,62 @@ export function createSteamServer({
     fs.mkdirSync(serverDir, { recursive: true });
   }
 
+  // 2️⃣ Common locations
+  const candidates = [
+    path.join(ROOT, 'steamcmd', 'steamcmd.exe'),
+    'C:\\steamcmd\\steamcmd.exe',
+    'C:\\Program Files (x86)\\Steam\\steamcmd.exe',
+  ];
+
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+
+  // 3️⃣ PATH lookup
+  try {
+    const out = execSync('where steamcmd.exe', { stdio: 'pipe' })
+      .toString()
+      .split('\n')[0]
+      .trim();
+    if (out && fs.existsSync(out)) return out;
+  } catch {
+    // ignore
+  }
+
+  throw new Error(
+    'SteamCMD not found. Set STEAMCMD_EXE in .env or install steamcmd.'
+  );
+}
+
+const STEAMCMD_EXE = detectSteamCmd();
+
+/* ================= HELPERS ================= */
+
+function loadJson(file, fallback) {
+  if (!fs.existsSync(file)) {
+    fs.writeFileSync(file, JSON.stringify(fallback, null, 2));
+  }
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
+}
+
+function saveJson(file, data) {
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+}
+
+/* ================= CREATE ================= */
+
+export function createSteamServer({
+  serverId,
+  appid,
+  serverDir,
+  chosenExe,
+  launchArgs = '',
+  serverName
+}) {
+  if (!fs.existsSync(serverDir)) {
+    fs.mkdirSync(serverDir, { recursive: true });
+  }
+
   const games = loadJson(STEAM_GAMES_FILE, { games: [] }).games;
   const game = games.find(g => g.appid === Number(appid));
 
@@ -150,7 +200,20 @@ export function createSteamServer({
 // ================= RUN STEAMCMD INSTALL =================
 console.log(`[STEAM] Installing AppID ${appid} to ${serverDir}`);
 
-runSteamCmdInstall(appid, serverDir);
+execFileSync(
+  STEAMCMD_EXE,
+  [
+    '+force_install_dir',
+    serverDir,
+    '+login',
+    'anonymous',
+    '+app_update',
+    String(appid),
+    'validate',
+    '+quit'
+  ],
+  { stdio: 'inherit' }
+);
 
 const exes = findExecutables(serverDir);
 
