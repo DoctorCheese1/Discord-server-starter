@@ -47,7 +47,92 @@ function detectSteamCmd() {
       return envPath;
     }
 
-    throw new Error(`STEAMCMD_EXE set but not found: ${envPath}`);
+    console.warn(
+      `⚠️ STEAMCMD_EXE set but not found: ${envPath}. Falling back to auto-detection.`
+    );
+  }
+
+  // 2️⃣ Common locations
+  const candidates = [
+    path.join(ROOT, 'steamcmd', 'steamcmd.exe'),
+    'C:\\steamcmd\\steamcmd.exe',
+    'C:\\Program Files (x86)\\Steam\\steamcmd.exe',
+  ];
+
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+
+  // 3️⃣ PATH lookup
+  try {
+    const out = execSync('where steamcmd.exe', { stdio: 'pipe' })
+      .toString()
+      .split('\n')[0]
+      .trim();
+    if (out && fs.existsSync(out)) return out;
+  } catch {
+    // ignore
+  }
+
+  throw new Error(
+    'SteamCMD not found. Set STEAMCMD_EXE in .env or install steamcmd.'
+  );
+}
+
+const STEAMCMD_EXE = detectSteamCmd();
+
+function runSteamCmdInstall(appid, serverDir) {
+  const args = [
+    '+force_install_dir',
+    serverDir,
+    '+login',
+    'anonymous',
+    '+app_update',
+    String(appid),
+    'validate',
+    '+quit'
+  ];
+
+  try {
+    execFileSync(STEAMCMD_EXE, args, { stdio: 'inherit' });
+  } catch (err) {
+    if (process.platform === 'win32' && err?.code === 'ENOENT') {
+      execSync(
+        `"${STEAMCMD_EXE}" ${args.join(' ')}`,
+        { stdio: 'inherit' }
+      );
+      return;
+    }
+
+    throw err;
+  }
+}
+
+/* ================= HELPERS ================= */
+
+function loadJson(file, fallback) {
+  if (!fs.existsSync(file)) {
+    fs.writeFileSync(file, JSON.stringify(fallback, null, 2));
+  }
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
+}
+
+function saveJson(file, data) {
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+}
+
+/* ================= CREATE ================= */
+
+export function createSteamServer({
+  serverId,
+  appid,
+  serverDir,
+  chosenExe,
+  launchArgs = '',
+  serverName
+}) {
+  if (!fs.existsSync(serverDir)) {
+    fs.mkdirSync(serverDir, { recursive: true });
   }
 
   // 2️⃣ Common locations
