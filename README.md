@@ -267,7 +267,7 @@ IDRAC_ONLY_MODE=true
 
 Values are case-insensitive and trimmed, so `TRUE`, ` Yes `, and `on` all work. Any other value (or leaving it unset) means the mode is off.
 
-When enabled, only `/idrac` commands are registered and startup skips server, Steam, web editor, and task-sync subsystems. Presence switches to an iDRAC-only status mode: **green/online + `Server Online (iDRAC)`** when power is on, and **red/dnd + `Server Offline (iDRAC)`** when power is off. Auto-deploy/hash checks still run in this mode, using the iDRAC-only command set signature. Owner welcome DMs also switch to an iDRAC-only quick-start message in this mode.
+When enabled, only `/idrac` commands are registered and startup skips server, Steam, web editor, and task-sync subsystems. Presence switches to an iDRAC-only status mode: **green/online + `Server Online (iDRAC)`** when power is on, and **red/dnd + `Server Offline (iDRAC)`** when power is off. Auto-deploy/hash checks still run in this mode, using the iDRAC-only command set signature.
 
 ---
 
@@ -291,25 +291,15 @@ Then open: `http://<host>:8787/`
 Access tips:
 * If running on the same machine: `http://localhost:8787/`
 * If running on another host/LAN: `http://<server-ip>:8787/`
-* If `WEB_EDITOR_API_KEY` is set, it auto-fills when you open `http://<host>:8787/` and is saved in browser storage for future visits
-* You can also open `http://<host>:8787/?key=YOUR_KEY` once; the page will auto-load it and store it for next time
+* If `WEB_EDITOR_API_KEY` is set, paste it into the **API Key** field in the page before loading files
 * If API calls show `Unauthorized` / `access denied`, verify the key matches `WEB_EDITOR_API_KEY` and then click into another field to trigger reload
 * You can also run `/webeditor` in Discord to confirm the URL/port and whether API-key auth is enabled
-
-How to get/create an API key:
-* There is no auto-generated key from Discord for the web editor — you create your own secret string and put it in `.env` as `WEB_EDITOR_API_KEY`.
-* Linux/macOS (OpenSSL): `openssl rand -hex 32`
-* Linux/macOS (Node): `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
-* Windows PowerShell: `[guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N')`
-* After setting/changing `WEB_EDITOR_API_KEY`, restart the bot so the web editor uses the new key.
 
 Features:
 * lists registered servers
 * lists editable text files under each server folder
-* search files by name/path with smarter ranked matching (exact, prefix, contains, and fuzzy subsequence) with type-ahead predictions
-* search supports multiple words (for example: `config json`) and keeps the File dropdown open while search text is present; Enter picks the best match
+* search files by name/path from inside the editor
 * load/save files directly from browser
-* shows a save confirmation popup after successful writes
 * remembers API key in browser local storage for easier reconnects
 
 Safety limits:
