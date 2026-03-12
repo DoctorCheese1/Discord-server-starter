@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import 'dotenv/config';
 
@@ -28,7 +28,9 @@ const SERVERS_FILE    = path.join(ROOT, 'data', 'servers.json');
 function detectSteamCmd() {
   // 1️⃣ ENV
   if (process.env.STEAMCMD_EXE) {
-    const envPath = process.env.STEAMCMD_EXE.replace(/^"(.*)"$/, '$1');
+    const envPath = process.env.STEAMCMD_EXE
+      .trim()
+      .replace(/^[\s'"]+|[\s'"]+$/g, '');
     if (fs.existsSync(envPath)) {
       return envPath;
     }
@@ -113,8 +115,18 @@ export function createSteamServer({
 // ================= RUN STEAMCMD INSTALL =================
 console.log(`[STEAM] Installing AppID ${appid} to ${serverDir}`);
 
-execSync(
-  `"${STEAMCMD_EXE}" +force_install_dir "${serverDir}" +login anonymous +app_update ${appid} validate +quit`,
+execFileSync(
+  STEAMCMD_EXE,
+  [
+    '+force_install_dir',
+    serverDir,
+    '+login',
+    'anonymous',
+    '+app_update',
+    String(appid),
+    'validate',
+    '+quit'
+  ],
   { stdio: 'inherit' }
 );
 
