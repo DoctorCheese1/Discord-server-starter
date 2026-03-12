@@ -40,7 +40,7 @@ function detectSteamCmd() {
       /^\\\\/.test(envPath) ||
       /^\/\/[^/]/.test(envPath);
 
-    if (looksLikeWindowsPath) {
+    if (looksLikeWindowsPath && process.platform !== 'win32') {
       console.warn(
         `⚠️ STEAMCMD_EXE not found locally, using provided path anyway: ${envPath}`
       );
