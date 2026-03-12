@@ -382,7 +382,7 @@ export async function handleCommand(interaction) {
 
   /* ---------- ADD STEAM SERVER ---------- */
     if (sub === 'add') {
-      const inputId = interaction.options.getString('name') || interaction.options.getString('id');
+      const inputId = interaction.options.getString('id');
       const appid = interaction.options.getInteger('appid', true);
       const customDir = interaction.options.getString('dir');
 
