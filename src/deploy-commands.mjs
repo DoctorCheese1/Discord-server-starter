@@ -248,12 +248,7 @@ export function buildCommands() {
 
       .addSubcommand(sc =>
         sc.setName('add')
-          .setDescription('Install a Steam dedicated server')
-          .addStringOption(o =>
-            o.setName('id')
-              .setDescription('Server id')
-              .setRequired(true)
-          )
+          .setDescription('Install/register a Steam dedicated server from AppID')
           .addIntegerOption(o =>
             o.setName('appid')
               .setDescription('Steam AppID')
@@ -261,8 +256,13 @@ export function buildCommands() {
               .addChoices(...safeSteamGameChoices())
           )
           .addStringOption(o =>
+            o.setName('name')
+              .setDescription('Optional server id/folder name (defaults to game name)')
+              .setRequired(false)
+          )
+          .addStringOption(o =>
             o.setName('dir')
-              .setDescription('Optional install dir (defaults to STEAM_BASE_DIR/id)')
+              .setDescription('Optional install dir (defaults to BASE_SERVER_DIR/<folder>)')
           )
       )
 
