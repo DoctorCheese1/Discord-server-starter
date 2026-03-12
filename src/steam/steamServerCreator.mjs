@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import 'dotenv/config';
 
@@ -25,10 +25,18 @@ const SERVERS_FILE    = path.join(ROOT, 'data', 'servers.json');
 
 /* ================= STEAMCMD DETECTION ================= */
 
+function normalizeSteamCmdEnvPath(rawPath) {
+  const trimmed = rawPath.trim();
+  const unwrapped = trimmed.replace(/^[\s'"]+|[\s'"]+$/g, '');
+
+  const windowsPathMatch = unwrapped.match(/[a-zA-Z]:[\\/][^\r\n"']+?\.exe/i);
+  return windowsPathMatch ? windowsPathMatch[0] : unwrapped;
+}
+
 function detectSteamCmd() {
   // 1️⃣ ENV
   if (process.env.STEAMCMD_EXE) {
-    const envPath = process.env.STEAMCMD_EXE.replace(/^"(.*)"$/, '$1');
+    const envPath = normalizeSteamCmdEnvPath(process.env.STEAMCMD_EXE);
     if (fs.existsSync(envPath)) {
       return envPath;
     }
@@ -38,7 +46,7 @@ function detectSteamCmd() {
       /^\\\\/.test(envPath) ||
       /^\/\/[^/]/.test(envPath);
 
-    if (looksLikeWindowsPath) {
+    if (looksLikeWindowsPath && process.platform !== 'win32') {
       console.warn(
         `⚠️ STEAMCMD_EXE not found locally, using provided path anyway: ${envPath}`
       );
@@ -77,6 +85,33 @@ function detectSteamCmd() {
 
 const STEAMCMD_EXE = detectSteamCmd();
 
+function runSteamCmdInstall(appid, serverDir) {
+  const args = [
+    '+force_install_dir',
+    serverDir,
+    '+login',
+    'anonymous',
+    '+app_update',
+    String(appid),
+    'validate',
+    '+quit'
+  ];
+
+  try {
+    execFileSync(STEAMCMD_EXE, args, { stdio: 'inherit' });
+  } catch (err) {
+    if (process.platform === 'win32' && err?.code === 'ENOENT') {
+      execSync(
+        `"${STEAMCMD_EXE}" ${args.join(' ')}`,
+        { stdio: 'inherit' }
+      );
+      return;
+    }
+
+    throw err;
+  }
+}
+
 /* ================= HELPERS ================= */
 
 function loadJson(file, fallback) {
@@ -113,10 +148,7 @@ export function createSteamServer({
 // ================= RUN STEAMCMD INSTALL =================
 console.log(`[STEAM] Installing AppID ${appid} to ${serverDir}`);
 
-execSync(
-  `"${STEAMCMD_EXE}" +force_install_dir "${serverDir}" +login anonymous +app_update ${appid} validate +quit`,
-  { stdio: 'inherit' }
-);
+runSteamCmdInstall(appid, serverDir);
 
 const exes = findExecutables(serverDir);
 
