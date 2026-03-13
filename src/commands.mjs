@@ -413,6 +413,11 @@ export async function handleCommand(interaction) {
         );
       }
 
+      await interaction.editReply(
+        `⏳ [STEAM] Installing AppID **${appid}** to \`${serverDir}\`...\n` +
+        `This can take a while. I’ll send the final result here when it completes.`
+      );
+
       try {
         createSteamServer({
           serverId: resolvedId,
@@ -437,7 +442,10 @@ export async function handleCommand(interaction) {
           `• Added: \`start.bat\`, \`stop.bat\`, \`update.bat\``
         );
       } catch (error) {
-        return interaction.editReply(`❌ Steam add failed: ${error?.message || 'unknown error'}`);
+        return interaction.editReply(
+          `❌ Steam add failed: ${error?.message || 'unknown error'}\n` +
+          'Check bot console logs for SteamCMD output details.'
+        );
       }
     }
 

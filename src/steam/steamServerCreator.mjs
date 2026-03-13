@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import 'dotenv/config';
 
@@ -25,10 +25,18 @@ const SERVERS_FILE    = path.join(ROOT, 'data', 'servers.json');
 
 /* ================= STEAMCMD DETECTION ================= */
 
+function normalizeSteamCmdEnvPath(rawPath) {
+  const trimmed = rawPath.trim();
+  const unwrapped = trimmed.replace(/^[\s'"]+|[\s'"]+$/g, '');
+
+  const windowsPathMatch = unwrapped.match(/[a-zA-Z]:[\\/][^\r\n"']+?\.exe/i);
+  return windowsPathMatch ? windowsPathMatch[0] : unwrapped;
+}
+
 function detectSteamCmd() {
   // 1️⃣ ENV
   if (process.env.STEAMCMD_EXE) {
-    const envPath = process.env.STEAMCMD_EXE.replace(/^"(.*)"$/, '$1');
+    const envPath = normalizeSteamCmdEnvPath(process.env.STEAMCMD_EXE);
     if (fs.existsSync(envPath)) {
       return envPath;
     }
@@ -38,14 +46,16 @@ function detectSteamCmd() {
       /^\\\\/.test(envPath) ||
       /^\/\/[^/]/.test(envPath);
 
-    if (looksLikeWindowsPath) {
+    if (looksLikeWindowsPath && process.platform !== 'win32') {
       console.warn(
         `⚠️ STEAMCMD_EXE not found locally, using provided path anyway: ${envPath}`
       );
       return envPath;
     }
 
-    throw new Error(`STEAMCMD_EXE set but not found: ${envPath}`);
+    console.warn(
+      `⚠️ STEAMCMD_EXE set but not found: ${envPath}. Falling back to auto-detection.`
+    );
   }
 
   // 2️⃣ Common locations
@@ -75,7 +85,43 @@ function detectSteamCmd() {
   );
 }
 
-const STEAMCMD_EXE = detectSteamCmd();
+let cachedSteamCmdExe = null;
+
+function getSteamCmdExe() {
+  if (!cachedSteamCmdExe) {
+    cachedSteamCmdExe = detectSteamCmd();
+  }
+  return cachedSteamCmdExe;
+}
+
+function runSteamCmdInstall(appid, serverDir) {
+  const args = [
+    '+force_install_dir',
+    serverDir,
+    '+login',
+    'anonymous',
+    '+app_update',
+    String(appid),
+    'validate',
+    '+quit'
+  ];
+
+  const steamCmdExe = getSteamCmdExe();
+
+  try {
+    execFileSync(steamCmdExe, args, { stdio: 'inherit' });
+  } catch (err) {
+    if (process.platform === 'win32' && err?.code === 'ENOENT') {
+      execSync(
+        `"${steamCmdExe}" ${args.join(' ')}`,
+        { stdio: 'inherit' }
+      );
+      return;
+    }
+
+    throw err;
+  }
+}
 
 /* ================= HELPERS ================= */
 
@@ -113,10 +159,7 @@ export function createSteamServer({
 // ================= RUN STEAMCMD INSTALL =================
 console.log(`[STEAM] Installing AppID ${appid} to ${serverDir}`);
 
-execSync(
-  `"${STEAMCMD_EXE}" +force_install_dir "${serverDir}" +login anonymous +app_update ${appid} validate +quit`,
-  { stdio: 'inherit' }
-);
+runSteamCmdInstall(appid, serverDir);
 
 const exes = findExecutables(serverDir);
 
@@ -157,7 +200,7 @@ const exePath = chosenExe || preferred;
     success: true,
     game: game?.name || 'Unknown',
     exe: exePath,
-    steamcmd: STEAMCMD_EXE
+    steamcmd: getSteamCmdExe()
   };
 }
 
@@ -210,7 +253,7 @@ function writeBats(entry) {
 
   fs.writeFileSync(
     path.join(entry.dir, 'update.bat'),
-    buildUpdateBat(STEAMCMD_EXE, entry.appid, entry.dir)
+    buildUpdateBat(getSteamCmdExe(), entry.appid, entry.dir)
   );
 }
 
