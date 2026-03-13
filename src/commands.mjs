@@ -27,6 +27,8 @@ import {
 import {
   buildSearchPage
 } from './steam/steamSearchUI.mjs';
+import { createSteamServer } from './steam/steamServerCreator.mjs';
+import path from 'path';
 
 import {
   getIdracStatus,
@@ -374,28 +376,44 @@ export async function handleCommand(interaction) {
       );
     }
 
-  /* ---------- ADD STEAM SERVER (TEMP DISABLED) ---------- */
+  /* ---------- ADD STEAM SERVER ---------- */
     if (sub === 'add') {
-      return interaction.editReply(
-        '⛔ `/steam add` is temporarily disabled. Use existing Steam servers or `/steam addgame` for now.'
+      const appid = interaction.options.getInteger('appid', true);
+      const requestedId = interaction.options.getString('id');
+      const customDir = interaction.options.getString('dir');
+
+      const games = listSteamGames();
+      const game = games.find(g => Number(g.appid) === Number(appid));
+
+      if (!game) {
+        return interaction.editReply('❌ AppID not found in Steam game registry. Add it with `/steam addgame` first.');
+      }
+
+      const serversRoot = process.env.BASE_SERVER_DIR || 'C:/Servers';
+      const folderName = requestedId || game.name;
+      const resolvedId = folderName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || `steam-${appid}`;
+
+      const serverDir = path.resolve(customDir || path.join(serversRoot, resolvedId));
+
+      const duplicate = loadServers({ includeDisabled: true }).find(s =>
+        s.id === resolvedId || path.resolve(s.cwd || '') === serverDir
       );
+
       if (duplicate) {
         return interaction.editReply(
           `❌ A server already exists for id/path (**${duplicate.id}**). Choose a different id or dir.`
         );
       }
 
-      await interaction.editReply(
-        `⏳ [STEAM] Installing AppID **${appid}** to \`${serverDir}\`...\n` +
-        `This can take a while. I’ll send the final result here when it completes.`
-      );
-
       try {
-        createSteamServer({
+        const created = createSteamServer({
           serverId: resolvedId,
           appid,
           serverDir,
-          serverName: folderName
+          serverName: requestedId || game.name
         });
 
         return interaction.editReply(
@@ -403,20 +421,21 @@ export async function handleCommand(interaction) {
 ` +
           `• Game: **${game.name}**
 ` +
-          `• Server ID: **${resolvedId}**
+          `• Server ID: **${created.id}**
 ` +
-          `• Name: **${folderName}**
+          `• Name: **${requestedId || game.name}**
 ` +
-          `• Folder: \`${serverDir}\`
+          `• Folder: \`${created.cwd}\`
 ` +
           `• Type: **steam**
 ` +
-          `• Added: \`start.bat\`, \`stop.bat\`, \`update.bat\``
+          `• Added: \`start.bat\`, \`stop.bat\`, \`update.bat\`
+` +
+          'Run `/steam update id:<serverId>` to download/install files via SteamCMD.'
         );
       } catch (error) {
         return interaction.editReply(
-          `❌ Steam add failed: ${error?.message || 'unknown error'}\n` +
-          'Check bot console logs for SteamCMD output details.'
+          `❌ Steam add failed: ${error?.message || 'unknown error'}`
         );
       }
     }
