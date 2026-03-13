@@ -247,31 +247,6 @@ export function buildCommands() {
       )
 
       .addSubcommand(sc =>
-        sc.setName('add')
-          .setDescription('Install/register a Steam dedicated server from AppID')
-          .addStringOption(o =>
-            o.setName('id')
-              .setDescription('Optional server id/folder name (defaults to game name)')
-              .setRequired(false)
-          )
-          .addIntegerOption(o =>
-            o.setName('appid')
-              .setDescription('Steam AppID')
-              .setRequired(true)
-              .addChoices(...safeSteamGameChoices())
-          )
-          .addStringOption(o =>
-            o.setName('id')
-              .setDescription('Optional server id/folder name (defaults to game name)')
-              .setRequired(false)
-          )
-          .addStringOption(o =>
-            o.setName('dir')
-              .setDescription('Optional install dir (defaults to BASE_SERVER_DIR/<folder>)')
-          )
-      )
-
-      .addSubcommand(sc =>
         sc.setName('update')
           .setDescription('Update one Steam server or all Steam servers')
           .addStringOption(o =>

@@ -20,12 +20,6 @@ import {
   addSteamGame,
   removeSteamGame
 } from './steam/steamGameStore.mjs';
-import path from 'path';
-
-import {
-  createSteamServer
-} from './steam/steamServerCreator.mjs';
-
 import {
   saveSearch
 } from './steam/steamSearchState.mjs';
@@ -362,7 +356,7 @@ export async function handleCommand(interaction) {
   if (cmd === 'steam') {
     const sub = interaction.options.getSubcommand();
 
-    if (['add', 'update', 'addgame', 'removegame'].includes(sub)) {
+    if (['update', 'addgame', 'removegame'].includes(sub)) {
       const gateReply = await requireIdracOnline(interaction, `run steam ${sub}`);
       if (gateReply) return gateReply;
     }
@@ -380,67 +374,12 @@ export async function handleCommand(interaction) {
       );
     }
 
-  /* ---------- ADD STEAM SERVER ---------- */
+  /* ---------- ADD STEAM SERVER (TEMP DISABLED) ---------- */
     if (sub === 'add') {
-      const inputId = interaction.options.getString('id');
-      const appid = interaction.options.getInteger('appid', true);
-      const customDir = interaction.options.getString('dir');
-
-      const games = listSteamGames();
-      const game = games.find(g => Number(g.appid) === Number(appid));
-      if (!game) {
-        return interaction.editReply(
-          `❌ AppID **${appid}** is not in \`src/steam/steam-games.json\`. Add it first with \`/steam addgame\`.`
-        );
-      }
-
-      const toServerId = value => String(value || '')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '') || `steam-${appid}`;
-
-      const baseDir = process.env.BASE_SERVER_DIR || 'C:/Servers';
-      const resolvedId = toServerId(inputId || game.name);
-      const serverDir = customDir || path.join(baseDir, resolvedId);
-      const folderName = path.basename(path.resolve(serverDir));
-
-      const duplicate = loadServers({ includeDisabled: true }).find(
-        s => s.id === resolvedId || path.resolve(s.cwd || '') === path.resolve(serverDir)
+      return interaction.editReply(
+        '⛔ `/steam add` is temporarily disabled. Use existing Steam servers or `/steam addgame` for now.'
       );
-      if (duplicate) {
-        return interaction.editReply(
-          `❌ A server already exists for id/path (**${duplicate.id}**). Choose a different id or dir.`
-        );
-      }
-
-      try {
-        createSteamServer({
-          serverId: resolvedId,
-          appid,
-          serverDir,
-          serverName: folderName
-        });
-
-        return interaction.editReply(
-          `✅ Steam server created from AppID **${appid}**
-` +
-          `• Game: **${game.name}**
-` +
-          `• Server ID: **${resolvedId}**
-` +
-          `• Name: **${folderName}**
-` +
-          `• Folder: \`${serverDir}\`
-` +
-          `• Type: **steam**
-` +
-          `• Added: \`start.bat\`, \`stop.bat\`, \`update.bat\``
-        );
-      } catch (error) {
-        return interaction.editReply(`❌ Steam add failed: ${error?.message || 'unknown error'}`);
-      }
     }
-
 
 
   /* ---------- UPDATE STEAM SERVER ---------- */
