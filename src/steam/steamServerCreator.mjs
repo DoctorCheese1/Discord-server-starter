@@ -35,10 +35,8 @@ function detectSteamCmd() {
       return envPath;
     }
 
-    const looksLikeWindowsPath =
-      /^[a-zA-Z]:[\\/]/.test(envPath) ||
-      /^\\\\/.test(envPath) ||
-      /^\/\/[^/]/.test(envPath);
+function resolveSteamCmdPath() {
+  if (cachedSteamCmdPath) return cachedSteamCmdPath;
 
     if (looksLikeWindowsPath && process.platform !== 'win32') {
       console.warn(
