@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { addServer, removeServer } from '../serverStore.mjs';
+import { addServer } from '../serverStore.mjs';
 
 function sanitizeId(input) {
   return String(input || '')
@@ -33,9 +33,9 @@ export function createSteamServer({ serverId, appid, serverDir, serverName }) {
   const id = sanitizeId(serverId || serverName);
   const cwd = path.resolve(serverDir);
 
-  // Register first, then scaffold files. This avoids auto-discovery race conditions
-  // where creating the folder before addServer() causes syncServersFolder() to add
-  // the same path, making addServer() fail with duplicate-id errors.
+  fs.mkdirSync(cwd, { recursive: true });
+  writeScripts(cwd, appid);
+
   addServer({
     id,
     name: serverName || id,
@@ -46,16 +46,6 @@ export function createSteamServer({ serverId, appid, serverDir, serverName }) {
     cwd,
     appid: Number(appid)
   });
-
-  try {
-    fs.mkdirSync(cwd, { recursive: true });
-    writeScripts(cwd, appid);
-  } catch (error) {
-    try {
-      removeServer(id);
-    } catch {}
-    throw error;
-  }
 
   return {
     id,
