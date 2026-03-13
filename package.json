@@ -9,7 +9,6 @@
     "pidusage": "^3.0.2"
   },
   "scripts": {
-    "check:steam": "node --check src/steam/steamServerCreator.mjs",
-    "check:steam-import": "node -e \"import('./src/steam/steamServerCreator.mjs')\""
+    "check:steam": "node --check src/steam/steamServerCreator.mjs"
   }
 }

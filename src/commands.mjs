@@ -379,6 +379,46 @@ export async function handleCommand(interaction) {
       return interaction.editReply(
         '⛔ `/steam add` is temporarily disabled. Use existing Steam servers or `/steam addgame` for now.'
       );
+      if (duplicate) {
+        return interaction.editReply(
+          `❌ A server already exists for id/path (**${duplicate.id}**). Choose a different id or dir.`
+        );
+      }
+
+      await interaction.editReply(
+        `⏳ [STEAM] Installing AppID **${appid}** to \`${serverDir}\`...\n` +
+        `This can take a while. I’ll send the final result here when it completes.`
+      );
+
+      try {
+        createSteamServer({
+          serverId: resolvedId,
+          appid,
+          serverDir,
+          serverName: folderName
+        });
+
+        return interaction.editReply(
+          `✅ Steam server created from AppID **${appid}**
+` +
+          `• Game: **${game.name}**
+` +
+          `• Server ID: **${resolvedId}**
+` +
+          `• Name: **${folderName}**
+` +
+          `• Folder: \`${serverDir}\`
+` +
+          `• Type: **steam**
+` +
+          `• Added: \`start.bat\`, \`stop.bat\`, \`update.bat\``
+        );
+      } catch (error) {
+        return interaction.editReply(
+          `❌ Steam add failed: ${error?.message || 'unknown error'}\n` +
+          'Check bot console logs for SteamCMD output details.'
+        );
+      }
     }
 
 
