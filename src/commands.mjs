@@ -101,7 +101,7 @@ async function requireIdracOnline(interaction, actionLabel = 'run this command')
 }
 
 function isMutatingConfigSubcommand(sub) {
-  return ['enable', 'disable', 'rename', 'set-java', 'set-steam', 'set-process'].includes(sub);
+  return ['enable', 'disable', 'rename', 'set-java', 'set-steam', 'set-process', 'remove'].includes(sub);
 }
 export async function handleCommand(interaction) {
   const cmd = interaction.commandName;
@@ -343,6 +343,16 @@ export async function handleCommand(interaction) {
       const name = interaction.options.getString('name');
       setServer(id, { processName: name });
       return interaction.editReply(`✅ Process fallback set to **${name}**.`);
+    }
+
+    if (sub === 'remove') {
+      const id = interaction.options.getString('id', true);
+      try {
+        removeServer(id);
+        return interaction.editReply(`🗑️ Removed server **${id}** from config.`);
+      } catch (error) {
+        return interaction.editReply(`❌ Remove failed: ${error?.message || 'unknown error'}`);
+      }
     }
   }
 
