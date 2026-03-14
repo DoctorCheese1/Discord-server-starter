@@ -105,18 +105,18 @@ function isMutatingConfigSubcommand(sub) {
 }
 
 
-let cachedScaffoldSteamScripts = null;
-
 async function ensureSteamScaffold(serverDir, appid) {
-  if (!cachedScaffoldSteamScripts) {
-    const steamModule = await import('./steam/steamServerCreator.mjs');
-    if (typeof steamModule.scaffoldSteamScripts !== 'function') {
-      throw new Error('Steam scaffold helper is not available');
-    }
-    cachedScaffoldSteamScripts = steamModule.scaffoldSteamScripts;
+  if (typeof scaffoldSteamScripts === 'function') {
+    return scaffoldSteamScripts({ serverDir, appid });
   }
 
-  return cachedScaffoldSteamScripts({ serverDir, appid });
+  // Fallback for stale runtime/module cache situations.
+  const steamModule = await import('./steam/steamServerCreator.mjs');
+  if (typeof steamModule.scaffoldSteamScripts === 'function') {
+    return steamModule.scaffoldSteamScripts({ serverDir, appid });
+  }
+
+  throw new Error('scaffoldSteamScripts is not available');
 }
 
 export async function handleCommand(interaction) {
@@ -424,46 +424,14 @@ export async function handleCommand(interaction) {
 
       const serverDir = path.resolve(customDir || path.join(serversRoot, resolvedId));
 
-      const allServers = loadServers({ includeDisabled: true });
-      const duplicateById = allServers.find(s => s.id === resolvedId);
-      const duplicateByPath = allServers.find(s => path.resolve(s.cwd || '') === serverDir);
+      const duplicate = loadServers({ includeDisabled: true }).find(s =>
+        s.id === resolvedId || path.resolve(s.cwd || '') === serverDir
+      );
 
-      if (duplicateById || duplicateByPath) {
-        const existing = duplicateByPath || duplicateById;
-        const idConflict = duplicateById && duplicateByPath && duplicateById.id !== duplicateByPath.id;
-        const idPointsElsewhere = duplicateById && !duplicateByPath;
-
-        if (idConflict || idPointsElsewhere) {
-          return interaction.editReply(
-            `❌ Server id **${resolvedId}** is already in use. Choose a different id or set a custom dir.`
-          );
-        }
-
-        try {
-          await ensureSteamScaffold(serverDir, appid);
-          setServer(existing.id, {
-            type: 'steam',
-            steam: true,
-            java: false,
-            appid: Number(appid)
-          });
-
-          return interaction.editReply(
-            `✅ Steam server already existed, so I refreshed the setup.
-` +
-            `• Game: **${game.name}**
-` +
-            `• Server ID: **${existing.id}**
-` +
-            `• Folder: \`${serverDir}\`
-` +
-            'Run `/steam update id:<serverId>` to download/install files via SteamCMD.'
-          );
-        } catch (error) {
-          return interaction.editReply(
-            `❌ Steam add failed while refreshing existing server: ${error?.message || 'unknown error'}`
-          );
-        }
+      if (duplicate) {
+        return interaction.editReply(
+          `❌ A server already exists for id/path (**${duplicate.id}**). Choose a different id or dir.`
+        );
       }
 
       try {
@@ -501,7 +469,7 @@ export async function handleCommand(interaction) {
 
           if (existing) {
             try {
-              await ensureSteamScaffold(existing.cwd, appid);
+              scaffoldSteamScripts({ serverDir: existing.cwd, appid });
               setServer(existing.id, {
                 type: 'steam',
                 steam: true,
@@ -529,7 +497,7 @@ export async function handleCommand(interaction) {
         }
 
         return interaction.editReply(
-          `❌ Steam add failed: ${message}`
+          `❌ Steam add failed: ${error?.message || 'unknown error'}`
         );
       }
     }
