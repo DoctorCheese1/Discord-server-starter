@@ -233,6 +233,17 @@ export function buildCommands() {
               .setDescription('Process image name')
               .setRequired(true)
           )
+      )
+
+      .addSubcommand(sc =>
+        sc.setName('remove')
+          .setDescription('Remove server from config')
+          .addStringOption(o =>
+            o.setName('id')
+              .setDescription('Server id')
+              .setRequired(true)
+              .addChoices(...safeServerChoicesAll())
+          )
       ),
 
     /* ===== STEAM ===== */

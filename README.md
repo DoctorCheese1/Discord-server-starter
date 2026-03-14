@@ -197,6 +197,12 @@ Sets whether the server is Steam-based (used internally only).
 
 ---
 
+### /config remove id:<serverId>
+
+Removes a server from `data/servers.json`.
+
+---
+
 ### /steam add appid:<steamAppId> [id:<folderName>] [dir:<customPath>]
 
 Creates a Steam server from the AppID list in `src/steam/steam-games.json`.
