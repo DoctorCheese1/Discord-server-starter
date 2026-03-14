@@ -27,7 +27,7 @@ import {
 import {
   buildSearchPage
 } from './steam/steamSearchUI.mjs';
-import { createSteamServer, scaffoldSteamScripts } from './steam/steamServerCreator.mjs';
+import { createSteamServer } from './steam/steamServerCreator.mjs';
 import path from 'path';
 
 import {
@@ -408,46 +408,14 @@ export async function handleCommand(interaction) {
 
       const serverDir = path.resolve(customDir || path.join(serversRoot, resolvedId));
 
-      const allServers = loadServers({ includeDisabled: true });
-      const duplicateById = allServers.find(s => s.id === resolvedId);
-      const duplicateByPath = allServers.find(s => path.resolve(s.cwd || '') === serverDir);
+      const duplicate = loadServers({ includeDisabled: true }).find(s =>
+        s.id === resolvedId || path.resolve(s.cwd || '') === serverDir
+      );
 
-      if (duplicateById || duplicateByPath) {
-        const existing = duplicateByPath || duplicateById;
-        const idConflict = duplicateById && duplicateByPath && duplicateById.id !== duplicateByPath.id;
-        const idPointsElsewhere = duplicateById && !duplicateByPath;
-
-        if (idConflict || idPointsElsewhere) {
-          return interaction.editReply(
-            `❌ Server id **${resolvedId}** is already in use. Choose a different id or set a custom dir.`
-          );
-        }
-
-        try {
-          scaffoldSteamScripts({ serverDir, appid });
-          setServer(existing.id, {
-            type: 'steam',
-            steam: true,
-            java: false,
-            appid: Number(appid)
-          });
-
-          return interaction.editReply(
-            `✅ Steam server already existed, so I refreshed the setup.
-` +
-            `• Game: **${game.name}**
-` +
-            `• Server ID: **${existing.id}**
-` +
-            `• Folder: \`${serverDir}\`
-` +
-            'Run `/steam update id:<serverId>` to download/install files via SteamCMD.'
-          );
-        } catch (error) {
-          return interaction.editReply(
-            `❌ Steam add failed while refreshing existing server: ${error?.message || 'unknown error'}`
-          );
-        }
+      if (duplicate) {
+        return interaction.editReply(
+          `❌ A server already exists for id/path (**${duplicate.id}**). Choose a different id or dir.`
+        );
       }
 
       try {
