@@ -27,6 +27,8 @@ import {
 import {
   buildSearchPage
 } from './steam/steamSearchUI.mjs';
+import { createSteamServer, scaffoldSteamScripts } from './steam/steamServerCreator.mjs';
+import path from 'path';
 
 import {
   getIdracStatus,
@@ -99,8 +101,24 @@ async function requireIdracOnline(interaction, actionLabel = 'run this command')
 }
 
 function isMutatingConfigSubcommand(sub) {
-  return ['enable', 'disable', 'rename', 'set-java', 'set-steam', 'set-process'].includes(sub);
+  return ['enable', 'disable', 'rename', 'set-java', 'set-steam', 'set-process', 'remove'].includes(sub);
 }
+
+
+async function ensureSteamScaffold(serverDir, appid) {
+  if (typeof scaffoldSteamScripts === 'function') {
+    return scaffoldSteamScripts({ serverDir, appid });
+  }
+
+  // Fallback for stale runtime/module cache situations.
+  const steamModule = await import('./steam/steamServerCreator.mjs');
+  if (typeof steamModule.scaffoldSteamScripts === 'function') {
+    return steamModule.scaffoldSteamScripts({ serverDir, appid });
+  }
+
+  throw new Error('scaffoldSteamScripts is not available');
+}
+
 export async function handleCommand(interaction) {
   const cmd = interaction.commandName;
   const idracOnly = isIdracOnlyMode();
@@ -342,6 +360,16 @@ export async function handleCommand(interaction) {
       setServer(id, { processName: name });
       return interaction.editReply(`✅ Process fallback set to **${name}**.`);
     }
+
+    if (sub === 'remove') {
+      const id = interaction.options.getString('id', true);
+      try {
+        removeServer(id);
+        return interaction.editReply(`🗑️ Removed server **${id}** from config.`);
+      } catch (error) {
+        return interaction.editReply(`❌ Remove failed: ${error?.message || 'unknown error'}`);
+      }
+    }
   }
 
 
@@ -374,28 +402,76 @@ export async function handleCommand(interaction) {
       );
     }
 
-  /* ---------- ADD STEAM SERVER (TEMP DISABLED) ---------- */
+  /* ---------- ADD STEAM SERVER ---------- */
     if (sub === 'add') {
-      return interaction.editReply(
-        '⛔ `/steam add` is temporarily disabled. Use existing Steam servers or `/steam addgame` for now.'
-      );
-      if (duplicate) {
-        return interaction.editReply(
-          `❌ A server already exists for id/path (**${duplicate.id}**). Choose a different id or dir.`
-        );
+      const appid = interaction.options.getInteger('appid', true);
+      const requestedId = interaction.options.getString('id');
+      const customDir = interaction.options.getString('dir');
+
+      const games = listSteamGames();
+      const game = games.find(g => Number(g.appid) === Number(appid));
+
+      if (!game) {
+        return interaction.editReply('❌ AppID not found in Steam game registry. Add it with `/steam addgame` first.');
       }
 
-      await interaction.editReply(
-        `⏳ [STEAM] Installing AppID **${appid}** to \`${serverDir}\`...\n` +
-        `This can take a while. I’ll send the final result here when it completes.`
-      );
+      const serversRoot = process.env.BASE_SERVER_DIR || 'C:/Servers';
+      const folderName = requestedId || game.name;
+      const resolvedId = folderName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || `steam-${appid}`;
+
+      const serverDir = path.resolve(customDir || path.join(serversRoot, resolvedId));
+
+      const allServers = loadServers({ includeDisabled: true });
+      const duplicateById = allServers.find(s => s.id === resolvedId);
+      const duplicateByPath = allServers.find(s => path.resolve(s.cwd || '') === serverDir);
+
+      if (duplicateById || duplicateByPath) {
+        const existing = duplicateByPath || duplicateById;
+        const idConflict = duplicateById && duplicateByPath && duplicateById.id !== duplicateByPath.id;
+        const idPointsElsewhere = duplicateById && !duplicateByPath;
+
+        if (idConflict || idPointsElsewhere) {
+          return interaction.editReply(
+            `❌ Server id **${resolvedId}** is already in use. Choose a different id or set a custom dir.`
+          );
+        }
+
+        try {
+          await ensureSteamScaffold(serverDir, appid);
+          setServer(existing.id, {
+            type: 'steam',
+            steam: true,
+            java: false,
+            appid: Number(appid)
+          });
+
+          return interaction.editReply(
+            `✅ Steam server already existed, so I refreshed the setup.
+` +
+            `• Game: **${game.name}**
+` +
+            `• Server ID: **${existing.id}**
+` +
+            `• Folder: \`${serverDir}\`
+` +
+            'Run `/steam update id:<serverId>` to download/install files via SteamCMD.'
+          );
+        } catch (error) {
+          return interaction.editReply(
+            `❌ Steam add failed while refreshing existing server: ${error?.message || 'unknown error'}`
+          );
+        }
+      }
 
       try {
-        createSteamServer({
+        const created = createSteamServer({
           serverId: resolvedId,
           appid,
           serverDir,
-          serverName: folderName
+          serverName: requestedId || game.name
         });
 
         return interaction.editReply(
@@ -403,20 +479,57 @@ export async function handleCommand(interaction) {
 ` +
           `• Game: **${game.name}**
 ` +
-          `• Server ID: **${resolvedId}**
+          `• Server ID: **${created.id}**
 ` +
-          `• Name: **${folderName}**
+          `• Name: **${requestedId || game.name}**
 ` +
-          `• Folder: \`${serverDir}\`
+          `• Folder: \`${created.cwd}\`
 ` +
           `• Type: **steam**
 ` +
-          `• Added: \`start.bat\`, \`stop.bat\`, \`update.bat\``
+          `• Added: \`start.bat\`, \`stop.bat\`, \`update.bat\`
+` +
+          'Run `/steam update id:<serverId>` to download/install files via SteamCMD.'
         );
       } catch (error) {
+        const message = error?.message || 'unknown error';
+
+        // Fallback: if creation races with another write and id now exists,
+        // treat it as an existing server refresh instead of hard-failing.
+        if (message.includes('already exists')) {
+          const existing = getServer(resolvedId, { includeDisabled: true });
+
+          if (existing) {
+            try {
+              await ensureSteamScaffold(existing.cwd, appid);
+              setServer(existing.id, {
+                type: 'steam',
+                steam: true,
+                java: false,
+                appid: Number(appid)
+              });
+
+              return interaction.editReply(
+                `✅ Steam server already existed, so I refreshed the setup.
+` +
+                `• Game: **${game.name}**
+` +
+                `• Server ID: **${existing.id}**
+` +
+                `• Folder: \`${existing.cwd}\`
+` +
+                'Run `/steam update id:<serverId>` to download/install files via SteamCMD.'
+              );
+            } catch (refreshError) {
+              return interaction.editReply(
+                `❌ Steam add failed while recovering existing server: ${refreshError?.message || 'unknown error'}`
+              );
+            }
+          }
+        }
+
         return interaction.editReply(
-          `❌ Steam add failed: ${error?.message || 'unknown error'}\n` +
-          'Check bot console logs for SteamCMD output details.'
+          `❌ Steam add failed: ${message}`
         );
       }
     }
