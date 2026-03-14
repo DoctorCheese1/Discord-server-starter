@@ -444,6 +444,42 @@ export async function handleCommand(interaction) {
           'Run `/steam update id:<serverId>` to download/install files via SteamCMD.'
         );
       } catch (error) {
+        const message = error?.message || 'unknown error';
+
+        // Fallback: if creation races with another write and id now exists,
+        // treat it as an existing server refresh instead of hard-failing.
+        if (message.includes('already exists')) {
+          const existing = getServer(resolvedId, { includeDisabled: true });
+
+          if (existing) {
+            try {
+              scaffoldSteamScripts({ serverDir: existing.cwd, appid });
+              setServer(existing.id, {
+                type: 'steam',
+                steam: true,
+                java: false,
+                appid: Number(appid)
+              });
+
+              return interaction.editReply(
+                `✅ Steam server already existed, so I refreshed the setup.
+` +
+                `• Game: **${game.name}**
+` +
+                `• Server ID: **${existing.id}**
+` +
+                `• Folder: \`${existing.cwd}\`
+` +
+                'Run `/steam update id:<serverId>` to download/install files via SteamCMD.'
+              );
+            } catch (refreshError) {
+              return interaction.editReply(
+                `❌ Steam add failed while recovering existing server: ${refreshError?.message || 'unknown error'}`
+              );
+            }
+          }
+        }
+
         return interaction.editReply(
           `❌ Steam add failed: ${error?.message || 'unknown error'}`
         );
