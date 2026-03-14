@@ -103,6 +103,22 @@ async function requireIdracOnline(interaction, actionLabel = 'run this command')
 function isMutatingConfigSubcommand(sub) {
   return ['enable', 'disable', 'rename', 'set-java', 'set-steam', 'set-process', 'remove'].includes(sub);
 }
+
+
+async function ensureSteamScaffold(serverDir, appid) {
+  if (typeof scaffoldSteamScripts === 'function') {
+    return scaffoldSteamScripts({ serverDir, appid });
+  }
+
+  // Fallback for stale runtime/module cache situations.
+  const steamModule = await import('./steam/steamServerCreator.mjs');
+  if (typeof steamModule.scaffoldSteamScripts === 'function') {
+    return steamModule.scaffoldSteamScripts({ serverDir, appid });
+  }
+
+  throw new Error('scaffoldSteamScripts is not available');
+}
+
 export async function handleCommand(interaction) {
   const cmd = interaction.commandName;
   const idracOnly = isIdracOnlyMode();
