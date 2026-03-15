@@ -39,6 +39,7 @@ import {
   refreshIdracMonitor
 } from './idrac/idracMonitor.mjs';
 import { isIdracOnlyMode } from './mode.mjs';
+import { log } from './logger.mjs';
 
 /* ======================================================
    MAIN HANDLER
@@ -442,6 +443,7 @@ export async function handleCommand(interaction) {
           serverName: requestedId || game.name
         });
 
+        steamAddLog('create server: success', `createdId=${created.id} dir=${created.cwd}`);
         return interaction.editReply(
           `✅ Steam server created from AppID **${appid}**
 ` +
