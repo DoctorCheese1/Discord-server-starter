@@ -21,7 +21,7 @@ import {
   getSearch,
   saveSearch,
   clearSearch
-} from './steam/searchStateCompat.mjs';
+} from './steam/steamSearchState.mjs';
 
 import {
   addSteamGame,
