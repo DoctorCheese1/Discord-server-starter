@@ -71,5 +71,3 @@ export function createSteamServer({ serverId, appid, serverDir, serverName }) {
     appid: Number(appid)
   };
 }
-
-export { createSteamServerImpl as createSteamServer };
