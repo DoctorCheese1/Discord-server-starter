@@ -216,6 +216,8 @@ Defaults:
 * server type: `steam`
 * server display name: folder name
 * generated scripts: `start.bat`, `stop.bat`, and `update.bat`
+  * `start.bat` launches `start_server.bat` and writes the started wrapper PID to `server.pid`
+  * `update.bat` auto-detects `steamcmd.exe` from `STEAMCMD_EXE`, local script folders, or `PATH`
 
 ---
 
