@@ -22,7 +22,7 @@ import {
 } from './steam/steamGameStore.mjs';
 import {
   saveSearch
-} from './steam/steamSearchState.mjs';
+} from './steam/searchStateCompat.mjs';
 
 import {
   buildSearchPage
