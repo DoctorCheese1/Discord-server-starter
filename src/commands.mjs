@@ -27,7 +27,7 @@ import {
 import {
   buildSearchPage
 } from './steam/steamSearchUI.mjs';
-import { createSteamServer, scaffoldSteamScripts } from './steam/steamServerCreator.mjs';
+import { createSteamServer } from './steam/steamServerCreator.mjs';
 import path from 'path';
 
 import {
@@ -471,7 +471,7 @@ export async function handleCommand(interaction) {
 
           if (existing) {
             try {
-              await ensureSteamScaffold(existing.cwd, appid);
+              scaffoldSteamScripts({ serverDir: existing.cwd, appid });
               setServer(existing.id, {
                 type: 'steam',
                 steam: true,

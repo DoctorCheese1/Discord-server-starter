@@ -49,23 +49,10 @@ export function createSteamServer({ serverId, appid, serverDir, serverName }) {
     throw new Error('Missing AppID');
   }
 
+  const id = sanitizeId(serverId || serverName);
   const cwd = path.resolve(serverDir);
 
   scaffoldSteamScripts({ serverDir: cwd, appid });
-
-  return {
-    cwd,
-    appid: Number(appid)
-  };
-}
-
-export function createSteamServer({ serverId, appid, serverDir, serverName }) {
-  if (!appid) {
-    throw new Error('Missing AppID');
-  }
-
-  const id = sanitizeId(serverId || serverName);
-  const { cwd } = scaffoldSteamScripts({ serverDir, appid });
 
   addServer({
     id,
