@@ -26,6 +26,10 @@ function writeScripts(serverDir, appid) {
 }
 
 export function scaffoldSteamScripts({ serverDir, appid }) {
+  if (!serverDir) {
+    throw new Error('Missing serverDir');
+  }
+
   if (!appid) {
     throw new Error('Missing AppID');
   }
@@ -33,6 +37,21 @@ export function scaffoldSteamScripts({ serverDir, appid }) {
   const cwd = path.resolve(serverDir);
   fs.mkdirSync(cwd, { recursive: true });
   writeScripts(cwd, appid);
+
+  return {
+    cwd,
+    appid: Number(appid)
+  };
+}
+
+export function createSteamServer({ serverId, appid, serverDir, serverName }) {
+  if (!appid) {
+    throw new Error('Missing AppID');
+  }
+
+  const cwd = path.resolve(serverDir);
+
+  scaffoldSteamScripts({ serverDir: cwd, appid });
 
   return {
     cwd,
