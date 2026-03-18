@@ -25,16 +25,28 @@ function writeScripts(serverDir, appid) {
   fs.writeFileSync(path.join(serverDir, 'update.bat'), updateBat);
 }
 
+export function scaffoldSteamScripts({ serverDir, appid }) {
+  if (!appid) {
+    throw new Error('Missing AppID');
+  }
+
+  const cwd = path.resolve(serverDir);
+  fs.mkdirSync(cwd, { recursive: true });
+  writeScripts(cwd, appid);
+
+  return {
+    cwd,
+    appid: Number(appid)
+  };
+}
+
 export function createSteamServer({ serverId, appid, serverDir, serverName }) {
   if (!appid) {
     throw new Error('Missing AppID');
   }
 
   const id = sanitizeId(serverId || serverName);
-  const cwd = path.resolve(serverDir);
-
-  fs.mkdirSync(cwd, { recursive: true });
-  writeScripts(cwd, appid);
+  const { cwd } = scaffoldSteamScripts({ serverDir, appid });
 
   addServer({
     id,
