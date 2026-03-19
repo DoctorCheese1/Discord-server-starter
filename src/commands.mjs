@@ -27,7 +27,10 @@ import {
 import {
   buildSearchPage
 } from './steam/steamSearchUI.mjs';
-import { createSteamServer } from './steam/steamServerCreator.mjs';
+import {
+  createSteamServer,
+  scaffoldSteamScripts
+} from './steam/steamServerCreator.mjs';
 import path from 'path';
 
 import {
