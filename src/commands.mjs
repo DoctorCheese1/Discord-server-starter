@@ -428,14 +428,68 @@ export async function handleCommand(interaction) {
 
       const serverDir = path.resolve(customDir || path.join(serversRoot, resolvedId));
 
-      const duplicate = loadServers({ includeDisabled: true }).find(s =>
+      const allServers = loadServers({ includeDisabled: true });
+      const duplicate = allServers.find(s =>
         s.id === resolvedId || path.resolve(s.cwd || '') === serverDir
       );
 
-      if (duplicate) {
+      const existingByAppId = allServers.find(s =>
+        Number(s.appid) === Number(appid)
+      );
+
+      if (existingByAppId) {
         return interaction.editReply(
-          `❌ A server already exists for id/path (**${duplicate.id}**). Choose a different id or dir.`
+          `⚠️ Steam AppID **${appid}** is already linked to server **${existingByAppId.id}**.
+Use \`/steam update id:${existingByAppId.id}\` to install/update files.`
         );
+      }
+
+      if (duplicate) {
+        const duplicateLooksReusable =
+          !duplicate.appid &&
+          (duplicate.type === 'steam' || duplicate.type === 'generic');
+
+        if (!duplicateLooksReusable) {
+          return interaction.editReply(
+            `❌ A server already exists for id/path (**${duplicate.id}**). Choose a different id or dir.`
+          );
+        }
+
+        try {
+          const scripts = await ensureSteamScaffold(duplicate.cwd, appid);
+
+          setServer(duplicate.id, {
+            name: requestedId || game.name,
+            type: 'steam',
+            steam: true,
+            java: false,
+            appid: Number(appid)
+          });
+
+          steamAddLog('link existing server: success', `existingId=${duplicate.id} dir=${duplicate.cwd}`);
+
+          return interaction.editReply(
+            `✅ Linked existing server folder to AppID **${appid}**
+` +
+            `• Game: **${game.name}**
+` +
+            `• Server ID: **${duplicate.id}**
+` +
+            `• Folder: \`${duplicate.cwd}\`
+` +
+            `• Type: **steam**
+` +
+            `• Added/updated scripts: \`start.bat\`, \`stop.bat\`, \`update.bat\`
+` +
+            `• Script folder: \`${scripts.cwd}\`
+` +
+            'Run `/steam update id:<serverId>` to download/install files via SteamCMD.'
+          );
+        } catch (error) {
+          const message = error?.message || 'unknown error';
+          steamAddLog('link existing server: fail', message);
+          return interaction.editReply(`❌ Failed to link existing server: ${message}`);
+        }
       }
 
       try {
