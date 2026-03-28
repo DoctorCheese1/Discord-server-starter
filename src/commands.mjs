@@ -433,8 +433,31 @@ export async function handleCommand(interaction) {
       );
 
       if (duplicate) {
+        if (duplicate.type === 'steam' || duplicate.steam) {
+          const existingDir = path.resolve(duplicate.cwd || serverDir);
+          scaffoldSteamScripts({ serverDir: existingDir, appid });
+          setServer(duplicate.id, {
+            type: 'steam',
+            steam: true,
+            java: false,
+            enabled: true,
+            cwd: existingDir,
+            appid: Number(appid),
+            name: requestedId || duplicate.name || game.name
+          });
+
+          steamAddLog('create server: reused existing', `existingId=${duplicate.id} dir=${existingDir}`);
+          return interaction.editReply(
+            `✅ Steam server already existed, so I refreshed it instead of creating a duplicate.\n` +
+            `• Existing ID: **${duplicate.id}**\n` +
+            `• AppID: **${appid}**\n` +
+            `• Folder: \`${existingDir}\`\n` +
+            'Run `/steam update id:<serverId>` to download/install files via SteamCMD.'
+          );
+        }
+
         return interaction.editReply(
-          `❌ A server already exists for id/path (**${duplicate.id}**). Choose a different id or dir.`
+          `❌ A non-Steam server already exists for id/path (**${duplicate.id}**). Choose a different id or dir.`
         );
       }
 
