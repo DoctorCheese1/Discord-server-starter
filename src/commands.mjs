@@ -105,7 +105,7 @@ async function requireIdracOnline(interaction, actionLabel = 'run this command')
 }
 
 function isMutatingConfigSubcommand(sub) {
-  return ['enable', 'disable', 'rename', 'set-java', 'set-steam', 'set-process', 'remove'].includes(sub);
+  return ['enable', 'disable', 'rename', 'set-java', 'set-steam', 'set-process', 'set-dir', 'remove'].includes(sub);
 }
 
 
@@ -365,6 +365,24 @@ export async function handleCommand(interaction) {
       return interaction.editReply(`✅ Process fallback set to **${name}**.`);
     }
 
+    if (sub === 'set-dir') {
+      const id = interaction.options.getString('id');
+      const dir = interaction.options.getString('dir', true);
+      const resolvedDir = path.resolve(dir);
+      const folderName = path.basename(resolvedDir);
+
+      setServer(id, {
+        cwd: resolvedDir,
+        name: folderName || id
+      });
+
+      return interaction.editReply(
+        `✅ Server **${id}** directory updated.\n` +
+        `• Folder: \`${resolvedDir}\`\n` +
+        `• Name: **${folderName || id}**`
+      );
+    }
+
     if (sub === 'remove') {
       const id = interaction.options.getString('id', true);
       try {
@@ -427,14 +445,39 @@ export async function handleCommand(interaction) {
         .replace(/^-+|-+$/g, '') || `steam-${appid}`;
 
       const serverDir = path.resolve(customDir || path.join(serversRoot, resolvedId));
+      const folderBasedName = path.basename(serverDir) || resolvedId;
 
       const duplicate = loadServers({ includeDisabled: true }).find(s =>
         s.id === resolvedId || path.resolve(s.cwd || '') === serverDir
       );
 
       if (duplicate) {
+        if (duplicate.type === 'steam' || duplicate.steam) {
+          const existingDir = path.resolve(duplicate.cwd || serverDir);
+          scaffoldSteamScripts({ serverDir: existingDir, appid });
+          setServer(duplicate.id, {
+            type: 'steam',
+            steam: true,
+            java: false,
+            enabled: true,
+            cwd: existingDir,
+            appid: Number(appid),
+            name: path.basename(existingDir) || duplicate.id
+          });
+
+          steamAddLog('create server: reused existing', `existingId=${duplicate.id} dir=${existingDir}`);
+          return interaction.editReply(
+            `✅ Steam server already existed, so I refreshed it instead of creating a duplicate.\n` +
+            `• Existing ID: **${duplicate.id}**\n` +
+            `• Name: **${path.basename(existingDir) || duplicate.id}**\n` +
+            `• AppID: **${appid}**\n` +
+            `• Folder: \`${existingDir}\`\n` +
+            'Run `/steam update id:<serverId>` to download/install files via SteamCMD.'
+          );
+        }
+
         return interaction.editReply(
-          `❌ A server already exists for id/path (**${duplicate.id}**). Choose a different id or dir.`
+          `❌ A non-Steam server already exists for id/path (**${duplicate.id}**). Choose a different id or dir.`
         );
       }
 
@@ -443,7 +486,7 @@ export async function handleCommand(interaction) {
           serverId: resolvedId,
           appid,
           serverDir,
-          serverName: requestedId || game.name
+          serverName: folderBasedName
         });
 
         steamAddLog('create server: success', `createdId=${created.id} dir=${created.cwd}`);
@@ -454,7 +497,7 @@ export async function handleCommand(interaction) {
 ` +
           `• Server ID: **${created.id}**
 ` +
-          `• Name: **${requestedId || game.name}**
+          `• Name: **${folderBasedName}**
 ` +
           `• Folder: \`${created.cwd}\`
 ` +
