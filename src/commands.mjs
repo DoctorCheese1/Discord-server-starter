@@ -105,7 +105,7 @@ async function requireIdracOnline(interaction, actionLabel = 'run this command')
 }
 
 function isMutatingConfigSubcommand(sub) {
-  return ['enable', 'disable', 'rename', 'set-java', 'set-steam', 'set-process', 'remove'].includes(sub);
+  return ['enable', 'disable', 'rename', 'set-java', 'set-steam', 'set-process', 'set-dir', 'remove'].includes(sub);
 }
 
 
@@ -365,6 +365,24 @@ export async function handleCommand(interaction) {
       return interaction.editReply(`✅ Process fallback set to **${name}**.`);
     }
 
+    if (sub === 'set-dir') {
+      const id = interaction.options.getString('id');
+      const dir = interaction.options.getString('dir', true);
+      const resolvedDir = path.resolve(dir);
+      const folderName = path.basename(resolvedDir);
+
+      setServer(id, {
+        cwd: resolvedDir,
+        name: folderName || id
+      });
+
+      return interaction.editReply(
+        `✅ Server **${id}** directory updated.\n` +
+        `• Folder: \`${resolvedDir}\`\n` +
+        `• Name: **${folderName || id}**`
+      );
+    }
+
     if (sub === 'remove') {
       const id = interaction.options.getString('id', true);
       try {
@@ -466,7 +484,7 @@ export async function handleCommand(interaction) {
           serverId: resolvedId,
           appid,
           serverDir,
-          serverName: requestedId || game.name
+          serverName: folderBasedName
         });
 
         steamAddLog('create server: success', `createdId=${created.id} dir=${created.cwd}`);
@@ -477,7 +495,7 @@ export async function handleCommand(interaction) {
 ` +
           `• Server ID: **${created.id}**
 ` +
-          `• Name: **${requestedId || game.name}**
+          `• Name: **${folderBasedName}**
 ` +
           `• Folder: \`${created.cwd}\`
 ` +
