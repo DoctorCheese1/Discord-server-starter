@@ -445,7 +445,6 @@ export async function handleCommand(interaction) {
         .replace(/^-+|-+$/g, '') || `steam-${appid}`;
 
       const serverDir = path.resolve(customDir || path.join(serversRoot, resolvedId));
-      const folderBasedName = path.basename(serverDir) || resolvedId;
 
       const duplicate = loadServers({ includeDisabled: true }).find(s =>
         s.id === resolvedId || path.resolve(s.cwd || '') === serverDir
@@ -462,14 +461,13 @@ export async function handleCommand(interaction) {
             enabled: true,
             cwd: existingDir,
             appid: Number(appid),
-            name: path.basename(existingDir) || duplicate.id
+            name: requestedId || duplicate.name || game.name
           });
 
           steamAddLog('create server: reused existing', `existingId=${duplicate.id} dir=${existingDir}`);
           return interaction.editReply(
             `✅ Steam server already existed, so I refreshed it instead of creating a duplicate.\n` +
             `• Existing ID: **${duplicate.id}**\n` +
-            `• Name: **${path.basename(existingDir) || duplicate.id}**\n` +
             `• AppID: **${appid}**\n` +
             `• Folder: \`${existingDir}\`\n` +
             'Run `/steam update id:<serverId>` to download/install files via SteamCMD.'
