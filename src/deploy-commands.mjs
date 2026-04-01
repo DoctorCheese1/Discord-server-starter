@@ -236,6 +236,22 @@ export function buildCommands() {
       )
 
       .addSubcommand(sc =>
+        sc.setName('set-dir')
+          .setDescription('Set server folder path (also updates name to folder name)')
+          .addStringOption(o =>
+            o.setName('id')
+              .setDescription('Server id')
+              .setRequired(true)
+              .addChoices(...safeServerChoicesAll())
+          )
+          .addStringOption(o =>
+            o.setName('dir')
+              .setDescription('Absolute or relative folder path')
+              .setRequired(true)
+          )
+      )
+
+      .addSubcommand(sc =>
         sc.setName('remove')
           .setDescription('Remove server from config')
           .addStringOption(o =>
@@ -284,7 +300,6 @@ export function buildCommands() {
             o.setName('id')
               .setDescription('Server id (optional when using all=true)')
               .setRequired(false)
-              .addChoices(...safeServerChoices({ steamOnly: true }))
           )
           .addBooleanOption(o =>
             o.setName('all')
@@ -300,7 +315,6 @@ export function buildCommands() {
             o.setName('id')
               .setDescription('Server id')
               .setRequired(true)
-              .addChoices(...safeServerChoices({ steamOnly: true }))
           )
       )
 
