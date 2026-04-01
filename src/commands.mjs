@@ -371,6 +371,38 @@ export async function handleCommand(interaction) {
       const resolvedDir = path.resolve(dir);
       const folderName = path.basename(resolvedDir);
 
+      const conflict = loadServers({ includeDisabled: true }).find(s =>
+        s.id !== id && path.resolve(s.cwd || '') === resolvedDir
+      );
+
+      if (conflict) {
+        return interaction.editReply(
+          `❌ Folder is already used by **${conflict.id}**. Choose a different directory.`
+        );
+      }
+
+      try {
+        setServer(id, {
+          cwd: resolvedDir,
+          name: folderName || id
+        });
+      } catch (error) {
+        return interaction.editReply(`❌ Failed to update server dir: ${error?.message || 'unknown error'}`);
+      }
+
+      return interaction.editReply(
+        `✅ Server **${id}** directory updated.\n` +
+        `• Folder: \`${resolvedDir}\`\n` +
+        `• Name: **${folderName || id}**`
+      );
+    }
+
+    if (sub === 'set-dir') {
+      const id = interaction.options.getString('id');
+      const dir = interaction.options.getString('dir', true);
+      const resolvedDir = path.resolve(dir);
+      const folderName = path.basename(resolvedDir);
+
       setServer(id, {
         cwd: resolvedDir,
         name: folderName || id
