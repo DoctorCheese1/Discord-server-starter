@@ -7,7 +7,7 @@ const TEXT_EXTENSIONS = new Set([
   '.txt', '.json', '.cfg', '.ini', '.properties', '.yaml', '.yml', '.xml', '.bat', '.sh', '.log', '.conf'
 ]);
 
-const MAX_FILE_BYTES = 1024 * 1024; // 1MB
+const MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024; // 2GB
 
 function sendJson(res, status, payload) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -90,55 +90,140 @@ function editorPage(prefilledApiKey = '') {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Server File Editor</title>
+  <title>Toolbox - Config Editor</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 1rem; background: #111; color: #eee; }
-    select, textarea, button, input { width: 100%; margin: .4rem 0; padding: .6rem; border-radius: .4rem; border: 1px solid #444; background: #1c1c1c; color: #eee; }
-    textarea { min-height: 55vh; font-family: Consolas, monospace; }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-    .muted { color: #aaa; font-size: .9rem; }
-    .popup { position: fixed; top: 1rem; right: 1rem; background: #1f6f43; color: #fff; border: 1px solid #2ecc71; border-radius: .5rem; padding: .8rem 1rem; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity .2s, transform .2s; }
+    :root {
+      --bg: #111318;
+      --panel: #0d1015;
+      --panel-2: #181d25;
+      --text: #d9dde6;
+      --muted: #8b95a7;
+      --cyan: #1f8698;
+      --cyan-soft: #28515a;
+      --line: #2a303a;
+      --active: #2e7ea0;
+      --danger: #e06c75;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Segoe UI", Arial, sans-serif; }
+    .window-title { height: 30px; padding: 5px 10px; font-size: 14px; background: #0b0d10; border-bottom: 1px solid #1e222a; color: #d3d7de; }
+    .menu-bar { height: 30px; display: flex; align-items: center; gap: 2px; padding: 0 8px; background: #151a22; border-bottom: 1px solid #1f2430; position: relative; z-index: 20; }
+    .menu { position: relative; }
+    .menu-btn { border: none; background: transparent; color: #bfc8d9; padding: 6px 14px; font-size: 14px; cursor: pointer; }
+    .menu-btn:hover, .menu-btn.open { background: #2a2f3a; }
+    .menu-items { display: none; position: absolute; top: 100%; left: 0; min-width: 220px; background: rgba(29, 33, 41, 0.97); border: 1px solid #363d4b; box-shadow: 0 8px 16px rgba(0,0,0,.35); }
+    .menu-items.open { display: block; }
+    .menu-item { width: 100%; text-align: left; border: none; background: transparent; color: #c9d2e0; padding: 10px 14px; cursor: pointer; font-size: 15px; border-bottom: 1px solid #2b313d; }
+    .menu-item:last-child { border-bottom: none; }
+    .menu-item:hover { background: #364252; }
+    .header { background: linear-gradient(90deg, #174d5a, #1f8698); padding: 10px 16px; font-size: 36px; letter-spacing: .5px; font-weight: 300; border-bottom: 1px solid #2e3f4c; }
+    .toolbar { padding: 8px 12px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid #222833; background: #141922; }
+    .toolbar input, .toolbar select { background: #202733; border: 1px solid #394150; color: var(--text); border-radius: 4px; padding: 7px 10px; }
+    .toolbar input { min-width: 240px; }
+    .toolbar select { min-width: 200px; }
+    .layout { display: grid; grid-template-columns: 300px 1fr; height: calc(100vh - 149px); }
+    .sidebar { border-right: 1px solid #212734; background: var(--panel); overflow: auto; }
+    .tree-head { padding: 8px 12px; border-bottom: 1px solid #232a36; }
+    .tree-head input { width: 100%; background: #171d27; border: 1px solid #2e3645; color: var(--text); border-radius: 4px; padding: 7px 9px; }
+    .tree { padding: 8px 5px 24px; font-family: "Consolas", monospace; font-size: 14px; }
+    .tree-row { white-space: nowrap; padding: 3px 6px; cursor: pointer; border-radius: 3px; margin: 1px 0; color: #d8dfeb; }
+    .tree-row:hover { background: #1f2531; }
+    .tree-row.active { background: #2a5f80; color: #f0f7ff; }
+    .tree-row.file::before { content: "{}"; color: #dbbf63; margin-right: 6px; font-weight: 700; }
+    .tree-row.file.yaml::before { content: "YML"; font-size: 11px; color: #e8cc60; }
+    .tree details { margin: 1px 0; }
+    .tree summary { list-style: none; cursor: pointer; color: #c9d8ec; font-weight: 600; padding: 3px 6px; border-radius: 3px; }
+    .tree summary::-webkit-details-marker { display: none; }
+    .tree summary:hover { background: #1f2531; }
+    .folder-caret { display: inline-block; width: 14px; color: #7fa0bf; margin-right: 4px; }
+    details[open] > summary .folder-caret { color: #9fd2ff; }
+    .editor-wrap { display: flex; flex-direction: column; min-width: 0; }
+    .tabs { height: 40px; background: #191f28; display: flex; align-items: end; padding: 0 8px; border-bottom: 1px solid #2a3240; }
+    .tab { background: #2a3037; color: #bec7d6; border: 1px solid #3f4757; border-bottom: none; border-radius: 6px 6px 0 0; padding: 9px 14px; font-style: italic; min-width: 120px; }
+    .tab.active { background: #3b4048; color: #f5f7fb; }
+    .editor-grid { flex: 1; display: grid; grid-template-columns: 54px 1fr; min-height: 0; }
+    .line-numbers { background: var(--panel-2); border-right: 1px solid var(--line); color: #7f8ca4; font-family: Consolas, monospace; padding: 8px 6px; line-height: 22px; text-align: right; overflow: hidden; user-select: none; }
+    textarea { width: 100%; height: 100%; resize: none; border: none; outline: none; background: #1b2029; color: #e8edf6; font-family: Consolas, monospace; line-height: 22px; font-size: 26px; padding: 8px 12px; tab-size: 2; }
+    .footer { height: 28px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #262e3a; background: #121722; padding: 0 10px; color: var(--muted); font-size: 12px; }
+    .popup { position: fixed; top: 12px; right: 12px; background: #1f6f43; color: #fff; border: 1px solid #2ecc71; border-radius: .5rem; padding: .8rem 1rem; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity .2s, transform .2s; z-index: 50; }
     .popup.show { opacity: 1; transform: translateY(0); }
   </style>
 </head>
 <body>
-  <h2>📝 Server File Editor</h2>
-  <p class="muted">Use this page to edit text config files under discovered server folders.</p>
-
-  <label>API Key (if configured)</label>
-  <input id="key" placeholder="WEB_EDITOR_API_KEY" autocomplete="off" />
-
-  <div class="row">
-    <div>
-      <label>Server</label>
-      <select id="server"></select>
+  <div class="window-title">Toolbox - Config Editor</div>
+  <div class="menu-bar">
+    <div class="menu">
+      <button class="menu-btn" data-menu="file">File</button>
+      <div class="menu-items" id="menu-file">
+        <button class="menu-item" id="newWindow">New Window</button>
+        <button class="menu-item" id="save">Save</button>
+        <button class="menu-item" id="revert">Revert File</button>
+        <button class="menu-item" id="exit">Exit</button>
+      </div>
     </div>
-    <div>
-      <label>File</label>
-      <input id="fileSearch" placeholder="Search files..." />
-      <select id="file"></select>
+    <div class="menu">
+      <button class="menu-btn" data-menu="edit">Edit</button>
+      <div class="menu-items" id="menu-edit">
+        <button class="menu-item" id="undo">Undo</button>
+        <button class="menu-item" id="redo">Redo</button>
+        <button class="menu-item" id="cut">Cut</button>
+        <button class="menu-item" id="copy">Copy</button>
+        <button class="menu-item" id="paste">Paste</button>
+      </div>
+    </div>
+    <div class="menu">
+      <button class="menu-btn" data-menu="format">Format</button>
+      <div class="menu-items" id="menu-format">
+        <button class="menu-item" id="validateJson">Validate JSON</button>
+        <button class="menu-item" id="validateYaml">Validate YAML</button>
+        <button class="menu-item" id="prettifyJson">Prettify JSON</button>
+      </div>
     </div>
   </div>
-
-  <button id="load">Load File</button>
-  <textarea id="content" placeholder="File contents..."></textarea>
-  <button id="save">Save File</button>
-  <div id="status" class="muted"></div>
+  <div class="header">Toolbox - Config Editor</div>
+  <div class="toolbar">
+    <select id="server"></select>
+    <input id="key" placeholder="WEB_EDITOR_API_KEY" autocomplete="off" />
+    <input id="fileSearch" placeholder="Filter files..." />
+  </div>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="tree-head"></div>
+      <div id="tree" class="tree"></div>
+    </aside>
+    <section class="editor-wrap">
+      <div class="tabs"><div id="tab" class="tab active">No file open</div></div>
+      <div class="editor-grid">
+        <pre id="lineNumbers" class="line-numbers">1</pre>
+        <textarea id="content" spellcheck="false" placeholder="Select a file on the left to load contents..."></textarea>
+      </div>
+      <div class="footer">
+        <div id="status">Ready</div>
+        <div>Ctrl+S Save • Ctrl+F Find in browser</div>
+      </div>
+    </section>
+  </div>
   <div id="savePopup" class="popup">✅ File saved successfully</div>
 
   <script>
     const status = document.getElementById('status');
     const serverSel = document.getElementById('server');
-    const fileSel = document.getElementById('file');
+    const tree = document.getElementById('tree');
     const content = document.getElementById('content');
     const keyInput = document.getElementById('key');
     const fileSearchInput = document.getElementById('fileSearch');
     const savePopup = document.getElementById('savePopup');
+    const tab = document.getElementById('tab');
+    const lineNumbers = document.getElementById('lineNumbers');
 
     const KEY_STORAGE_NAME = 'web_editor_api_key';
     const SERVER_PROVIDED_KEY = ${JSON.stringify(prefilledApiKey)};
     let allFiles = [];
+    let currentFile = '';
+    let originalContent = '';
     let popupTimer;
+    let openMenu = null;
+    const collapsedFolders = new Set();
 
     function showSavePopup(file) {
       savePopup.textContent = '✅ Saved ' + file;
@@ -147,17 +232,66 @@ function editorPage(prefilledApiKey = '') {
       popupTimer = setTimeout(() => savePopup.classList.remove('show'), 1800);
     }
 
+    function updateLineNumbers() {
+      const lines = Math.max(1, content.value.split('\\n').length);
+      const nums = [];
+      for (let i = 1; i <= lines; i++) nums.push(i);
+      lineNumbers.textContent = nums.join('\\n');
+    }
+
+    function markActiveFile() {
+      for (const row of tree.querySelectorAll('.tree-row.file')) {
+        row.classList.toggle('active', row.dataset.path === currentFile);
+      }
+      tab.textContent = currentFile ? pathBase(currentFile) : 'No file open';
+    }
+
+    function pathBase(p) {
+      const parts = p.split('/');
+      return parts[parts.length - 1];
+    }
+
     function renderFiles(filter = '') {
       const query = filter.trim().toLowerCase();
       const files = query
         ? allFiles.filter(f => f.toLowerCase().includes(query))
         : allFiles;
 
-      const current = fileSel.value;
-      fileSel.innerHTML = files.map(f => '<option value="' + f + '">' + f + '</option>').join('');
-      if (current && files.includes(current)) {
-        fileSel.value = current;
+      const root = { folders: new Map(), files: [] };
+      for (const file of files) {
+        const parts = file.split('/');
+        let node = root;
+        for (let i = 0; i < parts.length - 1; i++) {
+          const folder = parts[i];
+          if (!node.folders.has(folder)) node.folders.set(folder, { folders: new Map(), files: [] });
+          node = node.folders.get(folder);
+        }
+        node.files.push(file);
       }
+
+      function walk(node, depth, prefix = '') {
+        const parts = [];
+        const folders = Array.from(node.folders.keys()).sort((a, b) => a.localeCompare(b));
+        for (const folderName of folders) {
+          const folderPath = prefix ? prefix + '/' + folderName : folderName;
+          const isCollapsed = collapsedFolders.has(folderPath);
+          parts.push(
+            '<details data-folder="' + folderPath + '" ' + (isCollapsed ? '' : 'open') + ' style="margin-left:' + (depth * 16 + 8) + 'px">' +
+              '<summary><span class="folder-caret">' + (isCollapsed ? '▶' : '▼') + '</span>' + folderName + '</summary>' +
+              walk(node.folders.get(folderName), depth + 1, folderPath) +
+            '</details>'
+          );
+        }
+        const sortedFiles = node.files.slice().sort((a, b) => a.localeCompare(b));
+        for (const filePath of sortedFiles) {
+          const ext = filePath.toLowerCase().endsWith('.yml') || filePath.toLowerCase().endsWith('.yaml') ? ' yaml' : '';
+          parts.push('<div class="tree-row file' + ext + '" data-path="' + filePath + '" style="padding-left:' + (depth * 16 + 24) + 'px">' + pathBase(filePath) + '</div>');
+        }
+        return parts.join('');
+      }
+
+      tree.innerHTML = walk(root, 0);
+      markActiveFile();
     }
 
     function withKey(url) {
@@ -186,32 +320,54 @@ function editorPage(prefilledApiKey = '') {
       renderFiles(fileSearchInput.value);
     }
 
-    document.getElementById('load').onclick = async () => {
+    async function loadFile(file) {
       try {
         const id = serverSel.value;
-        const file = fileSel.value;
         const data = await fetchJson('/api/file?serverId=' + encodeURIComponent(id) + '&path=' + encodeURIComponent(file));
         content.value = data.content;
+        originalContent = data.content;
+        currentFile = file;
         status.textContent = 'Loaded ' + file;
+        markActiveFile();
+        updateLineNumbers();
       } catch (err) {
         status.textContent = '❌ ' + err.message;
       }
-    };
+    }
 
-    document.getElementById('save').onclick = async () => {
+    async function saveCurrentFile() {
       try {
+        if (!currentFile) throw new Error('No file selected');
         const id = serverSel.value;
-        const file = fileSel.value;
         await fetchJson('/api/file', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ serverId: id, path: file, content: content.value })
+          body: JSON.stringify({ serverId: id, path: currentFile, content: content.value })
         });
-        status.textContent = '✅ Saved ' + file;
-        showSavePopup(file);
+        originalContent = content.value;
+        status.textContent = '✅ Saved ' + currentFile;
+        showSavePopup(currentFile);
       } catch (err) {
         status.textContent = '❌ ' + err.message;
       }
+    }
+
+    tree.addEventListener('toggle', e => {
+      const details = e.target.closest('details[data-folder]');
+      if (!details) return;
+      const folderPath = details.dataset.folder;
+      if (details.open) {
+        collapsedFolders.delete(folderPath);
+      } else {
+        collapsedFolders.add(folderPath);
+      }
+      const summary = details.querySelector(':scope > summary > .folder-caret');
+      if (summary) summary.textContent = details.open ? '▼' : '▶';
+    });
+
+    tree.onclick = e => {
+      const row = e.target.closest('.tree-row.file');
+      if (row) loadFile(row.dataset.path);
     };
 
     serverSel.onchange = loadFiles;
@@ -220,6 +376,73 @@ function editorPage(prefilledApiKey = '') {
       localStorage.setItem(KEY_STORAGE_NAME, keyInput.value.trim());
       loadServers().catch(err => status.textContent = '❌ ' + err.message);
     };
+    content.oninput = updateLineNumbers;
+    content.onscroll = () => { lineNumbers.scrollTop = content.scrollTop; };
+
+    document.getElementById('save').onclick = saveCurrentFile;
+    document.getElementById('revert').onclick = () => {
+      if (!currentFile) return;
+      content.value = originalContent;
+      updateLineNumbers();
+      status.textContent = 'Reverted ' + currentFile;
+    };
+    document.getElementById('newWindow').onclick = () => window.open(window.location.href, '_blank');
+    document.getElementById('exit').onclick = () => window.close();
+    document.getElementById('undo').onclick = () => document.execCommand('undo');
+    document.getElementById('redo').onclick = () => document.execCommand('redo');
+    document.getElementById('cut').onclick = () => document.execCommand('cut');
+    document.getElementById('copy').onclick = () => document.execCommand('copy');
+    document.getElementById('paste').onclick = () => document.execCommand('paste');
+    document.getElementById('validateJson').onclick = () => {
+      try {
+        JSON.parse(content.value);
+        status.textContent = '✅ Valid JSON';
+      } catch (err) {
+        status.textContent = '❌ JSON: ' + err.message;
+      }
+    };
+    document.getElementById('validateYaml').onclick = () => {
+      const lines = content.value.split('\\n');
+      const bad = lines.findIndex(l => /^\\s*[^#\\-][^:]*$/.test(l) && l.trim() !== '');
+      status.textContent = bad >= 0 ? '⚠️ YAML likely invalid near line ' + (bad + 1) : '✅ YAML looks valid';
+    };
+    document.getElementById('prettifyJson').onclick = () => {
+      try {
+        content.value = JSON.stringify(JSON.parse(content.value), null, 2);
+        updateLineNumbers();
+        status.textContent = '✅ JSON formatted';
+      } catch (err) {
+        status.textContent = '❌ Cannot format JSON: ' + err.message;
+      }
+    };
+
+    document.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        saveCurrentFile();
+      }
+    });
+
+    document.querySelectorAll('.menu-btn').forEach(btn => {
+      btn.onclick = e => {
+        e.stopPropagation();
+        const name = btn.dataset.menu;
+        const target = document.getElementById('menu-' + name);
+        const shouldOpen = openMenu !== target;
+        document.querySelectorAll('.menu-items').forEach(m => m.classList.remove('open'));
+        document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('open'));
+        openMenu = shouldOpen ? target : null;
+        if (shouldOpen) {
+          target.classList.add('open');
+          btn.classList.add('open');
+        }
+      };
+    });
+    document.addEventListener('click', () => {
+      openMenu = null;
+      document.querySelectorAll('.menu-items').forEach(m => m.classList.remove('open'));
+      document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('open'));
+    });
 
     const params = new URLSearchParams(window.location.search);
     const keyFromUrl = params.get('key');
@@ -239,6 +462,7 @@ function editorPage(prefilledApiKey = '') {
     }
 
     loadServers().catch(err => status.textContent = '❌ ' + err.message);
+    updateLineNumbers();
   </script>
 </body>
 </html>`;
