@@ -199,25 +199,44 @@ Sets whether the server is Steam-based (used internally only).
 
 ---
 
+### /config set-group id:<serverId> group:<label>
+
+Sets a custom group label (example: `lobby`, `survival`, `network-a`) for organization and filtering.
+
+---
+
 ### /config remove id:<serverId>
 
 Removes a server from `data/servers.json`.
 
 ---
 
-### /steam add appid:<steamAppId> [id:<folderName>] [dir:<customPath>]
+### /steam update [id:<serverId>] [all:<true|false>]
 
-Creates a Steam server from the AppID list in `src/steam/steam-games.json`.
+Runs `update.bat` through Task Scheduler for one Steam server (`id`) or all enabled Steam servers (`all:true`).
 
-Defaults:
+Notes:
 
-* install folder root: `BASE_SERVER_DIR` (or `C:/Servers`)
-* folder/id: provided `id` or sanitized game name from `steam-games.json`
-* server type: `steam`
-* server display name: folder name
-* generated scripts: `start.bat`, `stop.bat`, and `update.bat`
-  * `start.bat` launches `start_server.bat` and writes the started wrapper PID to `server.pid`
-  * `update.bat` auto-detects `steamcmd.exe` from `STEAMCMD_EXE`, local script folders, or `PATH`
+* Provide either `id` or `all:true`.
+* Only servers flagged as Steam are targeted when using `all:true`.
+
+---
+
+### /group list [name:<groupName>]
+
+Lists grouped servers, or only servers for a specific group.
+
+### /group add id:<serverId> name:<groupName>
+### /group remove id:<serverId>
+
+Adds/removes a server from a group.  
+For `/group add`, `id` is optional; if omitted, the group is applied to all enabled servers.
+
+### /group start name:<groupName>
+### /group stop name:<groupName>
+### /group restart name:<groupName>
+
+Runs lifecycle actions for all enabled servers in that group.
 
 ---
 
