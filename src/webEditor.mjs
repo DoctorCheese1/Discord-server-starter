@@ -7,7 +7,7 @@ const TEXT_EXTENSIONS = new Set([
   '.txt', '.json', '.cfg', '.ini', '.properties', '.yaml', '.yml', '.xml', '.bat', '.sh', '.log', '.conf'
 ]);
 
-const MAX_FILE_BYTES = 1024 * 1024; // 1MB
+const MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024; // 2GB
 
 function sendJson(res, status, payload) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
