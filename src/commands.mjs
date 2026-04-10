@@ -309,11 +309,23 @@ export async function handleCommand(interaction) {
     }
 
     if (sub === 'add') {
-      const id = interaction.options.getString('id', true);
+      const id = interaction.options.getString('id');
       const name = interaction.options.getString('name', true).trim();
 
       if (!name) {
         return interaction.editReply('❌ Group name cannot be empty.');
+      }
+
+      if (!id) {
+        const targets = loadServers({ includeDisabled: false });
+
+        for (const server of targets) {
+          setServer(server.id, { group: name });
+        }
+
+        return interaction.editReply(
+          `✅ Group **${name}** applied to **${targets.length}** enabled servers.`
+        );
       }
 
       setServer(id, { group: name });

@@ -229,7 +229,8 @@ Lists grouped servers, or only servers for a specific group.
 ### /group add id:<serverId> name:<groupName>
 ### /group remove id:<serverId>
 
-Adds/removes a server from a group.
+Adds/removes a server from a group.  
+For `/group add`, `id` is optional; if omitted, the group is applied to all enabled servers.
 
 ### /group start name:<groupName>
 ### /group stop name:<groupName>
