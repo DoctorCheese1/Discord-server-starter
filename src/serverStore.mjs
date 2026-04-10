@@ -152,6 +152,7 @@ function normalizeServer(s) {
 
     steam: s.steam === true || s.type === 'steam',
     java: s.java === true,
+    group: typeof s.group === 'string' ? s.group : '',
     processName: s.processName,
 
     startBat: path.join(s.cwd, 'start.bat'),
@@ -189,12 +190,13 @@ export function getServer(idOrName, opts) {
 /**
  * Used by slash-command choices
  */
-export function serverChoices({ steamOnly = false } = {}) {
+export function serverChoices({ steamOnly = false, includeDisabled = false, group } = {}) {
   const raw = readRawConfig();
 
   return (raw.servers || [])
-    .filter(s => s.enabled !== false)
+    .filter(s => includeDisabled || s.enabled !== false)
     .filter(s => !steamOnly || s.steam === true || s.type === 'steam')
+    .filter(s => !group || String(s.group || '').toLowerCase() === String(group).toLowerCase())
     .map(s => ({
       name: s.name,
       value: s.id
@@ -220,6 +222,7 @@ export function addServer(server) {
     cwd: server.cwd,
     steam: server.steam === true,
     java: server.java === true,
+    group: typeof server.group === 'string' ? server.group : '',
     appid: server.appid,
     processName: server.processName
   });
