@@ -131,8 +131,7 @@ function editorPage(prefilledApiKey = '') {
     .tree-row.active { background: #2a5f80; color: #f0f7ff; }
     .tree-row.file::before { content: "{}"; color: #dbbf63; margin-right: 6px; font-weight: 700; }
     .tree-row.file.yaml::before { content: "YML"; font-size: 11px; color: #e8cc60; }
-    .tree-row.folder::before { content: "▾"; margin-right: 6px; color: #7fa0bf; }
-    .tree-row.folder.collapsed::before { content: "▸"; }
+    .tree-row.folder::before { content: "📁"; margin-right: 6px; }
     .editor-wrap { display: flex; flex-direction: column; min-width: 0; }
     .tabs { height: 40px; background: #191f28; display: flex; align-items: end; padding: 0 8px; border-bottom: 1px solid #2a3240; }
     .tab { background: #2a3037; color: #bec7d6; border: 1px solid #3f4757; border-bottom: none; border-radius: 6px 6px 0 0; padding: 9px 14px; font-style: italic; min-width: 120px; }
@@ -219,7 +218,6 @@ function editorPage(prefilledApiKey = '') {
     let originalContent = '';
     let popupTimer;
     let openMenu = null;
-    const collapsedFolders = new Set();
 
     function showSavePopup(file) {
       savePopup.textContent = '✅ Saved ' + file;
@@ -252,42 +250,24 @@ function editorPage(prefilledApiKey = '') {
       const files = query
         ? allFiles.filter(f => f.toLowerCase().includes(query))
         : allFiles;
-
-      const root = { folders: new Map(), files: [] };
+      const folderSet = new Set();
+      const rows = [];
       for (const file of files) {
         const parts = file.split('/');
-        let node = root;
-        for (let i = 0; i < parts.length - 1; i++) {
-          const folder = parts[i];
-          if (!node.folders.has(folder)) node.folders.set(folder, { folders: new Map(), files: [] });
-          node = node.folders.get(folder);
-        }
-        node.files.push(file);
-      }
-
-      const rows = [];
-      function walk(node, depth, prefix = '') {
-        const folders = Array.from(node.folders.keys()).sort((a, b) => a.localeCompare(b));
-        for (const folderName of folders) {
-          const folderPath = prefix ? prefix + '/' + folderName : folderName;
-          const isCollapsed = collapsedFolders.has(folderPath);
-          rows.push(
-            '<div class="tree-row folder' + (isCollapsed ? ' collapsed' : '') + '" data-folder="' + folderPath + '" style="padding-left:' + (depth * 16 + 8) + 'px">' +
-            folderName +
-            '</div>'
-          );
-          if (!isCollapsed) {
-            walk(node.folders.get(folderName), depth + 1, folderPath);
-          }
-        }
-        const sortedFiles = node.files.slice().sort((a, b) => a.localeCompare(b));
-        for (const filePath of sortedFiles) {
-          const ext = filePath.toLowerCase().endsWith('.yml') || filePath.toLowerCase().endsWith('.yaml') ? ' yaml' : '';
-          rows.push('<div class="tree-row file' + ext + '" data-path="' + filePath + '" style="padding-left:' + (depth * 16 + 8) + 'px">' + pathBase(filePath) + '</div>');
+        for (let i = 1; i < parts.length; i++) {
+          folderSet.add(parts.slice(0, i).join('/'));
         }
       }
-
-      walk(root, 0);
+      const sortedFolders = Array.from(folderSet).sort((a, b) => a.localeCompare(b));
+      for (const folder of sortedFolders) {
+        const depth = folder.split('/').length - 1;
+        rows.push('<div class="tree-row folder" style="padding-left:' + (depth * 16 + 8) + 'px">' + folder.split('/').pop() + '</div>');
+      }
+      for (const file of files) {
+        const ext = file.toLowerCase().endsWith('.yml') || file.toLowerCase().endsWith('.yaml') ? ' yaml' : '';
+        const depth = file.split('/').length - 1;
+        rows.push('<div class="tree-row file' + ext + '" data-path="' + file + '" style="padding-left:' + (depth * 16 + 8) + 'px">' + pathBase(file) + '</div>');
+      }
       tree.innerHTML = rows.join('');
       markActiveFile();
     }
@@ -351,17 +331,6 @@ function editorPage(prefilledApiKey = '') {
     }
 
     tree.onclick = e => {
-      const folder = e.target.closest('.tree-row.folder');
-      if (folder) {
-        const folderPath = folder.dataset.folder;
-        if (collapsedFolders.has(folderPath)) {
-          collapsedFolders.delete(folderPath);
-        } else {
-          collapsedFolders.add(folderPath);
-        }
-        renderFiles(fileSearchInput.value);
-        return;
-      }
       const row = e.target.closest('.tree-row.file');
       if (row) loadFile(row.dataset.path);
     };
