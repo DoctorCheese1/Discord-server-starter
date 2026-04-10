@@ -292,25 +292,6 @@ function editorPage(prefilledApiKey = '') {
       }
 
       tree.innerHTML = walk(root, 0);
-      const folderSet = new Set();
-      const rows = [];
-      for (const file of files) {
-        const parts = file.split('/');
-        for (let i = 1; i < parts.length; i++) {
-          folderSet.add(parts.slice(0, i).join('/'));
-        }
-      }
-      const sortedFolders = Array.from(folderSet).sort((a, b) => a.localeCompare(b));
-      for (const folder of sortedFolders) {
-        const depth = folder.split('/').length - 1;
-        rows.push('<div class="tree-row folder" style="padding-left:' + (depth * 16 + 8) + 'px">' + folder.split('/').pop() + '</div>');
-      }
-      for (const file of files) {
-        const ext = file.toLowerCase().endsWith('.yml') || file.toLowerCase().endsWith('.yaml') ? ' yaml' : '';
-        const depth = file.split('/').length - 1;
-        rows.push('<div class="tree-row file' + ext + '" data-path="' + file + '" style="padding-left:' + (depth * 16 + 8) + 'px">' + pathBase(file) + '</div>');
-      }
-      tree.innerHTML = rows.join('');
       markActiveFile();
     }
 
