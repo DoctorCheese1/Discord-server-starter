@@ -137,6 +137,7 @@ function editorPage(prefilledApiKey = '') {
     .tree summary:hover { background: #1f2531; }
     .folder-caret { display: inline-block; width: 14px; color: #7fa0bf; margin-right: 4px; }
     details[open] > summary .folder-caret { color: #9fd2ff; }
+    .tree-row.folder::before { content: "📁"; margin-right: 6px; }
     .editor-wrap { display: flex; flex-direction: column; min-width: 0; }
     .tabs { height: 40px; background: #191f28; display: flex; align-items: end; padding: 0 8px; border-bottom: 1px solid #2a3240; }
     .tab { background: #2a3037; color: #bec7d6; border: 1px solid #3f4757; border-bottom: none; border-radius: 6px 6px 0 0; padding: 9px 14px; font-style: italic; min-width: 120px; }
@@ -291,6 +292,25 @@ function editorPage(prefilledApiKey = '') {
       }
 
       tree.innerHTML = walk(root, 0);
+      const folderSet = new Set();
+      const rows = [];
+      for (const file of files) {
+        const parts = file.split('/');
+        for (let i = 1; i < parts.length; i++) {
+          folderSet.add(parts.slice(0, i).join('/'));
+        }
+      }
+      const sortedFolders = Array.from(folderSet).sort((a, b) => a.localeCompare(b));
+      for (const folder of sortedFolders) {
+        const depth = folder.split('/').length - 1;
+        rows.push('<div class="tree-row folder" style="padding-left:' + (depth * 16 + 8) + 'px">' + folder.split('/').pop() + '</div>');
+      }
+      for (const file of files) {
+        const ext = file.toLowerCase().endsWith('.yml') || file.toLowerCase().endsWith('.yaml') ? ' yaml' : '';
+        const depth = file.split('/').length - 1;
+        rows.push('<div class="tree-row file' + ext + '" data-path="' + file + '" style="padding-left:' + (depth * 16 + 8) + 'px">' + pathBase(file) + '</div>');
+      }
+      tree.innerHTML = rows.join('');
       markActiveFile();
     }
 
