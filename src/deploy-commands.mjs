@@ -123,6 +123,71 @@ export function buildCommands() {
           .addChoices(...safeServerChoices())
       ),
 
+    new SlashCommandBuilder()
+      .setName('group')
+      .setDescription('Group operations for organized server control')
+      .setDMPermission(true)
+      .addSubcommand(sc =>
+        sc.setName('list')
+          .setDescription('List servers by group (or all grouped servers)')
+          .addStringOption(o =>
+            o.setName('name')
+              .setDescription('Optional group name filter')
+              .setRequired(false)
+          )
+      )
+      .addSubcommand(sc =>
+        sc.setName('add')
+          .setDescription('Assign one server (or all enabled servers) to a group')
+          .addStringOption(o =>
+            o.setName('name')
+              .setDescription('Group name')
+              .setRequired(true)
+          )
+          .addStringOption(o =>
+            o.setName('id')
+              .setDescription('Optional server id (leave empty to apply to all enabled servers)')
+              .setRequired(false)
+          )
+      )
+      .addSubcommand(sc =>
+        sc.setName('remove')
+          .setDescription('Remove a server from its group')
+          .addStringOption(o =>
+            o.setName('id')
+              .setDescription('Server id')
+              .setRequired(true)
+              .addChoices(...safeServerChoicesAll())
+          )
+      )
+      .addSubcommand(sc =>
+        sc.setName('start')
+          .setDescription('Start all servers in a group')
+          .addStringOption(o =>
+            o.setName('name')
+              .setDescription('Group name')
+              .setRequired(true)
+          )
+      )
+      .addSubcommand(sc =>
+        sc.setName('stop')
+          .setDescription('Stop all servers in a group')
+          .addStringOption(o =>
+            o.setName('name')
+              .setDescription('Group name')
+              .setRequired(true)
+          )
+      )
+      .addSubcommand(sc =>
+        sc.setName('restart')
+          .setDescription('Restart all servers in a group')
+          .addStringOption(o =>
+            o.setName('name')
+              .setDescription('Group name')
+              .setRequired(true)
+          )
+      ),
+
     /* ===== CONFIG ===== */
     new SlashCommandBuilder()
       .setName('config')
@@ -140,6 +205,15 @@ export function buildCommands() {
           .addStringOption(o =>
             o.setName('type')
              .setDescription('Filter by server type')
+             .addChoices(
+               { name: 'minecraft', value: 'minecraft' },
+               { name: 'steam', value: 'steam' },
+               { name: 'generic', value: 'generic' }
+             )
+          )
+          .addStringOption(o =>
+            o.setName('group')
+             .setDescription('Filter by custom group label')
           )
       )
 
@@ -220,6 +294,22 @@ export function buildCommands() {
       )
 
       .addSubcommand(sc =>
+        sc.setName('set-group')
+          .setDescription('Set custom group label')
+          .addStringOption(o =>
+            o.setName('id')
+              .setDescription('Server id')
+              .setRequired(true)
+              .addChoices(...safeServerChoicesAll())
+          )
+          .addStringOption(o =>
+            o.setName('group')
+              .setDescription('Group label (example: network-a)')
+              .setRequired(true)
+          )
+      )
+
+      .addSubcommand(sc =>
         sc.setName('set-process')
           .setDescription('Set process image name fallback (ex: java.exe, ShooterGameServer.exe)')
           .addStringOption(o =>
@@ -271,26 +361,6 @@ export function buildCommands() {
       .addSubcommand(sc =>
         sc.setName('list')
           .setDescription('List registered Steam games')
-      )
-
-      .addSubcommand(sc =>
-        sc.setName('add')
-          .setDescription('Install/register a Steam dedicated server from AppID')
-          .addIntegerOption(o =>
-            o.setName('appid')
-              .setDescription('Steam AppID')
-              .setRequired(true)
-              .addChoices(...safeSteamGameChoices())
-          )
-          .addStringOption(o =>
-            o.setName('id')
-              .setDescription('Optional server id/folder name (defaults to game name)')
-              .setRequired(false)
-          )
-          .addStringOption(o =>
-            o.setName('dir')
-              .setDescription('Optional install dir (defaults to BASE_SERVER_DIR/<folder>)')
-          )
       )
 
       .addSubcommand(sc =>

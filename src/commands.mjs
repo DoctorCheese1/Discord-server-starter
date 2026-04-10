@@ -27,10 +27,6 @@ import {
 import {
   buildSearchPage
 } from './steam/steamSearchUI.mjs';
-import {
-  createSteamServer,
-  scaffoldSteamScripts
-} from './steam/steamServerCreator.mjs';
 import path from 'path';
 
 import {
@@ -42,7 +38,6 @@ import {
   refreshIdracMonitor
 } from './idrac/idracMonitor.mjs';
 import { isIdracOnlyMode } from './mode.mjs';
-import { log } from './logger.mjs';
 
 /* ======================================================
    MAIN HANDLER
@@ -105,22 +100,32 @@ async function requireIdracOnline(interaction, actionLabel = 'run this command')
 }
 
 function isMutatingConfigSubcommand(sub) {
-  return ['enable', 'disable', 'rename', 'set-java', 'set-steam', 'set-process', 'set-dir', 'remove'].includes(sub);
+  return ['enable', 'disable', 'rename', 'set-java', 'set-steam', 'set-group', 'set-process', 'set-dir', 'remove'].includes(sub);
 }
 
 
-async function ensureSteamScaffold(serverDir, appid) {
-  if (typeof scaffoldSteamScripts === 'function') {
-    return scaffoldSteamScripts({ serverDir, appid });
+async function runLifecycleCommand(server, cmd) {
+  if (cmd === 'start') {
+    await startServer(server);
+    return `✅ Start triggered for **${server.name}**.`;
   }
 
-  // Fallback for stale runtime/module cache situations.
-  const steamModule = await import('./steam/steamServerCreator.mjs');
-  if (typeof steamModule.scaffoldSteamScripts === 'function') {
-    return steamModule.scaffoldSteamScripts({ serverDir, appid });
+  if (cmd === 'stop') {
+    const stopped = await stopServer(server);
+    if (!stopped) {
+      return '⚠ Stop command sent, but no PID/process match was found.';
+    }
+
+    return `✅ Stop triggered for **${server.name}**.`;
   }
 
-  throw new Error('scaffoldSteamScripts is not available');
+  const stopped = await stopServer(server);
+  if (!stopped) {
+    return '⚠ Restart blocked: could not find running process to stop.';
+  }
+
+  await startServer(server);
+  return `✅ Restart triggered for **${server.name}**.`;
 }
 
 export async function handleCommand(interaction) {
@@ -190,11 +195,27 @@ export async function handleCommand(interaction) {
 
   if (cmd === 'status') {
     const servers = loadServers({ includeDisabled: true });
-    return interaction.editReply(
-      servers.length
-        ? servers.map(s => `• ${s.name}`).join('\n')
-        : 'No servers configured.'
-    );
+
+    if (!servers.length) {
+      return interaction.editReply('No servers configured.');
+    }
+
+    const lines = await Promise.all(servers.map(async s => {
+      const st = await getServerState(s);
+      const tags = [
+        s.type ? `type:${s.type}` : null,
+        s.group ? `group:${s.group}` : null
+      ].filter(Boolean).join(' | ');
+
+      return [
+        `${st.emoji} **${s.name}** (\`${s.id}\`)`,
+        `• Status: **${st.label}**`,
+        `• Dir: \`${s.cwd || 'n/a'}\``,
+        `• Meta: ${tags || 'none'}`
+      ].join('\n');
+    }));
+
+    return interaction.editReply(lines.join('\n\n'));
   }
 
 
@@ -233,6 +254,7 @@ export async function handleCommand(interaction) {
         { name: 'Status', value: st.label, inline: true },
         { name: 'ID', value: server.id, inline: true },
         { name: 'Type', value: server.type ?? 'unknown', inline: true },
+        { name: 'Group', value: server.group || 'none', inline: true },
         { name: 'Path', value: server.cwd ?? 'n/a' }
       );
 
@@ -252,29 +274,99 @@ export async function handleCommand(interaction) {
     }
 
     try {
-      if (cmd === 'start') {
-        await startServer(server);
-        return interaction.editReply(`✅ Start triggered for **${server.name}**.`);
-      }
-
-      if (cmd === 'stop') {
-        const stopped = await stopServer(server);
-        if (!stopped) {
-          return interaction.editReply('⚠ Stop command sent, but no PID/process match was found.');
-        }
-
-        return interaction.editReply(`✅ Stop triggered for **${server.name}**.`);
-      }
-
-      const stopped = await stopServer(server);
-      if (!stopped) {
-        return interaction.editReply('⚠ Restart blocked: could not find running process to stop.');
-      }
-
-      await startServer(server);
-      return interaction.editReply(`✅ Restart triggered for **${server.name}**.`);
+      const message = await runLifecycleCommand(server, cmd);
+      return interaction.editReply(message);
     } catch (error) {
       return interaction.editReply(`❌ ${cmd} failed: ${error?.message || 'unknown error'}`);
+    }
+  }
+
+  if (cmd === 'group') {
+    const sub = interaction.options.getSubcommand();
+
+    if (sub === 'list') {
+      const groupName = interaction.options.getString('name');
+      let servers = loadServers({ includeDisabled: true }).filter(s => Boolean(s.group));
+
+      if (groupName) {
+        const normalizedGroup = groupName.toLowerCase();
+        servers = servers.filter(s => (s.group || '').toLowerCase() === normalizedGroup);
+      }
+
+      if (!servers.length) {
+        return interaction.editReply(groupName
+          ? `❌ No servers found in group **${groupName}**.`
+          : '❌ No grouped servers found.');
+      }
+
+      const lines = await Promise.all(servers.map(async s => {
+        const st = await getServerState(s);
+        const group = s.group ? ` • group: \`${s.group}\`` : '';
+        return `${st.emoji} **${s.name}** (${s.id}) — ${st.label}${group}`;
+      }));
+
+      return interaction.editReply(lines.join('\n'));
+    }
+
+    if (sub === 'add') {
+      const id = interaction.options.getString('id');
+      const name = interaction.options.getString('name', true).trim();
+
+      if (!name) {
+        return interaction.editReply('❌ Group name cannot be empty.');
+      }
+
+      if (!id) {
+        const targets = loadServers({ includeDisabled: false });
+
+        for (const server of targets) {
+          setServer(server.id, { group: name });
+        }
+
+        return interaction.editReply(
+          `✅ Group **${name}** applied to **${targets.length}** enabled servers.`
+        );
+      }
+
+      setServer(id, { group: name });
+      return interaction.editReply(`✅ Server **${id}** added to group **${name}**.`);
+    }
+
+    if (sub === 'remove') {
+      const id = interaction.options.getString('id', true);
+      setServer(id, { group: '' });
+      return interaction.editReply(`✅ Server **${id}** removed from its group.`);
+    }
+
+    const groupName = interaction.options.getString('name', true);
+    const normalizedGroup = groupName.toLowerCase();
+    const targets = loadServers({ includeDisabled: false })
+      .filter(s => (s.group || '').toLowerCase() === normalizedGroup);
+
+    if (!targets.length) {
+      return interaction.editReply(`❌ No enabled servers found in group **${groupName}**.`);
+    }
+
+    const ok = [];
+    const fail = [];
+
+    for (const server of targets) {
+      try {
+        const message = await runLifecycleCommand(server, sub);
+        ok.push(`✅ **${server.name}** — ${message.replace(/^✅\s*/, '')}`);
+      } catch (error) {
+        fail.push(`❌ **${server.name}**: ${error?.message || 'unknown error'}`);
+      }
+    }
+
+    try {
+      return interaction.editReply([
+        `🧩 Group **${groupName}** ${sub}: ${ok.length}/${targets.length} completed.`,
+        ...ok,
+        ...fail
+      ].join('\n'));
+    } catch (error) {
+      return interaction.editReply(`❌ group ${sub} failed: ${error?.message || 'unknown error'}`);
     }
   }
 
@@ -293,11 +385,16 @@ export async function handleCommand(interaction) {
     if (sub === 'list') {
       const all = interaction.options.getBoolean('all') === true;
       const type = interaction.options.getString('type');
+      const group = interaction.options.getString('group');
 
       let servers = loadServers({ includeDisabled: all });
 
       if (type) {
         servers = servers.filter(s => s.type === type);
+      }
+      if (group) {
+        const groupLower = group.toLowerCase();
+        servers = servers.filter(s => (s.group || '').toLowerCase() === groupLower);
       }
 
       if (!servers.length) {
@@ -306,10 +403,20 @@ export async function handleCommand(interaction) {
 
       const lines = await Promise.all(servers.map(async s => {
         const st = await getServerState(s);
-        return `${st.emoji} **${s.name}** (${s.id}) — ${st.label}`;
+        return [
+          `${st.emoji} **${s.name}** (\`${s.id}\`)`,
+          `• Online: **${st.label}**`,
+          `• Dir: \`${s.cwd || 'n/a'}\``,
+          `• Type: \`${s.type || 'unknown'}\``,
+          `• Enabled: \`${s.enabled !== false}\``,
+          `• Steam: \`${s.steam === true}\``,
+          `• Java: \`${s.java === true}\``,
+          `• Group: \`${s.group || 'none'}\``,
+          `• Process: \`${s.processName || 'n/a'}\``
+        ].join('\n');
       }));
 
-      return interaction.editReply(lines.join('\n'));
+      return interaction.editReply(lines.join('\n\n'));
     }
 
     if (sub === 'validate') {
@@ -358,6 +465,18 @@ export async function handleCommand(interaction) {
       return interaction.editReply('✅ Steam flag updated.');
     }
 
+    if (sub === 'set-group') {
+      const id = interaction.options.getString('id');
+      const group = interaction.options.getString('group', true).trim();
+
+      if (!group) {
+        return interaction.editReply('❌ Group cannot be empty.');
+      }
+
+      setServer(id, { group });
+      return interaction.editReply(`✅ Group set to **${group}**.`);
+    }
+
     if (sub === 'set-process') {
       const id = interaction.options.getString('id');
       const name = interaction.options.getString('name');
@@ -389,24 +508,6 @@ export async function handleCommand(interaction) {
       } catch (error) {
         return interaction.editReply(`❌ Failed to update server dir: ${error?.message || 'unknown error'}`);
       }
-
-      return interaction.editReply(
-        `✅ Server **${id}** directory updated.\n` +
-        `• Folder: \`${resolvedDir}\`\n` +
-        `• Name: **${folderName || id}**`
-      );
-    }
-
-    if (sub === 'set-dir') {
-      const id = interaction.options.getString('id');
-      const dir = interaction.options.getString('dir', true);
-      const resolvedDir = path.resolve(dir);
-      const folderName = path.basename(resolvedDir);
-
-      setServer(id, {
-        cwd: resolvedDir,
-        name: folderName || id
-      });
 
       return interaction.editReply(
         `✅ Server **${id}** directory updated.\n` +
@@ -455,131 +556,6 @@ export async function handleCommand(interaction) {
         games.map(g => `• **${g.name}** (${g.appid})`).join('\n')
       );
     }
-
-  /* ---------- ADD STEAM SERVER ---------- */
-    if (sub === 'add') {
-      const appid = interaction.options.getInteger('appid', true);
-      const requestedId = interaction.options.getString('id');
-      const customDir = interaction.options.getString('dir');
-
-      const games = listSteamGames();
-      const game = games.find(g => Number(g.appid) === Number(appid));
-
-      if (!game) {
-        return interaction.editReply('❌ AppID not found in Steam game registry. Add it with `/steam addgame` first.');
-      }
-
-      const serversRoot = process.env.BASE_SERVER_DIR || 'C:/Servers';
-      const folderName = requestedId || game.name;
-      const resolvedId = folderName
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '') || `steam-${appid}`;
-
-      const serverDir = path.resolve(customDir || path.join(serversRoot, resolvedId));
-
-      const duplicate = loadServers({ includeDisabled: true }).find(s =>
-        s.id === resolvedId || path.resolve(s.cwd || '') === serverDir
-      );
-
-      if (duplicate) {
-        if (duplicate.type === 'steam' || duplicate.steam) {
-          const existingDir = path.resolve(duplicate.cwd || serverDir);
-          scaffoldSteamScripts({ serverDir: existingDir, appid });
-          setServer(duplicate.id, {
-            type: 'steam',
-            steam: true,
-            java: false,
-            enabled: true,
-            cwd: existingDir,
-            appid: Number(appid),
-            name: requestedId || duplicate.name || game.name
-          });
-
-          steamAddLog('create server: reused existing', `existingId=${duplicate.id} dir=${existingDir}`);
-          return interaction.editReply(
-            `✅ Steam server already existed, so I refreshed it instead of creating a duplicate.\n` +
-            `• Existing ID: **${duplicate.id}**\n` +
-            `• AppID: **${appid}**\n` +
-            `• Folder: \`${existingDir}\`\n` +
-            'Run `/steam update id:<serverId>` to download/install files via SteamCMD.'
-          );
-        }
-
-        return interaction.editReply(
-          `❌ A non-Steam server already exists for id/path (**${duplicate.id}**). Choose a different id or dir.`
-        );
-      }
-
-      try {
-        const created = createSteamServer({
-          serverId: resolvedId,
-          appid,
-          serverDir,
-          serverName: folderBasedName
-        });
-
-        steamAddLog('create server: success', `createdId=${created.id} dir=${created.cwd}`);
-        return interaction.editReply(
-          `✅ Steam server created from AppID **${appid}**
-` +
-          `• Game: **${game.name}**
-` +
-          `• Server ID: **${created.id}**
-` +
-          `• Name: **${folderBasedName}**
-` +
-          `• Folder: \`${created.cwd}\`
-` +
-          `• Type: **steam**
-` +
-          `• Added: \`start.bat\`, \`stop.bat\`, \`update.bat\`
-` +
-          'Run `/steam update id:<serverId>` to download/install files via SteamCMD.'
-        );
-      } catch (error) {
-        const message = error?.message || 'unknown error';
-
-        // Fallback: if creation races with another write and id now exists,
-        // treat it as an existing server refresh instead of hard-failing.
-        if (message.includes('already exists')) {
-          const existing = getServer(resolvedId, { includeDisabled: true });
-
-          if (existing) {
-            try {
-              scaffoldSteamScripts({ serverDir: existing.cwd, appid });
-              setServer(existing.id, {
-                type: 'steam',
-                steam: true,
-                java: false,
-                appid: Number(appid)
-              });
-
-              return interaction.editReply(
-                `✅ Steam server already existed, so I refreshed the setup.
-` +
-                `• Game: **${game.name}**
-` +
-                `• Server ID: **${existing.id}**
-` +
-                `• Folder: \`${existing.cwd}\`
-` +
-                'Run `/steam update id:<serverId>` to download/install files via SteamCMD.'
-              );
-            } catch (refreshError) {
-              return interaction.editReply(
-                `❌ Steam add failed while recovering existing server: ${refreshError?.message || 'unknown error'}`
-              );
-            }
-          }
-        }
-
-        return interaction.editReply(
-          `❌ Steam add failed: ${error?.message || 'unknown error'}`
-        );
-      }
-    }
-
 
   /* ---------- UPDATE STEAM SERVER ---------- */
     if (sub === 'update') {

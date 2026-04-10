@@ -152,7 +152,7 @@ client.once('clientReady', async () => {
               `**Quick start:**\n` +
               `• \`/servers\` — View all servers\n` +
               `• \`/status\` — System & server health\n` +
-              `• \`/steam add\` — Install a Steam server\n` +
+              `• \`/steam update\` — Update Steam servers\n` +
               `• \`/idrac status\` — Check power state\n\n` +
               `This welcome message is sent **once per authorization**.`
             );
