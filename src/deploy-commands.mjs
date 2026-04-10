@@ -140,14 +140,14 @@ export function buildCommands() {
         sc.setName('add')
           .setDescription('Assign one server (or all enabled servers) to a group')
           .addStringOption(o =>
-            o.setName('id')
-              .setDescription('Optional server id (leave empty to apply to all enabled servers)')
-              .setRequired(false)
-          )
-          .addStringOption(o =>
             o.setName('name')
               .setDescription('Group name')
               .setRequired(true)
+          )
+          .addStringOption(o =>
+            o.setName('id')
+              .setDescription('Optional server id (leave empty to apply to all enabled servers)')
+              .setRequired(false)
           )
       )
       .addSubcommand(sc =>
