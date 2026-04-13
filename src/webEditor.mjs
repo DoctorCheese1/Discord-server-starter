@@ -134,9 +134,9 @@ function editorPage(prefilledApiKey = '') {
     .tree details { margin: 1px 0; }
     .tree summary { list-style: none; cursor: pointer; color: #cccccc; font-weight: 600; padding: 3px 6px; border-radius: 3px; }
     .tree summary::-webkit-details-marker { display: none; }
-    .tree summary:hover { background: #2a2d2e; }
-    .folder-caret { display: inline-block; width: 14px; color: #c5c5c5; margin-right: 4px; transform-origin: 45% 50%; transition: transform .18s ease, color .18s ease; }
-    details[open] > summary .folder-caret { color: #ffffff; transform: rotate(90deg); }
+    .tree summary:hover { background: #1f2531; }
+    .folder-caret { display: inline-block; width: 14px; color: #7fa0bf; margin-right: 4px; transform-origin: 45% 50%; transition: transform .18s ease, color .18s ease; }
+    details[open] > summary .folder-caret { color: #9fd2ff; transform: rotate(90deg); }
     .folder-children { display: grid; grid-template-rows: 0fr; opacity: .75; transition: grid-template-rows .18s ease, opacity .18s ease; }
     .folder-children-inner { overflow: hidden; }
     details[open] > .folder-children { grid-template-rows: 1fr; opacity: 1; }
