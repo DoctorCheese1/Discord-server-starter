@@ -135,8 +135,11 @@ function editorPage(prefilledApiKey = '') {
     .tree summary { list-style: none; cursor: pointer; color: #c9d8ec; font-weight: 600; padding: 3px 6px; border-radius: 3px; }
     .tree summary::-webkit-details-marker { display: none; }
     .tree summary:hover { background: #1f2531; }
-    .folder-caret { display: inline-block; width: 14px; color: #7fa0bf; margin-right: 4px; }
-    details[open] > summary .folder-caret { color: #9fd2ff; }
+    .folder-caret { display: inline-block; width: 14px; color: #7fa0bf; margin-right: 4px; transform-origin: 45% 50%; transition: transform .18s ease, color .18s ease; }
+    details[open] > summary .folder-caret { color: #9fd2ff; transform: rotate(90deg); }
+    .folder-children { display: grid; grid-template-rows: 0fr; opacity: .75; transition: grid-template-rows .18s ease, opacity .18s ease; }
+    .folder-children-inner { overflow: hidden; }
+    details[open] > .folder-children { grid-template-rows: 1fr; opacity: 1; }
     .tree-row.folder::before { content: "📁"; margin-right: 6px; }
     .editor-wrap { display: flex; flex-direction: column; min-width: 0; }
     .tabs { height: 40px; background: #191f28; display: flex; align-items: end; padding: 0 8px; border-bottom: 1px solid #2a3240; }
@@ -224,7 +227,7 @@ function editorPage(prefilledApiKey = '') {
     let originalContent = '';
     let popupTimer;
     let openMenu = null;
-    const collapsedFolders = new Set();
+    const expandedFolders = new Set();
 
     function showSavePopup(file) {
       savePopup.textContent = '✅ Saved ' + file;
@@ -275,11 +278,13 @@ function editorPage(prefilledApiKey = '') {
         const folders = Array.from(node.folders.keys()).sort((a, b) => a.localeCompare(b));
         for (const folderName of folders) {
           const folderPath = prefix ? prefix + '/' + folderName : folderName;
-          const isCollapsed = collapsedFolders.has(folderPath);
+          const isExpanded = expandedFolders.has(folderPath);
           parts.push(
-            '<details data-folder="' + folderPath + '" ' + (isCollapsed ? '' : 'open') + ' style="margin-left:' + (depth * 16 + 8) + 'px">' +
-              '<summary><span class="folder-caret">' + (isCollapsed ? '▶' : '▼') + '</span>' + folderName + '</summary>' +
-              walk(node.folders.get(folderName), depth + 1, folderPath) +
+            '<details data-folder="' + folderPath + '" ' + (isExpanded ? 'open' : '') + ' style="margin-left:' + (depth * 16 + 8) + 'px">' +
+              '<summary><span class="folder-caret">▸</span>' + folderName + '</summary>' +
+              '<div class="folder-children"><div class="folder-children-inner">' +
+                walk(node.folders.get(folderName), depth + 1, folderPath) +
+              '</div></div>' +
             '</details>'
           );
         }
@@ -358,12 +363,10 @@ function editorPage(prefilledApiKey = '') {
       if (!details) return;
       const folderPath = details.dataset.folder;
       if (details.open) {
-        collapsedFolders.delete(folderPath);
+        expandedFolders.add(folderPath);
       } else {
-        collapsedFolders.add(folderPath);
+        expandedFolders.delete(folderPath);
       }
-      const summary = details.querySelector(':scope > summary > .folder-caret');
-      if (summary) summary.textContent = details.open ? '▼' : '▶';
     });
 
     tree.onclick = e => {
