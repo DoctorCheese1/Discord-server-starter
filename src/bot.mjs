@@ -11,7 +11,7 @@ import {
 
 import { autoDeployIfEnabled } from './autoDeploy.mjs';
 import { startPresenceLoop, startIdracPresenceLoop } from './presence.mjs';
-import { handleCommand } from './commands.mjs';
+import { handleAutocomplete, handleCommand } from './commands.mjs';
 import { startIdracMonitor } from './idrac/idracMonitor.mjs';
 import { loadServers } from './serverStore.mjs';
 import { ensureInstalledUpdateTasks } from './processManager.mjs';
@@ -226,6 +226,15 @@ client.once('clientReady', async () => {
 /* ================= INTERACTIONS ================= */
 client.on('interactionCreate', async interaction => {
   const idracOnly = isIdracOnlyMode();
+
+  if (interaction.isAutocomplete()) {
+    try {
+      await handleAutocomplete(interaction);
+    } catch (err) {
+      console.error('❌ Autocomplete error:', err);
+    }
+    return;
+  }
 
   // SLASH COMMANDS
   if (interaction.isChatInputCommand()) {
