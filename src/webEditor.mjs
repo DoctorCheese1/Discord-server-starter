@@ -514,11 +514,19 @@ function editorPage(prefilledApiKey = '') {
     async function loadServers() {
       const data = await fetchJson('/api/servers');
       serverSel.innerHTML = data.servers.map(s => '<option value="' + s.id + '">' + s.name + ' (' + s.id + ')</option>').join('');
-      if (data.servers.length) await loadFiles();
+      if (data.servers.length) {
+        const savedServerId = localStorage.getItem(SERVER_STORAGE_NAME);
+        const exists = data.servers.some(s => s.id === savedServerId);
+        if (exists) {
+          serverSel.value = savedServerId;
+        }
+        await loadFiles();
+      }
     }
 
     async function loadFiles() {
       const id = serverSel.value;
+      localStorage.setItem(SERVER_STORAGE_NAME, id);
       const data = await fetchJson('/api/files?serverId=' + encodeURIComponent(id));
       allFiles = data.files;
       emptyFolders = data.emptyFolders || [];
@@ -586,7 +594,10 @@ function editorPage(prefilledApiKey = '') {
       if (row) loadFile(row.dataset.path);
     };
 
-    serverSel.onchange = loadFiles;
+    serverSel.onchange = () => {
+      localStorage.setItem(SERVER_STORAGE_NAME, serverSel.value);
+      loadFiles();
+    };
     fileSearchInput.oninput = () => renderFiles(fileSearchInput.value);
     keyInput.onchange = () => {
       localStorage.setItem(KEY_STORAGE_NAME, keyInput.value.trim());
