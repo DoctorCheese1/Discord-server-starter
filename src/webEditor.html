@@ -89,7 +89,6 @@
     let popupTimer;
     let openMenu = null;
     const expandedFolders = new Set();
-    let scrollSyncFrame = null;
 
     function loadUiState() {
       try {
@@ -127,18 +126,6 @@
       const nums = [];
       for (let i = 1; i <= lines; i++) nums.push(i);
       lineNumbers.textContent = nums.join('\\n');
-      syncEditorScroll();
-    }
-
-    function syncEditorScroll() {
-      if (scrollSyncFrame !== null) return;
-
-      scrollSyncFrame = requestAnimationFrame(() => {
-        lineNumbers.scrollTop = content.scrollTop;
-        highlight.scrollTop = content.scrollTop;
-        highlight.scrollLeft = content.scrollLeft;
-        scrollSyncFrame = null;
-      });
     }
 
     function escapeHtml(text) {
@@ -414,7 +401,11 @@
       updateLineNumbers();
       renderHighlightedContent();
     };
-    content.onscroll = syncEditorScroll;
+    content.onscroll = () => {
+      lineNumbers.scrollTop = content.scrollTop;
+      highlight.scrollTop = content.scrollTop;
+      highlight.scrollLeft = content.scrollLeft;
+    };
 
     document.getElementById('save').onclick = saveCurrentFile;
     document.getElementById('revert').onclick = () => {
