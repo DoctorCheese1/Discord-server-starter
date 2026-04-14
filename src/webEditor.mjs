@@ -268,6 +268,7 @@ function editorPage(prefilledApiKey = '') {
     const lineNumbers = document.getElementById('lineNumbers');
 
     const KEY_STORAGE_NAME = 'web_editor_api_key';
+    const UI_STATE_STORAGE_NAME = 'web_editor_ui_state_v1';
     const SERVER_PROVIDED_KEY = ${JSON.stringify(prefilledApiKey)};
     let allFiles = [];
     let emptyFolders = [];
@@ -276,6 +277,30 @@ function editorPage(prefilledApiKey = '') {
     let popupTimer;
     let openMenu = null;
     const expandedFolders = new Set();
+
+    function loadUiState() {
+      try {
+        return JSON.parse(localStorage.getItem(UI_STATE_STORAGE_NAME) || '{}');
+      } catch {
+        return {};
+      }
+    }
+
+    function saveUiState(partial) {
+      const serverId = serverSel.value || '';
+      if (!serverId) return;
+      const state = loadUiState();
+      const current = state[serverId] || {};
+      state[serverId] = { ...current, ...partial };
+      localStorage.setItem(UI_STATE_STORAGE_NAME, JSON.stringify(state));
+    }
+
+    function restoreUiState() {
+      const serverId = serverSel.value || '';
+      if (!serverId) return { expanded: [], currentFile: '' };
+      const state = loadUiState();
+      return state[serverId] || { expanded: [], currentFile: '' };
+    }
 
     function showSavePopup(file) {
       savePopup.textContent = '✅ Saved ' + file;
@@ -328,8 +353,8 @@ function editorPage(prefilledApiKey = '') {
 
     function highlightJson(line) {
       let html = escapeHtml(line);
-      html = html.replace(/"(.*?)"(?=\\s*:)/g, '<span class="tok-key">"$1"</span>');
       html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
+      html = html.replace(/<span class="tok-string">"([^"]*)"<\\/span>(?=\\s*:)/g, '<span class="tok-key">"$1"</span>');
       html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?(?:[eE][+\\-]?\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
       html = html.replace(/\\b(true|false)\\b/g, '<span class="tok-bool">$1</span>');
       html = html.replace(/\\bnull\\b/g, '<span class="tok-null">null</span>');
@@ -340,8 +365,8 @@ function editorPage(prefilledApiKey = '') {
     function highlightYaml(line) {
       let html = escapeHtml(line);
       html = html.replace(/(^\\s*#.*$)/g, '<span class="tok-comment">$1</span>');
-      html = html.replace(/(^\\s*[^:#\\n][^:]*)(:\\s*)/g, '<span class="tok-key">$1</span>$2');
       html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
+      html = html.replace(/(^\\s*[^:#\\n][^:]*)(:\\s*)/g, '<span class="tok-key">$1</span>$2');
       html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
       html = html.replace(/\\b(true|false)\\b/g, '<span class="tok-bool">$1</span>');
       html = html.replace(/\\bnull\\b/g, '<span class="tok-null">null</span>');
@@ -497,7 +522,15 @@ function editorPage(prefilledApiKey = '') {
       const data = await fetchJson('/api/files?serverId=' + encodeURIComponent(id));
       allFiles = data.files;
       emptyFolders = data.emptyFolders || [];
+      expandedFolders.clear();
+      const restored = restoreUiState();
+      for (const folder of restored.expanded || []) {
+        expandedFolders.add(folder);
+      }
       renderFiles(fileSearchInput.value);
+      if (restored.currentFile && allFiles.includes(restored.currentFile)) {
+        await loadFile(restored.currentFile);
+      }
     }
 
     async function loadFile(file) {
@@ -507,6 +540,9 @@ function editorPage(prefilledApiKey = '') {
         content.value = data.content;
         originalContent = data.content;
         currentFile = file;
+        saveUiState({
+          currentFile
+        });
         status.textContent = 'Loaded ' + file;
         markActiveFile();
         updateLineNumbers();
@@ -542,6 +578,7 @@ function editorPage(prefilledApiKey = '') {
       } else {
         expandedFolders.delete(folderPath);
       }
+      saveUiState({ expanded: Array.from(expandedFolders).sort() });
     });
 
     tree.onclick = e => {
