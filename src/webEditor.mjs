@@ -159,8 +159,37 @@ function editorPage(prefilledApiKey = '') {
     .tab { background: #2d2d2d; color: #bbbbbb; border: 1px solid #3a3a3a; border-bottom: none; border-radius: 6px 6px 0 0; padding: 9px 14px; font-style: italic; min-width: 120px; }
     .tab.active { background: #1e1e1e; color: #ffffff; }
     .editor-grid { flex: 1; display: grid; grid-template-columns: 54px 1fr; min-height: 0; }
-    .line-numbers { background: var(--panel-2); border-right: 1px solid var(--line); color: #7f8ca4; font-family: Consolas, monospace; padding: 8px 6px; line-height: 22px; text-align: right; overflow: hidden; user-select: none; }
-    textarea { width: 100%; height: 100%; resize: none; border: none; outline: none; background: #1e1e1e; color: #d4d4d4; font-family: Consolas, monospace; line-height: 22px; font-size: 26px; padding: 8px 12px; tab-size: 2; }
+    .line-numbers { background: var(--panel-2); border-right: 1px solid var(--line); color: #7f8ca4; font-family: Consolas, monospace; padding: 8px 6px; line-height: 20px; font-size: 14px; text-align: right; overflow: hidden; user-select: none; }
+    .editor-stack { position: relative; min-height: 0; }
+    .highlight-layer,
+    textarea {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      border: none;
+      outline: none;
+      font-family: Consolas, monospace;
+      line-height: 20px;
+      font-size: 14px;
+      padding: 8px 12px;
+      tab-size: 2;
+      overflow: auto;
+      white-space: pre;
+    }
+    .highlight-layer { background: #1e1e1e; color: #d4d4d4; pointer-events: none; z-index: 1; }
+    textarea { resize: none; background: transparent; color: transparent; caret-color: #d4d4d4; z-index: 2; }
+    textarea::selection { background: rgba(38, 79, 120, 0.65); color: transparent; }
+    .code-line { display: block; min-height: 20px; }
+    .code-line.error-line { background: rgba(244, 135, 113, 0.2); }
+    .tok-key { color: #9cdcfe; }
+    .tok-string { color: #ce9178; }
+    .tok-number { color: #b5cea8; }
+    .tok-bool { color: #569cd6; }
+    .tok-null { color: #c586c0; }
+    .tok-punct { color: #d4d4d4; }
+    .tok-comment { color: #6a9955; }
     .footer { height: 28px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #2d2d30; background: #007acc; padding: 0 10px; color: #ffffff; font-size: 12px; }
     .popup { position: fixed; top: 12px; right: 12px; background: #1f6f43; color: #fff; border: 1px solid #2ecc71; border-radius: .5rem; padding: .8rem 1rem; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity .2s, transform .2s; z-index: 50; }
     .popup.show { opacity: 1; transform: translateY(0); }
