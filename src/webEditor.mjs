@@ -199,7 +199,10 @@ function editorPage(prefilledApiKey = '') {
       <div class="tabs"><div id="tab" class="tab active">No file open</div></div>
       <div class="editor-grid">
         <pre id="lineNumbers" class="line-numbers">1</pre>
-        <textarea id="content" spellcheck="false" placeholder="Select a file on the left to load contents..."></textarea>
+        <div class="editor-stack">
+          <pre id="highlight" class="highlight-layer"></pre>
+          <textarea id="content" spellcheck="false" placeholder="Select a file on the left to load contents..."></textarea>
+        </div>
       </div>
       <div class="footer">
         <div id="status">Ready</div>
@@ -214,6 +217,7 @@ function editorPage(prefilledApiKey = '') {
     const serverSel = document.getElementById('server');
     const tree = document.getElementById('tree');
     const content = document.getElementById('content');
+    const highlight = document.getElementById('highlight');
     const keyInput = document.getElementById('key');
     const fileSearchInput = document.getElementById('fileSearch');
     const savePopup = document.getElementById('savePopup');
@@ -241,6 +245,77 @@ function editorPage(prefilledApiKey = '') {
       const nums = [];
       for (let i = 1; i <= lines; i++) nums.push(i);
       lineNumbers.textContent = nums.join('\\n');
+    }
+
+    function escapeHtml(text) {
+      return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    function languageForFile(filePath) {
+      const lower = (filePath || '').toLowerCase();
+      if (lower.endsWith('.json')) return 'json';
+      if (lower.endsWith('.yml') || lower.endsWith('.yaml')) return 'yaml';
+      return 'plain';
+    }
+
+    function getJsonErrorLine(text) {
+      try {
+        JSON.parse(text);
+        return null;
+      } catch (err) {
+        const match = String(err.message || '').match(/position\\s+(\\d+)/i);
+        if (!match) return null;
+        const pos = Number(match[1]);
+        return text.slice(0, pos).split('\\n').length;
+      }
+    }
+
+    function getYamlErrorLine(text) {
+      const lines = text.split('\\n');
+      const bad = lines.findIndex(l => /^\\s*[^#\\-][^:]*$/.test(l) && l.trim() !== '');
+      return bad >= 0 ? bad + 1 : null;
+    }
+
+    function highlightJson(line) {
+      let html = escapeHtml(line);
+      html = html.replace(/"(.*?)"(?=\\s*:)/g, '<span class="tok-key">"$1"</span>');
+      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
+      html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?(?:[eE][+\\-]?\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
+      html = html.replace(/\\b(true|false)\\b/g, '<span class="tok-bool">$1</span>');
+      html = html.replace(/\\bnull\\b/g, '<span class="tok-null">null</span>');
+      html = html.replace(/[{}\\[\\]:,]/g, m => '<span class="tok-punct">' + m + '</span>');
+      return html;
+    }
+
+    function highlightYaml(line) {
+      let html = escapeHtml(line);
+      html = html.replace(/(^\\s*#.*$)/g, '<span class="tok-comment">$1</span>');
+      html = html.replace(/(^\\s*[^:#\\n][^:]*)(:\\s*)/g, '<span class="tok-key">$1</span>$2');
+      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
+      html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
+      html = html.replace(/\\b(true|false)\\b/g, '<span class="tok-bool">$1</span>');
+      html = html.replace(/\\bnull\\b/g, '<span class="tok-null">null</span>');
+      return html;
+    }
+
+    function renderHighlightedContent() {
+      const language = languageForFile(currentFile);
+      const text = content.value || '';
+      const lines = text.split('\\n');
+      const errorLine = language === 'json'
+        ? getJsonErrorLine(text)
+        : (language === 'yaml' ? getYamlErrorLine(text) : null);
+      const html = lines.map((line, index) => {
+        const highlighted = language === 'json'
+          ? highlightJson(line)
+          : (language === 'yaml' ? highlightYaml(line) : escapeHtml(line));
+        const errClass = errorLine === index + 1 ? ' error-line' : '';
+        return '<span class="code-line' + errClass + '">' + (highlighted || ' ') + '</span>';
+      }).join('\\n');
+      highlight.innerHTML = html;
     }
 
     function markActiveFile() {
@@ -336,6 +411,7 @@ function editorPage(prefilledApiKey = '') {
         status.textContent = 'Loaded ' + file;
         markActiveFile();
         updateLineNumbers();
+        renderHighlightedContent();
       } catch (err) {
         status.textContent = '❌ ' + err.message;
       }
@@ -380,14 +456,22 @@ function editorPage(prefilledApiKey = '') {
       localStorage.setItem(KEY_STORAGE_NAME, keyInput.value.trim());
       loadServers().catch(err => status.textContent = '❌ ' + err.message);
     };
-    content.oninput = updateLineNumbers;
-    content.onscroll = () => { lineNumbers.scrollTop = content.scrollTop; };
+    content.oninput = () => {
+      updateLineNumbers();
+      renderHighlightedContent();
+    };
+    content.onscroll = () => {
+      lineNumbers.scrollTop = content.scrollTop;
+      highlight.scrollTop = content.scrollTop;
+      highlight.scrollLeft = content.scrollLeft;
+    };
 
     document.getElementById('save').onclick = saveCurrentFile;
     document.getElementById('revert').onclick = () => {
       if (!currentFile) return;
       content.value = originalContent;
       updateLineNumbers();
+      renderHighlightedContent();
       status.textContent = 'Reverted ' + currentFile;
     };
     document.getElementById('newWindow').onclick = () => window.open(window.location.href, '_blank');
@@ -414,6 +498,7 @@ function editorPage(prefilledApiKey = '') {
       try {
         content.value = JSON.stringify(JSON.parse(content.value), null, 2);
         updateLineNumbers();
+        renderHighlightedContent();
         status.textContent = '✅ JSON formatted';
       } catch (err) {
         status.textContent = '❌ Cannot format JSON: ' + err.message;
@@ -467,6 +552,7 @@ function editorPage(prefilledApiKey = '') {
 
     loadServers().catch(err => status.textContent = '❌ ' + err.message);
     updateLineNumbers();
+    renderHighlightedContent();
   </script>
 </body>
 </html>`;
