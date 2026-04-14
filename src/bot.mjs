@@ -11,7 +11,7 @@ import {
 
 import { autoDeployIfEnabled } from './autoDeploy.mjs';
 import { startPresenceLoop, startIdracPresenceLoop } from './presence.mjs';
-import { handleCommand } from './commands.mjs';
+import { handleAutocomplete, handleCommand } from './commands.mjs';
 import { startIdracMonitor } from './idrac/idracMonitor.mjs';
 import { loadServers } from './serverStore.mjs';
 import { ensureInstalledUpdateTasks } from './processManager.mjs';
@@ -42,6 +42,7 @@ const __dirname = path.dirname(__filename);
 const ROOT = path.join(__dirname, '..');
 
 const AUTH_FILE = path.join(ROOT, 'data', 'authUsers.json');
+const DEFAULT_SERVERS_DIR = 'C:/Servers';
 const DEFAULT_AUTH_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
 const AUTH_CHECK_INTERVAL = Number.isFinite(Number(process.env.AUTH_CHECK_INTERVAL_MS))
   ? Math.max(1000, Number(process.env.AUTH_CHECK_INTERVAL_MS))
@@ -61,6 +62,38 @@ function readAuthState() {
 function writeAuthState(state) {
   fs.mkdirSync(path.dirname(AUTH_FILE), { recursive: true });
   fs.writeFileSync(AUTH_FILE, JSON.stringify(state, null, 2));
+}
+
+function startServerFolderWatcher() {
+  const rootDir = process.env.BASE_SERVER_DIR || DEFAULT_SERVERS_DIR;
+  fs.mkdirSync(rootDir, { recursive: true });
+
+  let syncTimer = null;
+  const runSync = () => {
+    try {
+      const discovered = loadServers({ includeDisabled: true });
+      console.log(`🔄 Server folder change sync complete (${discovered.length} server entries).`);
+    } catch (err) {
+      console.error('❌ Server folder change sync failed:', err);
+    }
+  };
+
+  try {
+    const watcher = fs.watch(rootDir, { persistent: true }, () => {
+      clearTimeout(syncTimer);
+      syncTimer = setTimeout(runSync, 500);
+    });
+
+    watcher.on('error', err => {
+      console.error('❌ Server folder watcher error:', err);
+    });
+
+    console.log(`👀 Watching server folder for add/remove changes: ${rootDir}`);
+    return watcher;
+  } catch (err) {
+    console.error('❌ Failed to watch server folder:', err);
+    return null;
+  }
 }
 
 /* ================= CLIENT ================= */
@@ -111,6 +144,8 @@ client.once('clientReady', async () => {
     } catch (err) {
       console.error('❌ Update task sync failed:', err);
     }
+
+    startServerFolderWatcher();
   }
 
   // ---------- AUTH CHECK LOOP ----------
@@ -191,6 +226,15 @@ client.once('clientReady', async () => {
 /* ================= INTERACTIONS ================= */
 client.on('interactionCreate', async interaction => {
   const idracOnly = isIdracOnlyMode();
+
+  if (interaction.isAutocomplete()) {
+    try {
+      await handleAutocomplete(interaction);
+    } catch (err) {
+      console.error('❌ Autocomplete error:', err);
+    }
+    return;
+  }
 
   // SLASH COMMANDS
   if (interaction.isChatInputCommand()) {

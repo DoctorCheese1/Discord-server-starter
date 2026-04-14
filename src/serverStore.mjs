@@ -103,11 +103,25 @@ function syncServersFolder(raw) {
   const dirs = fs.readdirSync(rootDir, { withFileTypes: true })
     .filter(entry => entry.isDirectory())
     .map(entry => entry.name);
+  const existingDirSet = new Set(dirs.map(dirName => path.resolve(path.join(rootDir, dirName))));
+
+  const beforeCount = raw.servers.length;
+  raw.servers = raw.servers.filter(server => {
+    if (!server?.cwd) return true;
+
+    const resolvedCwd = path.resolve(server.cwd);
+    const inServersRoot =
+      resolvedCwd === path.resolve(rootDir) ||
+      resolvedCwd.startsWith(`${path.resolve(rootDir)}${path.sep}`);
+
+    if (!inServersRoot) return true;
+    return existingDirSet.has(resolvedCwd);
+  });
 
   const usedIds = new Set(raw.servers.map(s => s.id));
   const knownCwds = new Set(raw.servers.map(s => path.resolve(s.cwd || '')));
 
-  let changed = false;
+  let changed = raw.servers.length !== beforeCount;
 
   for (const dirName of dirs) {
     const cwd = path.join(rootDir, dirName);
@@ -201,6 +215,20 @@ export function serverChoices({ steamOnly = false, includeDisabled = false, grou
       name: s.name,
       value: s.id
     }))
+    .slice(0, 25); // Discord hard limit
+}
+
+export function groupChoices({ includeEmpty = false } = {}) {
+  const raw = readRawConfig();
+  const names = Array.from(new Set(
+    (raw.servers || [])
+      .map(s => String(s.group || '').trim())
+      .filter(name => includeEmpty || name.length > 0)
+  ));
+
+  return names
+    .sort((a, b) => a.localeCompare(b))
+    .map(name => ({ name, value: name }))
     .slice(0, 25); // Discord hard limit
 }
 
