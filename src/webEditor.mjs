@@ -57,7 +57,7 @@ function isSafePath(baseDir, requestedPath) {
   return resolvedTarget === resolvedBase || resolvedTarget.startsWith(`${resolvedBase}${path.sep}`);
 }
 
-function listEditableFiles(cwd, maxDepth = 3) {
+function listEditableFiles(cwd, maxDepth = 8) {
   const results = [];
   const emptyFolders = [];
 
@@ -118,6 +118,7 @@ function editorPage(prefilledApiKey = '') {
       --danger: #f48771;
     }
     * { box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
     body { margin: 0; background: var(--bg); color: var(--text); font-family: "Segoe UI", Arial, sans-serif; }
     .window-title { height: 30px; padding: 5px 10px; font-size: 14px; background: #3c3c3c; border-bottom: 1px solid #2d2d30; color: #cccccc; }
     .menu-bar { height: 30px; display: flex; align-items: center; gap: 2px; padding: 0 8px; background: #3c3c3c; border-bottom: 1px solid #2d2d30; position: relative; z-index: 20; }
@@ -154,13 +155,46 @@ function editorPage(prefilledApiKey = '') {
     .folder-children-inner { overflow: hidden; }
     details[open] > .folder-children { grid-template-rows: 1fr; opacity: 1; }
     .tree-row.folder::before { content: "📁"; margin-right: 6px; }
-    .editor-wrap { display: flex; flex-direction: column; min-width: 0; }
+    .editor-wrap { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
     .tabs { height: 40px; background: #252526; display: flex; align-items: end; padding: 0 8px; border-bottom: 1px solid #2d2d30; }
     .tab { background: #2d2d2d; color: #bbbbbb; border: 1px solid #3a3a3a; border-bottom: none; border-radius: 6px 6px 0 0; padding: 9px 14px; font-style: italic; min-width: 120px; }
     .tab.active { background: #1e1e1e; color: #ffffff; }
-    .editor-grid { flex: 1; display: grid; grid-template-columns: 54px 1fr; min-height: 0; }
-    .line-numbers { background: var(--panel-2); border-right: 1px solid var(--line); color: #7f8ca4; font-family: Consolas, monospace; padding: 8px 6px; line-height: 22px; text-align: right; overflow: hidden; user-select: none; }
-    textarea { width: 100%; height: 100%; resize: none; border: none; outline: none; background: #1e1e1e; color: #d4d4d4; font-family: Consolas, monospace; line-height: 22px; font-size: 26px; padding: 8px 12px; tab-size: 2; }
+    .editor-grid { flex: 1; display: grid; grid-template-columns: 54px 1fr; min-height: 0; overflow: hidden; }
+    .line-numbers { background: var(--panel-2); border-right: 1px solid var(--line); color: #7f8ca4; font-family: Consolas, monospace; padding: 8px 6px; line-height: 20px; font-size: 14px; text-align: right; overflow: hidden; user-select: none; }
+    .editor-stack { min-height: 0; height: 100%; display: flex; }
+    .highlight-layer { display: none; }
+    textarea {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      border: none;
+      outline: none;
+      resize: none;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      caret-color: #d4d4d4;
+      font-family: Consolas, monospace;
+      line-height: 20px;
+      font-size: 14px;
+      padding: 8px 12px;
+      tab-size: 2;
+      overflow: auto;
+      white-space: pre;
+    }
+    textarea::selection { background: rgba(38, 79, 120, 0.65); }
+    .code-line { display: block; min-height: 20px; }
+    .code-line.error-line { background: rgba(244, 135, 113, 0.2); }
+    .tok-key { color: #9cdcfe; }
+    .tok-string { color: #ce9178; }
+    .tok-number { color: #b5cea8; }
+    .tok-bool { color: #569cd6; }
+    .tok-null { color: #c586c0; }
+    .tok-punct { color: #d4d4d4; }
+    .tok-comment { color: #6a9955; }
+    .tok-section { color: #4ec9b0; }
+    .tok-attr { color: #9cdcfe; }
+    .tok-tag { color: #569cd6; }
+    .tok-command { color: #dcdcaa; }
     .footer { height: 28px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #2d2d30; background: #007acc; padding: 0 10px; color: #ffffff; font-size: 12px; }
     .popup { position: fixed; top: 12px; right: 12px; background: #1f6f43; color: #fff; border: 1px solid #2ecc71; border-radius: .5rem; padding: .8rem 1rem; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity .2s, transform .2s; z-index: 50; }
     .popup.show { opacity: 1; transform: translateY(0); }
@@ -238,6 +272,8 @@ function editorPage(prefilledApiKey = '') {
     const lineNumbers = document.getElementById('lineNumbers');
 
     const KEY_STORAGE_NAME = 'web_editor_api_key';
+    const UI_STATE_STORAGE_NAME = 'web_editor_ui_state_v1';
+    const SERVER_STORAGE_NAME = 'web_editor_selected_server';
     const SERVER_PROVIDED_KEY = ${JSON.stringify(prefilledApiKey)};
     let allFiles = [];
     let emptyFolders = [];
@@ -246,6 +282,30 @@ function editorPage(prefilledApiKey = '') {
     let popupTimer;
     let openMenu = null;
     const expandedFolders = new Set();
+
+    function loadUiState() {
+      try {
+        return JSON.parse(localStorage.getItem(UI_STATE_STORAGE_NAME) || '{}');
+      } catch {
+        return {};
+      }
+    }
+
+    function saveUiState(partial) {
+      const serverId = serverSel.value || '';
+      if (!serverId) return;
+      const state = loadUiState();
+      const current = state[serverId] || {};
+      state[serverId] = { ...current, ...partial };
+      localStorage.setItem(UI_STATE_STORAGE_NAME, JSON.stringify(state));
+    }
+
+    function restoreUiState() {
+      const serverId = serverSel.value || '';
+      if (!serverId) return { expanded: [], currentFile: '' };
+      const state = loadUiState();
+      return state[serverId] || { expanded: [], currentFile: '' };
+    }
 
     function showSavePopup(file) {
       savePopup.textContent = '✅ Saved ' + file;
@@ -272,6 +332,9 @@ function editorPage(prefilledApiKey = '') {
       const lower = (filePath || '').toLowerCase();
       if (lower.endsWith('.json')) return 'json';
       if (lower.endsWith('.yml') || lower.endsWith('.yaml')) return 'yaml';
+      if (lower.endsWith('.ini') || lower.endsWith('.cfg') || lower.endsWith('.conf') || lower.endsWith('.properties')) return 'ini';
+      if (lower.endsWith('.sh') || lower.endsWith('.bat')) return 'script';
+      if (lower.endsWith('.xml')) return 'xml';
       return 'plain';
     }
 
@@ -295,8 +358,8 @@ function editorPage(prefilledApiKey = '') {
 
     function highlightJson(line) {
       let html = escapeHtml(line);
-      html = html.replace(/"(.*?)"(?=\\s*:)/g, '<span class="tok-key">"$1"</span>');
       html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
+      html = html.replace(/<span class="tok-string">"([^"]*)"<\\/span>(?=\\s*:)/g, '<span class="tok-key">"$1"</span>');
       html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?(?:[eE][+\\-]?\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
       html = html.replace(/\\b(true|false)\\b/g, '<span class="tok-bool">$1</span>');
       html = html.replace(/\\bnull\\b/g, '<span class="tok-null">null</span>');
@@ -307,29 +370,45 @@ function editorPage(prefilledApiKey = '') {
     function highlightYaml(line) {
       let html = escapeHtml(line);
       html = html.replace(/(^\\s*#.*$)/g, '<span class="tok-comment">$1</span>');
-      html = html.replace(/(^\\s*[^:#\\n][^:]*)(:\\s*)/g, '<span class="tok-key">$1</span>$2');
       html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
+      html = html.replace(/(^\\s*[^:#\\n][^:]*)(:\\s*)/g, '<span class="tok-key">$1</span>$2');
       html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
       html = html.replace(/\\b(true|false)\\b/g, '<span class="tok-bool">$1</span>');
       html = html.replace(/\\bnull\\b/g, '<span class="tok-null">null</span>');
       return html;
     }
 
+    function highlightIni(line) {
+      let html = escapeHtml(line);
+      html = html.replace(/(^\\s*[#;].*$)/g, '<span class="tok-comment">$1</span>');
+      html = html.replace(/^(\\s*\\[[^\\]]+\\])/g, '<span class="tok-section">$1</span>');
+      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
+      html = html.replace(/^(\\s*[^=\\s][^=]*)(\\s*=\\s*)/g, '<span class="tok-key">$1</span>$2');
+      html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
+      html = html.replace(/\\b(true|false|yes|no|on|off)\\b/gi, '<span class="tok-bool">$1</span>');
+      return html;
+    }
+
+    function highlightScript(line) {
+      let html = escapeHtml(line);
+      html = html.replace(/(^\\s*#.*$)|(^\\s*::.*$)|(^\\s*REM\\b.*$)/gi, '<span class="tok-comment">$&</span>');
+      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
+      html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
+      html = html.replace(/\\b(if|else|then|fi|for|in|do|done|while|case|esac|set|export|echo|call|goto|setlocal|endlocal)\\b/gi, '<span class="tok-command">$&</span>');
+      return html;
+    }
+
+    function highlightXml(line) {
+      let html = escapeHtml(line);
+      html = html.replace(/([a-zA-Z_:][a-zA-Z0-9:_.-]*)(=)/g, '<span class="tok-attr">$1</span>$2');
+      html = html.replace(/(&lt;\\/?)([a-zA-Z0-9:_-]+)/g, '$1<span class="tok-tag">$2</span>');
+      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
+      html = html.replace(/(&lt;!--.*?--&gt;)/g, '<span class="tok-comment">$1</span>');
+      return html;
+    }
+
     function renderHighlightedContent() {
-      const language = languageForFile(currentFile);
-      const text = content.value || '';
-      const lines = text.split('\\n');
-      const errorLine = language === 'json'
-        ? getJsonErrorLine(text)
-        : (language === 'yaml' ? getYamlErrorLine(text) : null);
-      const html = lines.map((line, index) => {
-        const highlighted = language === 'json'
-          ? highlightJson(line)
-          : (language === 'yaml' ? highlightYaml(line) : escapeHtml(line));
-        const errClass = errorLine === index + 1 ? ' error-line' : '';
-        return '<span class="code-line' + errClass + '">' + (highlighted || ' ') + '</span>';
-      }).join('\\n');
-      highlight.innerHTML = html;
+      return;
     }
 
     function markActiveFile() {
@@ -401,7 +480,8 @@ function editorPage(prefilledApiKey = '') {
         return parts.join('');
       }
 
-      tree.innerHTML = walk(root, 0);
+      const treeHtml = walk(root, 0);
+      tree.innerHTML = treeHtml || '<div class="tree-row empty" style="padding-left:12px; color:#9da0a6;">No editable files found (clear filter or check folder depth).</div>';
       markActiveFile();
     }
 
@@ -421,15 +501,31 @@ function editorPage(prefilledApiKey = '') {
     async function loadServers() {
       const data = await fetchJson('/api/servers');
       serverSel.innerHTML = data.servers.map(s => '<option value="' + s.id + '">' + s.name + ' (' + s.id + ')</option>').join('');
-      if (data.servers.length) await loadFiles();
+      if (data.servers.length) {
+        const savedServerId = localStorage.getItem(SERVER_STORAGE_NAME);
+        const exists = data.servers.some(s => s.id === savedServerId);
+        if (exists) {
+          serverSel.value = savedServerId;
+        }
+        await loadFiles();
+      }
     }
 
     async function loadFiles() {
       const id = serverSel.value;
+      localStorage.setItem(SERVER_STORAGE_NAME, id);
       const data = await fetchJson('/api/files?serverId=' + encodeURIComponent(id));
       allFiles = data.files;
       emptyFolders = data.emptyFolders || [];
+      expandedFolders.clear();
+      const restored = restoreUiState();
+      for (const folder of restored.expanded || []) {
+        expandedFolders.add(folder);
+      }
       renderFiles(fileSearchInput.value);
+      if (restored.currentFile && allFiles.includes(restored.currentFile)) {
+        await loadFile(restored.currentFile);
+      }
     }
 
     async function loadFile(file) {
@@ -439,6 +535,9 @@ function editorPage(prefilledApiKey = '') {
         content.value = data.content;
         originalContent = data.content;
         currentFile = file;
+        saveUiState({
+          currentFile
+        });
         status.textContent = 'Loaded ' + file;
         markActiveFile();
         updateLineNumbers();
@@ -474,6 +573,7 @@ function editorPage(prefilledApiKey = '') {
       } else {
         expandedFolders.delete(folderPath);
       }
+      saveUiState({ expanded: Array.from(expandedFolders).sort() });
     });
 
     tree.onclick = e => {
@@ -481,7 +581,10 @@ function editorPage(prefilledApiKey = '') {
       if (row) loadFile(row.dataset.path);
     };
 
-    serverSel.onchange = loadFiles;
+    serverSel.onchange = () => {
+      localStorage.setItem(SERVER_STORAGE_NAME, serverSel.value);
+      loadFiles();
+    };
     fileSearchInput.oninput = () => renderFiles(fileSearchInput.value);
     keyInput.onchange = () => {
       localStorage.setItem(KEY_STORAGE_NAME, keyInput.value.trim());
