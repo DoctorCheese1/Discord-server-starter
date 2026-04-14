@@ -18,9 +18,7 @@ const DEFAULT_SERVERS_DIR = 'C:/Servers';
 ================================ */
 
 function readRawConfig() {
-  const raw = fs.existsSync(FILE)
-    ? JSON.parse(fs.readFileSync(FILE, 'utf8'))
-    : { servers: [] };
+  const raw = readOrCreateRawConfig();
 
   if (!Array.isArray(raw.servers)) {
     raw.servers = [];
@@ -32,6 +30,27 @@ function readRawConfig() {
   }
 
   return raw;
+}
+
+function readOrCreateRawConfig() {
+  if (!fs.existsSync(FILE)) {
+    return { servers: [] };
+  }
+
+  const text = fs.readFileSync(FILE, 'utf8').trim();
+  if (!text) {
+    const fresh = { servers: [] };
+    saveRawConfig(fresh);
+    return fresh;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    const fresh = { servers: [] };
+    saveRawConfig(fresh);
+    return fresh;
+  }
 }
 
 export const loadRawConfig = readRawConfig;
