@@ -118,6 +118,7 @@ function editorPage(prefilledApiKey = '') {
       --danger: #f48771;
     }
     * { box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
     body { margin: 0; background: var(--bg); color: var(--text); font-family: "Segoe UI", Arial, sans-serif; }
     .window-title { height: 30px; padding: 5px 10px; font-size: 14px; background: #3c3c3c; border-bottom: 1px solid #2d2d30; color: #cccccc; }
     .menu-bar { height: 30px; display: flex; align-items: center; gap: 2px; padding: 0 8px; background: #3c3c3c; border-bottom: 1px solid #2d2d30; position: relative; z-index: 20; }
@@ -154,13 +155,46 @@ function editorPage(prefilledApiKey = '') {
     .folder-children-inner { overflow: hidden; }
     details[open] > .folder-children { grid-template-rows: 1fr; opacity: 1; }
     .tree-row.folder::before { content: "📁"; margin-right: 6px; }
-    .editor-wrap { display: flex; flex-direction: column; min-width: 0; }
+    .editor-wrap { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
     .tabs { height: 40px; background: #252526; display: flex; align-items: end; padding: 0 8px; border-bottom: 1px solid #2d2d30; }
     .tab { background: #2d2d2d; color: #bbbbbb; border: 1px solid #3a3a3a; border-bottom: none; border-radius: 6px 6px 0 0; padding: 9px 14px; font-style: italic; min-width: 120px; }
     .tab.active { background: #1e1e1e; color: #ffffff; }
-    .editor-grid { flex: 1; display: grid; grid-template-columns: 54px 1fr; min-height: 0; }
-    .line-numbers { background: var(--panel-2); border-right: 1px solid var(--line); color: #7f8ca4; font-family: Consolas, monospace; padding: 8px 6px; line-height: 22px; text-align: right; overflow: hidden; user-select: none; }
-    textarea { width: 100%; height: 100%; resize: none; border: none; outline: none; background: #1e1e1e; color: #d4d4d4; font-family: Consolas, monospace; line-height: 22px; font-size: 26px; padding: 8px 12px; tab-size: 2; }
+    .editor-grid { flex: 1; display: grid; grid-template-columns: 54px 1fr; min-height: 0; overflow: hidden; }
+    .line-numbers { background: var(--panel-2); border-right: 1px solid var(--line); color: #7f8ca4; font-family: Consolas, monospace; padding: 8px 6px; line-height: 20px; font-size: 14px; text-align: right; overflow: hidden; user-select: none; }
+    .editor-stack { position: relative; min-height: 0; }
+    .highlight-layer,
+    textarea {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      border: none;
+      outline: none;
+      font-family: Consolas, monospace;
+      line-height: 20px;
+      font-size: 14px;
+      padding: 8px 12px;
+      tab-size: 2;
+      overflow: auto;
+      white-space: pre;
+    }
+    .highlight-layer { background: #1e1e1e; color: #d4d4d4; pointer-events: none; z-index: 1; overflow: hidden; }
+    textarea { resize: none; background: transparent; color: transparent; caret-color: #d4d4d4; z-index: 2; }
+    textarea::selection { background: rgba(38, 79, 120, 0.65); color: transparent; }
+    .code-line { display: block; min-height: 20px; }
+    .code-line.error-line { background: rgba(244, 135, 113, 0.2); }
+    .tok-key { color: #9cdcfe; }
+    .tok-string { color: #ce9178; }
+    .tok-number { color: #b5cea8; }
+    .tok-bool { color: #569cd6; }
+    .tok-null { color: #c586c0; }
+    .tok-punct { color: #d4d4d4; }
+    .tok-comment { color: #6a9955; }
+    .tok-section { color: #4ec9b0; }
+    .tok-attr { color: #9cdcfe; }
+    .tok-tag { color: #569cd6; }
+    .tok-command { color: #dcdcaa; }
     .footer { height: 28px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #2d2d30; background: #007acc; padding: 0 10px; color: #ffffff; font-size: 12px; }
     .popup { position: fixed; top: 12px; right: 12px; background: #1f6f43; color: #fff; border: 1px solid #2ecc71; border-radius: .5rem; padding: .8rem 1rem; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity .2s, transform .2s; z-index: 50; }
     .popup.show { opacity: 1; transform: translateY(0); }
@@ -272,6 +306,9 @@ function editorPage(prefilledApiKey = '') {
       const lower = (filePath || '').toLowerCase();
       if (lower.endsWith('.json')) return 'json';
       if (lower.endsWith('.yml') || lower.endsWith('.yaml')) return 'yaml';
+      if (lower.endsWith('.ini') || lower.endsWith('.cfg') || lower.endsWith('.conf') || lower.endsWith('.properties')) return 'ini';
+      if (lower.endsWith('.sh') || lower.endsWith('.bat')) return 'script';
+      if (lower.endsWith('.xml')) return 'xml';
       return 'plain';
     }
 
@@ -315,6 +352,35 @@ function editorPage(prefilledApiKey = '') {
       return html;
     }
 
+    function highlightIni(line) {
+      let html = escapeHtml(line);
+      html = html.replace(/(^\\s*[#;].*$)/g, '<span class="tok-comment">$1</span>');
+      html = html.replace(/^(\\s*\\[[^\\]]+\\])/g, '<span class="tok-section">$1</span>');
+      html = html.replace(/^(\\s*[^=\\s][^=]*)(\\s*=\\s*)/g, '<span class="tok-key">$1</span>$2');
+      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
+      html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
+      html = html.replace(/\\b(true|false|yes|no|on|off)\\b/gi, '<span class="tok-bool">$1</span>');
+      return html;
+    }
+
+    function highlightScript(line) {
+      let html = escapeHtml(line);
+      html = html.replace(/(^\\s*#.*$)|(^\\s*::.*$)|(^\\s*REM\\b.*$)/gi, '<span class="tok-comment">$&</span>');
+      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
+      html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
+      html = html.replace(/\\b(if|else|then|fi|for|in|do|done|while|case|esac|set|export|echo|call|goto|setlocal|endlocal)\\b/gi, '<span class="tok-command">$&</span>');
+      return html;
+    }
+
+    function highlightXml(line) {
+      let html = escapeHtml(line);
+      html = html.replace(/(&lt;\\/?)([a-zA-Z0-9:_-]+)/g, '$1<span class="tok-tag">$2</span>');
+      html = html.replace(/([a-zA-Z_:][a-zA-Z0-9:_.-]*)(=)/g, '<span class="tok-attr">$1</span>$2');
+      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
+      html = html.replace(/(&lt;!--.*?--&gt;)/g, '<span class="tok-comment">$1</span>');
+      return html;
+    }
+
     function renderHighlightedContent() {
       const language = languageForFile(currentFile);
       const text = content.value || '';
@@ -325,7 +391,13 @@ function editorPage(prefilledApiKey = '') {
       const html = lines.map((line, index) => {
         const highlighted = language === 'json'
           ? highlightJson(line)
-          : (language === 'yaml' ? highlightYaml(line) : escapeHtml(line));
+          : (language === 'yaml'
+            ? highlightYaml(line)
+            : (language === 'ini'
+              ? highlightIni(line)
+              : (language === 'script'
+                ? highlightScript(line)
+                : (language === 'xml' ? highlightXml(line) : escapeHtml(line)))));
         const errClass = errorLine === index + 1 ? ' error-line' : '';
         return '<span class="code-line' + errClass + '">' + (highlighted || ' ') + '</span>';
       }).join('\\n');
