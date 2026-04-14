@@ -144,14 +144,12 @@ function editorPage(prefilledApiKey = '') {
     .tree-row.active { background: var(--active); color: #ffffff; }
     .tree-row.file::before { content: "{}"; color: #d7ba7d; margin-right: 6px; font-weight: 700; }
     .tree-row.file.yaml::before { content: "YML"; font-size: 11px; color: #c586c0; }
-    .tree-row.empty { color: #8f9399; font-style: italic; cursor: default; }
-    .tree-row.empty::before { content: "∅"; color: #8f9399; margin-right: 6px; }
     .tree details { margin: 1px 0; }
     .tree summary { list-style: none; cursor: pointer; color: #cccccc; font-weight: 600; padding: 3px 6px; border-radius: 3px; }
     .tree summary::-webkit-details-marker { display: none; }
-    .tree summary:hover { background: #2a2d2e; }
-    .folder-caret { display: inline-block; width: 14px; color: #c5c5c5; margin-right: 4px; transform-origin: 45% 50%; transition: transform .18s ease, color .18s ease; }
-    details[open] > summary .folder-caret { color: #ffffff; transform: rotate(90deg); }
+    .tree summary:hover { background: #1f2531; }
+    .folder-caret { display: inline-block; width: 14px; color: #7fa0bf; margin-right: 4px; transform-origin: 45% 50%; transition: transform .18s ease, color .18s ease; }
+    details[open] > summary .folder-caret { color: #9fd2ff; transform: rotate(90deg); }
     .folder-children { display: grid; grid-template-rows: 0fr; opacity: .75; transition: grid-template-rows .18s ease, opacity .18s ease; }
     .folder-children-inner { overflow: hidden; }
     details[open] > .folder-children { grid-template-rows: 1fr; opacity: 1; }
@@ -162,25 +160,7 @@ function editorPage(prefilledApiKey = '') {
     .tab.active { background: #1e1e1e; color: #ffffff; }
     .editor-grid { flex: 1; display: grid; grid-template-columns: 54px 1fr; min-height: 0; }
     .line-numbers { background: var(--panel-2); border-right: 1px solid var(--line); color: #7f8ca4; font-family: Consolas, monospace; padding: 8px 6px; line-height: 22px; text-align: right; overflow: hidden; user-select: none; }
-    .editor-stack { position: relative; min-height: 0; height: 100%; background: #1e1e1e; }
-    .highlight-layer {
-      position: absolute; inset: 0; overflow: auto; margin: 0; pointer-events: none;
-      font-family: Consolas, monospace; line-height: 22px; font-size: 26px; padding: 8px 12px; white-space: pre; color: #d4d4d4;
-    }
-    .code-line.error-line { background: rgba(244, 135, 113, 0.2); display: inline-block; width: 100%; }
-    .tok-key { color: #9cdcfe; }
-    .tok-string { color: #ce9178; }
-    .tok-number { color: #b5cea8; }
-    .tok-bool { color: #569cd6; }
-    .tok-null { color: #569cd6; }
-    .tok-comment { color: #6a9955; }
-    .tok-punct { color: #d4d4d4; }
-    textarea {
-      position: absolute; inset: 0; width: 100%; height: 100%; resize: none; border: none; outline: none;
-      background: transparent; color: transparent; caret-color: #d4d4d4;
-      font-family: Consolas, monospace; line-height: 22px; font-size: 26px; padding: 8px 12px; tab-size: 2;
-    }
-    textarea::selection { background: rgba(38, 79, 120, 0.8); }
+    textarea { width: 100%; height: 100%; resize: none; border: none; outline: none; background: #1e1e1e; color: #d4d4d4; font-family: Consolas, monospace; line-height: 22px; font-size: 26px; padding: 8px 12px; tab-size: 2; }
     .footer { height: 28px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #2d2d30; background: #007acc; padding: 0 10px; color: #ffffff; font-size: 12px; }
     .popup { position: fixed; top: 12px; right: 12px; background: #1f6f43; color: #fff; border: 1px solid #2ecc71; border-radius: .5rem; padding: .8rem 1rem; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity .2s, transform .2s; z-index: 50; }
     .popup.show { opacity: 1; transform: translateY(0); }
@@ -335,16 +315,6 @@ function editorPage(prefilledApiKey = '') {
       return html;
     }
 
-    function highlightPlain(line) {
-      let html = escapeHtml(line);
-      html = html.replace(/(\\/\\/.*$|#.*$|;.*$)/g, '<span class="tok-comment">$1</span>');
-      html = html.replace(/(^\\s*[A-Za-z_][A-Za-z0-9_.-]*)(\\s*[=:])/g, '<span class="tok-key">$1</span>$2');
-      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
-      html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
-      html = html.replace(/\\b(true|false|on|off|yes|no)\\b/gi, '<span class="tok-bool">$1</span>');
-      return html;
-    }
-
     function renderHighlightedContent() {
       const language = languageForFile(currentFile);
       const text = content.value || '';
@@ -355,7 +325,7 @@ function editorPage(prefilledApiKey = '') {
       const html = lines.map((line, index) => {
         const highlighted = language === 'json'
           ? highlightJson(line)
-          : (language === 'yaml' ? highlightYaml(line) : highlightPlain(line));
+          : (language === 'yaml' ? highlightYaml(line) : escapeHtml(line));
         const errClass = errorLine === index + 1 ? ' error-line' : '';
         return '<span class="code-line' + errClass + '">' + (highlighted || ' ') + '</span>';
       }).join('\\n');
