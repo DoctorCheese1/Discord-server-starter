@@ -103,11 +103,25 @@ function syncServersFolder(raw) {
   const dirs = fs.readdirSync(rootDir, { withFileTypes: true })
     .filter(entry => entry.isDirectory())
     .map(entry => entry.name);
+  const existingDirSet = new Set(dirs.map(dirName => path.resolve(path.join(rootDir, dirName))));
+
+  const beforeCount = raw.servers.length;
+  raw.servers = raw.servers.filter(server => {
+    if (!server?.cwd) return true;
+
+    const resolvedCwd = path.resolve(server.cwd);
+    const inServersRoot =
+      resolvedCwd === path.resolve(rootDir) ||
+      resolvedCwd.startsWith(`${path.resolve(rootDir)}${path.sep}`);
+
+    if (!inServersRoot) return true;
+    return existingDirSet.has(resolvedCwd);
+  });
 
   const usedIds = new Set(raw.servers.map(s => s.id));
   const knownCwds = new Set(raw.servers.map(s => path.resolve(s.cwd || '')));
 
-  let changed = false;
+  let changed = raw.servers.length !== beforeCount;
 
   for (const dirName of dirs) {
     const cwd = path.join(rootDir, dirName);

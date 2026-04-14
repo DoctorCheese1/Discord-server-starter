@@ -348,7 +348,6 @@ export function buildCommands() {
             o.setName('id')
               .setDescription('Server id')
               .setRequired(true)
-              .addChoices(...safeServerChoicesAll())
           )
       ),
 
