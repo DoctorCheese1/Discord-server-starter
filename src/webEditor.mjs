@@ -118,6 +118,7 @@ function editorPage(prefilledApiKey = '') {
       --danger: #f48771;
     }
     * { box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
     body { margin: 0; background: var(--bg); color: var(--text); font-family: "Segoe UI", Arial, sans-serif; }
     .window-title { height: 30px; padding: 5px 10px; font-size: 14px; background: #3c3c3c; border-bottom: 1px solid #2d2d30; color: #cccccc; }
     .menu-bar { height: 30px; display: flex; align-items: center; gap: 2px; padding: 0 8px; background: #3c3c3c; border-bottom: 1px solid #2d2d30; position: relative; z-index: 20; }
@@ -154,7 +155,7 @@ function editorPage(prefilledApiKey = '') {
     .folder-children-inner { overflow: hidden; }
     details[open] > .folder-children { grid-template-rows: 1fr; opacity: 1; }
     .tree-row.folder::before { content: "📁"; margin-right: 6px; }
-    .editor-wrap { display: flex; flex-direction: column; min-width: 0; }
+    .editor-wrap { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
     .tabs { height: 40px; background: #252526; display: flex; align-items: end; padding: 0 8px; border-bottom: 1px solid #2d2d30; }
     .tab { background: #2d2d2d; color: #bbbbbb; border: 1px solid #3a3a3a; border-bottom: none; border-radius: 6px 6px 0 0; padding: 9px 14px; font-style: italic; min-width: 120px; }
     .tab.active { background: #1e1e1e; color: #ffffff; }
