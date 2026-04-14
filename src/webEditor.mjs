@@ -59,29 +59,42 @@ function isSafePath(baseDir, requestedPath) {
 
 function listEditableFiles(cwd, maxDepth = 3) {
   const results = [];
+  const emptyFolders = [];
 
   function walk(currentDir, depth, prefix = '') {
-    if (depth > maxDepth) return;
+    if (depth > maxDepth) return false;
 
+    let subtreeHasEditableFiles = false;
     const entries = fs.readdirSync(currentDir, { withFileTypes: true });
     for (const entry of entries) {
       const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
       const full = path.join(currentDir, entry.name);
 
       if (entry.isDirectory()) {
-        walk(full, depth + 1, rel);
+        if (walk(full, depth + 1, rel)) {
+          subtreeHasEditableFiles = true;
+        }
         continue;
       }
 
       const ext = path.extname(entry.name).toLowerCase();
       if (TEXT_EXTENSIONS.has(ext) && fs.statSync(full).size <= MAX_FILE_BYTES) {
         results.push(rel);
+        subtreeHasEditableFiles = true;
       }
     }
+
+    if (!subtreeHasEditableFiles && prefix) {
+      emptyFolders.push(prefix);
+    }
+    return subtreeHasEditableFiles;
   }
 
   walk(cwd, 0);
-  return results.sort();
+  return {
+    files: results.sort(),
+    emptyFolders: emptyFolders.sort()
+  };
 }
 
 function editorPage(prefilledApiKey = '') {
@@ -93,32 +106,32 @@ function editorPage(prefilledApiKey = '') {
   <title>Toolbox - Config Editor</title>
   <style>
     :root {
-      --bg: #111318;
-      --panel: #0d1015;
-      --panel-2: #181d25;
-      --text: #d9dde6;
-      --muted: #8b95a7;
-      --cyan: #1f8698;
-      --cyan-soft: #28515a;
-      --line: #2a303a;
-      --active: #2e7ea0;
-      --danger: #e06c75;
+      --bg: #1e1e1e;
+      --panel: #252526;
+      --panel-2: #1e1e1e;
+      --text: #d4d4d4;
+      --muted: #9da0a6;
+      --cyan: #007acc;
+      --cyan-soft: #0e639c;
+      --line: #2d2d30;
+      --active: #094771;
+      --danger: #f48771;
     }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--text); font-family: "Segoe UI", Arial, sans-serif; }
-    .window-title { height: 30px; padding: 5px 10px; font-size: 14px; background: #0b0d10; border-bottom: 1px solid #1e222a; color: #d3d7de; }
-    .menu-bar { height: 30px; display: flex; align-items: center; gap: 2px; padding: 0 8px; background: #151a22; border-bottom: 1px solid #1f2430; position: relative; z-index: 20; }
+    .window-title { height: 30px; padding: 5px 10px; font-size: 14px; background: #3c3c3c; border-bottom: 1px solid #2d2d30; color: #cccccc; }
+    .menu-bar { height: 30px; display: flex; align-items: center; gap: 2px; padding: 0 8px; background: #3c3c3c; border-bottom: 1px solid #2d2d30; position: relative; z-index: 20; }
     .menu { position: relative; }
-    .menu-btn { border: none; background: transparent; color: #bfc8d9; padding: 6px 14px; font-size: 14px; cursor: pointer; }
-    .menu-btn:hover, .menu-btn.open { background: #2a2f3a; }
-    .menu-items { display: none; position: absolute; top: 100%; left: 0; min-width: 220px; background: rgba(29, 33, 41, 0.97); border: 1px solid #363d4b; box-shadow: 0 8px 16px rgba(0,0,0,.35); }
+    .menu-btn { border: none; background: transparent; color: #cccccc; padding: 6px 14px; font-size: 14px; cursor: pointer; }
+    .menu-btn:hover, .menu-btn.open { background: #505050; }
+    .menu-items { display: none; position: absolute; top: 100%; left: 0; min-width: 220px; background: rgba(37, 37, 38, 0.97); border: 1px solid #454545; box-shadow: 0 8px 16px rgba(0,0,0,.35); }
     .menu-items.open { display: block; }
-    .menu-item { width: 100%; text-align: left; border: none; background: transparent; color: #c9d2e0; padding: 10px 14px; cursor: pointer; font-size: 15px; border-bottom: 1px solid #2b313d; }
+    .menu-item { width: 100%; text-align: left; border: none; background: transparent; color: #cccccc; padding: 10px 14px; cursor: pointer; font-size: 15px; border-bottom: 1px solid #313131; }
     .menu-item:last-child { border-bottom: none; }
-    .menu-item:hover { background: #364252; }
-    .header { background: linear-gradient(90deg, #174d5a, #1f8698); padding: 10px 16px; font-size: 36px; letter-spacing: .5px; font-weight: 300; border-bottom: 1px solid #2e3f4c; }
-    .toolbar { padding: 8px 12px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid #222833; background: #141922; }
-    .toolbar input, .toolbar select { background: #202733; border: 1px solid #394150; color: var(--text); border-radius: 4px; padding: 7px 10px; }
+    .menu-item:hover { background: #04395e; }
+    .header { background: #007acc; padding: 10px 16px; font-size: 36px; letter-spacing: .5px; font-weight: 300; border-bottom: 1px solid #2d2d30; color: #ffffff; }
+    .toolbar { padding: 8px 12px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid #2d2d30; background: #2d2d30; }
+    .toolbar input, .toolbar select { background: #3c3c3c; border: 1px solid #3c3c3c; color: var(--text); border-radius: 4px; padding: 7px 10px; }
     .toolbar input { min-width: 240px; }
     .toolbar select { min-width: 200px; }
     .layout { display: grid; grid-template-columns: 300px 1fr; height: calc(100vh - 149px); }
@@ -127,25 +140,48 @@ function editorPage(prefilledApiKey = '') {
     .tree-head input { width: 100%; background: #171d27; border: 1px solid #2e3645; color: var(--text); border-radius: 4px; padding: 7px 9px; }
     .tree { padding: 8px 5px 24px; font-family: "Consolas", monospace; font-size: 14px; }
     .tree-row { white-space: nowrap; padding: 3px 6px; cursor: pointer; border-radius: 3px; margin: 1px 0; color: #d8dfeb; }
-    .tree-row:hover { background: #1f2531; }
-    .tree-row.active { background: #2a5f80; color: #f0f7ff; }
-    .tree-row.file::before { content: "{}"; color: #dbbf63; margin-right: 6px; font-weight: 700; }
-    .tree-row.file.yaml::before { content: "YML"; font-size: 11px; color: #e8cc60; }
+    .tree-row:hover { background: #2a2d2e; }
+    .tree-row.active { background: var(--active); color: #ffffff; }
+    .tree-row.file::before { content: "{}"; color: #d7ba7d; margin-right: 6px; font-weight: 700; }
+    .tree-row.file.yaml::before { content: "YML"; font-size: 11px; color: #c586c0; }
+    .tree-row.empty { color: #8f9399; font-style: italic; cursor: default; }
+    .tree-row.empty::before { content: "∅"; color: #8f9399; margin-right: 6px; }
     .tree details { margin: 1px 0; }
-    .tree summary { list-style: none; cursor: pointer; color: #c9d8ec; font-weight: 600; padding: 3px 6px; border-radius: 3px; }
+    .tree summary { list-style: none; cursor: pointer; color: #cccccc; font-weight: 600; padding: 3px 6px; border-radius: 3px; }
     .tree summary::-webkit-details-marker { display: none; }
-    .tree summary:hover { background: #1f2531; }
-    .folder-caret { display: inline-block; width: 14px; color: #7fa0bf; margin-right: 4px; }
-    details[open] > summary .folder-caret { color: #9fd2ff; }
+    .tree summary:hover { background: #2a2d2e; }
+    .folder-caret { display: inline-block; width: 14px; color: #c5c5c5; margin-right: 4px; transform-origin: 45% 50%; transition: transform .18s ease, color .18s ease; }
+    details[open] > summary .folder-caret { color: #ffffff; transform: rotate(90deg); }
+    .folder-children { display: grid; grid-template-rows: 0fr; opacity: .75; transition: grid-template-rows .18s ease, opacity .18s ease; }
+    .folder-children-inner { overflow: hidden; }
+    details[open] > .folder-children { grid-template-rows: 1fr; opacity: 1; }
     .tree-row.folder::before { content: "📁"; margin-right: 6px; }
     .editor-wrap { display: flex; flex-direction: column; min-width: 0; }
-    .tabs { height: 40px; background: #191f28; display: flex; align-items: end; padding: 0 8px; border-bottom: 1px solid #2a3240; }
-    .tab { background: #2a3037; color: #bec7d6; border: 1px solid #3f4757; border-bottom: none; border-radius: 6px 6px 0 0; padding: 9px 14px; font-style: italic; min-width: 120px; }
-    .tab.active { background: #3b4048; color: #f5f7fb; }
+    .tabs { height: 40px; background: #252526; display: flex; align-items: end; padding: 0 8px; border-bottom: 1px solid #2d2d30; }
+    .tab { background: #2d2d2d; color: #bbbbbb; border: 1px solid #3a3a3a; border-bottom: none; border-radius: 6px 6px 0 0; padding: 9px 14px; font-style: italic; min-width: 120px; }
+    .tab.active { background: #1e1e1e; color: #ffffff; }
     .editor-grid { flex: 1; display: grid; grid-template-columns: 54px 1fr; min-height: 0; }
     .line-numbers { background: var(--panel-2); border-right: 1px solid var(--line); color: #7f8ca4; font-family: Consolas, monospace; padding: 8px 6px; line-height: 22px; text-align: right; overflow: hidden; user-select: none; }
-    textarea { width: 100%; height: 100%; resize: none; border: none; outline: none; background: #1b2029; color: #e8edf6; font-family: Consolas, monospace; line-height: 22px; font-size: 26px; padding: 8px 12px; tab-size: 2; }
-    .footer { height: 28px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #262e3a; background: #121722; padding: 0 10px; color: var(--muted); font-size: 12px; }
+    .editor-stack { position: relative; min-height: 0; height: 100%; background: #1e1e1e; }
+    .highlight-layer {
+      position: absolute; inset: 0; overflow: auto; margin: 0; pointer-events: none;
+      font-family: Consolas, monospace; line-height: 22px; font-size: 26px; padding: 8px 12px; white-space: pre; color: #d4d4d4;
+    }
+    .code-line.error-line { background: rgba(244, 135, 113, 0.2); display: inline-block; width: 100%; }
+    .tok-key { color: #9cdcfe; }
+    .tok-string { color: #ce9178; }
+    .tok-number { color: #b5cea8; }
+    .tok-bool { color: #569cd6; }
+    .tok-null { color: #569cd6; }
+    .tok-comment { color: #6a9955; }
+    .tok-punct { color: #d4d4d4; }
+    textarea {
+      position: absolute; inset: 0; width: 100%; height: 100%; resize: none; border: none; outline: none;
+      background: transparent; color: transparent; caret-color: #d4d4d4;
+      font-family: Consolas, monospace; line-height: 22px; font-size: 26px; padding: 8px 12px; tab-size: 2;
+    }
+    textarea::selection { background: rgba(38, 79, 120, 0.8); }
+    .footer { height: 28px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #2d2d30; background: #007acc; padding: 0 10px; color: #ffffff; font-size: 12px; }
     .popup { position: fixed; top: 12px; right: 12px; background: #1f6f43; color: #fff; border: 1px solid #2ecc71; border-radius: .5rem; padding: .8rem 1rem; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity .2s, transform .2s; z-index: 50; }
     .popup.show { opacity: 1; transform: translateY(0); }
   </style>
@@ -196,7 +232,10 @@ function editorPage(prefilledApiKey = '') {
       <div class="tabs"><div id="tab" class="tab active">No file open</div></div>
       <div class="editor-grid">
         <pre id="lineNumbers" class="line-numbers">1</pre>
-        <textarea id="content" spellcheck="false" placeholder="Select a file on the left to load contents..."></textarea>
+        <div class="editor-stack">
+          <pre id="highlight" class="highlight-layer"></pre>
+          <textarea id="content" spellcheck="false" placeholder="Select a file on the left to load contents..."></textarea>
+        </div>
       </div>
       <div class="footer">
         <div id="status">Ready</div>
@@ -211,6 +250,7 @@ function editorPage(prefilledApiKey = '') {
     const serverSel = document.getElementById('server');
     const tree = document.getElementById('tree');
     const content = document.getElementById('content');
+    const highlight = document.getElementById('highlight');
     const keyInput = document.getElementById('key');
     const fileSearchInput = document.getElementById('fileSearch');
     const savePopup = document.getElementById('savePopup');
@@ -220,11 +260,12 @@ function editorPage(prefilledApiKey = '') {
     const KEY_STORAGE_NAME = 'web_editor_api_key';
     const SERVER_PROVIDED_KEY = ${JSON.stringify(prefilledApiKey)};
     let allFiles = [];
+    let emptyFolders = [];
     let currentFile = '';
     let originalContent = '';
     let popupTimer;
     let openMenu = null;
-    const collapsedFolders = new Set();
+    const expandedFolders = new Set();
 
     function showSavePopup(file) {
       savePopup.textContent = '✅ Saved ' + file;
@@ -238,6 +279,87 @@ function editorPage(prefilledApiKey = '') {
       const nums = [];
       for (let i = 1; i <= lines; i++) nums.push(i);
       lineNumbers.textContent = nums.join('\\n');
+    }
+
+    function escapeHtml(text) {
+      return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    function languageForFile(filePath) {
+      const lower = (filePath || '').toLowerCase();
+      if (lower.endsWith('.json')) return 'json';
+      if (lower.endsWith('.yml') || lower.endsWith('.yaml')) return 'yaml';
+      return 'plain';
+    }
+
+    function getJsonErrorLine(text) {
+      try {
+        JSON.parse(text);
+        return null;
+      } catch (err) {
+        const match = String(err.message || '').match(/position\\s+(\\d+)/i);
+        if (!match) return null;
+        const pos = Number(match[1]);
+        return text.slice(0, pos).split('\\n').length;
+      }
+    }
+
+    function getYamlErrorLine(text) {
+      const lines = text.split('\\n');
+      const bad = lines.findIndex(l => /^\\s*[^#\\-][^:]*$/.test(l) && l.trim() !== '');
+      return bad >= 0 ? bad + 1 : null;
+    }
+
+    function highlightJson(line) {
+      let html = escapeHtml(line);
+      html = html.replace(/"(.*?)"(?=\\s*:)/g, '<span class="tok-key">"$1"</span>');
+      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
+      html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?(?:[eE][+\\-]?\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
+      html = html.replace(/\\b(true|false)\\b/g, '<span class="tok-bool">$1</span>');
+      html = html.replace(/\\bnull\\b/g, '<span class="tok-null">null</span>');
+      html = html.replace(/[{}\\[\\]:,]/g, m => '<span class="tok-punct">' + m + '</span>');
+      return html;
+    }
+
+    function highlightYaml(line) {
+      let html = escapeHtml(line);
+      html = html.replace(/(^\\s*#.*$)/g, '<span class="tok-comment">$1</span>');
+      html = html.replace(/(^\\s*[^:#\\n][^:]*)(:\\s*)/g, '<span class="tok-key">$1</span>$2');
+      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
+      html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
+      html = html.replace(/\\b(true|false)\\b/g, '<span class="tok-bool">$1</span>');
+      html = html.replace(/\\bnull\\b/g, '<span class="tok-null">null</span>');
+      return html;
+    }
+
+    function highlightPlain(line) {
+      let html = escapeHtml(line);
+      html = html.replace(/(\\/\\/.*$|#.*$|;.*$)/g, '<span class="tok-comment">$1</span>');
+      html = html.replace(/(^\\s*[A-Za-z_][A-Za-z0-9_.-]*)(\\s*[=:])/g, '<span class="tok-key">$1</span>$2');
+      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
+      html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
+      html = html.replace(/\\b(true|false|on|off|yes|no)\\b/gi, '<span class="tok-bool">$1</span>');
+      return html;
+    }
+
+    function renderHighlightedContent() {
+      const language = languageForFile(currentFile);
+      const text = content.value || '';
+      const lines = text.split('\\n');
+      const errorLine = language === 'json'
+        ? getJsonErrorLine(text)
+        : (language === 'yaml' ? getYamlErrorLine(text) : null);
+      const html = lines.map((line, index) => {
+        const highlighted = language === 'json'
+          ? highlightJson(line)
+          : (language === 'yaml' ? highlightYaml(line) : highlightPlain(line));
+        const errClass = errorLine === index + 1 ? ' error-line' : '';
+        return '<span class="code-line' + errClass + '">' + (highlighted || ' ') + '</span>';
+      }).join('\\n');
+      highlight.innerHTML = html;
     }
 
     function markActiveFile() {
@@ -258,16 +380,29 @@ function editorPage(prefilledApiKey = '') {
         ? allFiles.filter(f => f.toLowerCase().includes(query))
         : allFiles;
 
-      const root = { folders: new Map(), files: [] };
+      const root = { folders: new Map(), files: [], explicitEmpty: false };
+      function ensureFolderNode(folderPath) {
+        const parts = folderPath.split('/');
+        let node = root;
+        for (const part of parts) {
+          if (!node.folders.has(part)) node.folders.set(part, { folders: new Map(), files: [], explicitEmpty: false });
+          node = node.folders.get(part);
+        }
+        return node;
+      }
       for (const file of files) {
         const parts = file.split('/');
         let node = root;
         for (let i = 0; i < parts.length - 1; i++) {
           const folder = parts[i];
-          if (!node.folders.has(folder)) node.folders.set(folder, { folders: new Map(), files: [] });
+          if (!node.folders.has(folder)) node.folders.set(folder, { folders: new Map(), files: [], explicitEmpty: false });
           node = node.folders.get(folder);
         }
         node.files.push(file);
+      }
+      for (const folderPath of emptyFolders) {
+        const node = ensureFolderNode(folderPath);
+        node.explicitEmpty = true;
       }
 
       function walk(node, depth, prefix = '') {
@@ -275,11 +410,13 @@ function editorPage(prefilledApiKey = '') {
         const folders = Array.from(node.folders.keys()).sort((a, b) => a.localeCompare(b));
         for (const folderName of folders) {
           const folderPath = prefix ? prefix + '/' + folderName : folderName;
-          const isCollapsed = collapsedFolders.has(folderPath);
+          const isExpanded = expandedFolders.has(folderPath);
           parts.push(
-            '<details data-folder="' + folderPath + '" ' + (isCollapsed ? '' : 'open') + ' style="margin-left:' + (depth * 16 + 8) + 'px">' +
-              '<summary><span class="folder-caret">' + (isCollapsed ? '▶' : '▼') + '</span>' + folderName + '</summary>' +
-              walk(node.folders.get(folderName), depth + 1, folderPath) +
+            '<details data-folder="' + folderPath + '" ' + (isExpanded ? 'open' : '') + ' style="margin-left:' + (depth * 16 + 8) + 'px">' +
+              '<summary><span class="folder-caret">▸</span>' + folderName + '</summary>' +
+              '<div class="folder-children"><div class="folder-children-inner">' +
+                walk(node.folders.get(folderName), depth + 1, folderPath) +
+              '</div></div>' +
             '</details>'
           );
         }
@@ -288,29 +425,13 @@ function editorPage(prefilledApiKey = '') {
           const ext = filePath.toLowerCase().endsWith('.yml') || filePath.toLowerCase().endsWith('.yaml') ? ' yaml' : '';
           parts.push('<div class="tree-row file' + ext + '" data-path="' + filePath + '" style="padding-left:' + (depth * 16 + 24) + 'px">' + pathBase(filePath) + '</div>');
         }
+        if (node.explicitEmpty && node.folders.size === 0 && node.files.length === 0) {
+          parts.push('<div class="tree-row empty" style="padding-left:' + (depth * 16 + 24) + 'px">(folder empty)</div>');
+        }
         return parts.join('');
       }
 
       tree.innerHTML = walk(root, 0);
-      const folderSet = new Set();
-      const rows = [];
-      for (const file of files) {
-        const parts = file.split('/');
-        for (let i = 1; i < parts.length; i++) {
-          folderSet.add(parts.slice(0, i).join('/'));
-        }
-      }
-      const sortedFolders = Array.from(folderSet).sort((a, b) => a.localeCompare(b));
-      for (const folder of sortedFolders) {
-        const depth = folder.split('/').length - 1;
-        rows.push('<div class="tree-row folder" style="padding-left:' + (depth * 16 + 8) + 'px">' + folder.split('/').pop() + '</div>');
-      }
-      for (const file of files) {
-        const ext = file.toLowerCase().endsWith('.yml') || file.toLowerCase().endsWith('.yaml') ? ' yaml' : '';
-        const depth = file.split('/').length - 1;
-        rows.push('<div class="tree-row file' + ext + '" data-path="' + file + '" style="padding-left:' + (depth * 16 + 8) + 'px">' + pathBase(file) + '</div>');
-      }
-      tree.innerHTML = rows.join('');
       markActiveFile();
     }
 
@@ -337,6 +458,7 @@ function editorPage(prefilledApiKey = '') {
       const id = serverSel.value;
       const data = await fetchJson('/api/files?serverId=' + encodeURIComponent(id));
       allFiles = data.files;
+      emptyFolders = data.emptyFolders || [];
       renderFiles(fileSearchInput.value);
     }
 
@@ -350,6 +472,7 @@ function editorPage(prefilledApiKey = '') {
         status.textContent = 'Loaded ' + file;
         markActiveFile();
         updateLineNumbers();
+        renderHighlightedContent();
       } catch (err) {
         status.textContent = '❌ ' + err.message;
       }
@@ -377,12 +500,10 @@ function editorPage(prefilledApiKey = '') {
       if (!details) return;
       const folderPath = details.dataset.folder;
       if (details.open) {
-        collapsedFolders.delete(folderPath);
+        expandedFolders.add(folderPath);
       } else {
-        collapsedFolders.add(folderPath);
+        expandedFolders.delete(folderPath);
       }
-      const summary = details.querySelector(':scope > summary > .folder-caret');
-      if (summary) summary.textContent = details.open ? '▼' : '▶';
     });
 
     tree.onclick = e => {
@@ -396,14 +517,22 @@ function editorPage(prefilledApiKey = '') {
       localStorage.setItem(KEY_STORAGE_NAME, keyInput.value.trim());
       loadServers().catch(err => status.textContent = '❌ ' + err.message);
     };
-    content.oninput = updateLineNumbers;
-    content.onscroll = () => { lineNumbers.scrollTop = content.scrollTop; };
+    content.oninput = () => {
+      updateLineNumbers();
+      renderHighlightedContent();
+    };
+    content.onscroll = () => {
+      lineNumbers.scrollTop = content.scrollTop;
+      highlight.scrollTop = content.scrollTop;
+      highlight.scrollLeft = content.scrollLeft;
+    };
 
     document.getElementById('save').onclick = saveCurrentFile;
     document.getElementById('revert').onclick = () => {
       if (!currentFile) return;
       content.value = originalContent;
       updateLineNumbers();
+      renderHighlightedContent();
       status.textContent = 'Reverted ' + currentFile;
     };
     document.getElementById('newWindow').onclick = () => window.open(window.location.href, '_blank');
@@ -430,6 +559,7 @@ function editorPage(prefilledApiKey = '') {
       try {
         content.value = JSON.stringify(JSON.parse(content.value), null, 2);
         updateLineNumbers();
+        renderHighlightedContent();
         status.textContent = '✅ JSON formatted';
       } catch (err) {
         status.textContent = '❌ Cannot format JSON: ' + err.message;
@@ -483,6 +613,7 @@ function editorPage(prefilledApiKey = '') {
 
     loadServers().catch(err => status.textContent = '❌ ' + err.message);
     updateLineNumbers();
+    renderHighlightedContent();
   </script>
 </body>
 </html>`;
@@ -527,8 +658,8 @@ export function startWebEditor() {
         const serverConfig = findServer(serverId);
         if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
 
-        const files = listEditableFiles(serverConfig.cwd);
-        return sendJson(res, 200, { files });
+        const { files, emptyFolders } = listEditableFiles(serverConfig.cwd);
+        return sendJson(res, 200, { files, emptyFolders });
       }
 
       if (req.method === 'GET' && url.pathname === '/api/file') {
