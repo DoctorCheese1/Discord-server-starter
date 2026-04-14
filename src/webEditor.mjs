@@ -159,7 +159,7 @@ function editorPage(prefilledApiKey = '') {
     .tabs { height: 40px; background: #252526; display: flex; align-items: end; padding: 0 8px; border-bottom: 1px solid #2d2d30; }
     .tab { background: #2d2d2d; color: #bbbbbb; border: 1px solid #3a3a3a; border-bottom: none; border-radius: 6px 6px 0 0; padding: 9px 14px; font-style: italic; min-width: 120px; }
     .tab.active { background: #1e1e1e; color: #ffffff; }
-    .editor-grid { flex: 1; display: grid; grid-template-columns: 54px 1fr; min-height: 0; overflow: hidden; }
+    .editor-grid { flex: 1; display: grid; grid-template-columns: 54px 1fr; min-height: 0; }
     .line-numbers { background: var(--panel-2); border-right: 1px solid var(--line); color: #7f8ca4; font-family: Consolas, monospace; padding: 8px 6px; line-height: 20px; font-size: 14px; text-align: right; overflow: hidden; user-select: none; }
     .editor-stack { position: relative; min-height: 0; }
     .highlight-layer,
@@ -179,7 +179,7 @@ function editorPage(prefilledApiKey = '') {
       overflow: auto;
       white-space: pre;
     }
-    .highlight-layer { background: #1e1e1e; color: #d4d4d4; pointer-events: none; z-index: 1; overflow: hidden; }
+    .highlight-layer { background: #1e1e1e; color: #d4d4d4; pointer-events: none; z-index: 1; }
     textarea { resize: none; background: transparent; color: transparent; caret-color: #d4d4d4; z-index: 2; }
     textarea::selection { background: rgba(38, 79, 120, 0.65); color: transparent; }
     .code-line { display: block; min-height: 20px; }
@@ -191,10 +191,6 @@ function editorPage(prefilledApiKey = '') {
     .tok-null { color: #c586c0; }
     .tok-punct { color: #d4d4d4; }
     .tok-comment { color: #6a9955; }
-    .tok-section { color: #4ec9b0; }
-    .tok-attr { color: #9cdcfe; }
-    .tok-tag { color: #569cd6; }
-    .tok-command { color: #dcdcaa; }
     .footer { height: 28px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #2d2d30; background: #007acc; padding: 0 10px; color: #ffffff; font-size: 12px; }
     .popup { position: fixed; top: 12px; right: 12px; background: #1f6f43; color: #fff; border: 1px solid #2ecc71; border-radius: .5rem; padding: .8rem 1rem; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity .2s, transform .2s; z-index: 50; }
     .popup.show { opacity: 1; transform: translateY(0); }
@@ -381,8 +377,8 @@ function editorPage(prefilledApiKey = '') {
       let html = escapeHtml(line);
       html = html.replace(/(^\\s*[#;].*$)/g, '<span class="tok-comment">$1</span>');
       html = html.replace(/^(\\s*\\[[^\\]]+\\])/g, '<span class="tok-section">$1</span>');
-      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
       html = html.replace(/^(\\s*[^=\\s][^=]*)(\\s*=\\s*)/g, '<span class="tok-key">$1</span>$2');
+      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
       html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
       html = html.replace(/\\b(true|false|yes|no|on|off)\\b/gi, '<span class="tok-bool">$1</span>');
       return html;
@@ -399,8 +395,8 @@ function editorPage(prefilledApiKey = '') {
 
     function highlightXml(line) {
       let html = escapeHtml(line);
-      html = html.replace(/([a-zA-Z_:][a-zA-Z0-9:_.-]*)(=)/g, '<span class="tok-attr">$1</span>$2');
       html = html.replace(/(&lt;\\/?)([a-zA-Z0-9:_-]+)/g, '$1<span class="tok-tag">$2</span>');
+      html = html.replace(/([a-zA-Z_:][a-zA-Z0-9:_.-]*)(=)/g, '<span class="tok-attr">$1</span>$2');
       html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
       html = html.replace(/(&lt;!--.*?--&gt;)/g, '<span class="tok-comment">$1</span>');
       return html;
