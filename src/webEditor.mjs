@@ -178,7 +178,7 @@ function editorPage(prefilledApiKey = '') {
       overflow: auto;
       white-space: pre;
     }
-    .highlight-layer { background: #1e1e1e; color: #d4d4d4; pointer-events: none; z-index: 1; overflow: hidden; }
+    .highlight-layer { background: #1e1e1e; color: #d4d4d4; pointer-events: none; z-index: 1; }
     textarea { resize: none; background: transparent; color: transparent; caret-color: #d4d4d4; z-index: 2; }
     textarea::selection { background: rgba(38, 79, 120, 0.65); color: transparent; }
     .code-line { display: block; min-height: 20px; }
@@ -190,10 +190,6 @@ function editorPage(prefilledApiKey = '') {
     .tok-null { color: #c586c0; }
     .tok-punct { color: #d4d4d4; }
     .tok-comment { color: #6a9955; }
-    .tok-section { color: #4ec9b0; }
-    .tok-attr { color: #9cdcfe; }
-    .tok-tag { color: #569cd6; }
-    .tok-command { color: #dcdcaa; }
     .footer { height: 28px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #2d2d30; background: #007acc; padding: 0 10px; color: #ffffff; font-size: 12px; }
     .popup { position: fixed; top: 12px; right: 12px; background: #1f6f43; color: #fff; border: 1px solid #2ecc71; border-radius: .5rem; padding: .8rem 1rem; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity .2s, transform .2s; z-index: 50; }
     .popup.show { opacity: 1; transform: translateY(0); }
