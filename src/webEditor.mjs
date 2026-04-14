@@ -57,7 +57,7 @@ function isSafePath(baseDir, requestedPath) {
   return resolvedTarget === resolvedBase || resolvedTarget.startsWith(`${resolvedBase}${path.sep}`);
 }
 
-function listEditableFiles(cwd, maxDepth = 8) {
+function listEditableFiles(cwd, maxDepth = 3) {
   const results = [];
   const emptyFolders = [];
 
@@ -332,9 +332,6 @@ function editorPage(prefilledApiKey = '') {
       const lower = (filePath || '').toLowerCase();
       if (lower.endsWith('.json')) return 'json';
       if (lower.endsWith('.yml') || lower.endsWith('.yaml')) return 'yaml';
-      if (lower.endsWith('.ini') || lower.endsWith('.cfg') || lower.endsWith('.conf') || lower.endsWith('.properties')) return 'ini';
-      if (lower.endsWith('.sh') || lower.endsWith('.bat')) return 'script';
-      if (lower.endsWith('.xml')) return 'xml';
       return 'plain';
     }
 
@@ -378,37 +375,21 @@ function editorPage(prefilledApiKey = '') {
       return html;
     }
 
-    function highlightIni(line) {
-      let html = escapeHtml(line);
-      html = html.replace(/(^\\s*[#;].*$)/g, '<span class="tok-comment">$1</span>');
-      html = html.replace(/^(\\s*\\[[^\\]]+\\])/g, '<span class="tok-section">$1</span>');
-      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
-      html = html.replace(/^(\\s*[^=\\s][^=]*)(\\s*=\\s*)/g, '<span class="tok-key">$1</span>$2');
-      html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
-      html = html.replace(/\\b(true|false|yes|no|on|off)\\b/gi, '<span class="tok-bool">$1</span>');
-      return html;
-    }
-
-    function highlightScript(line) {
-      let html = escapeHtml(line);
-      html = html.replace(/(^\\s*#.*$)|(^\\s*::.*$)|(^\\s*REM\\b.*$)/gi, '<span class="tok-comment">$&</span>');
-      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
-      html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
-      html = html.replace(/\\b(if|else|then|fi|for|in|do|done|while|case|esac|set|export|echo|call|goto|setlocal|endlocal)\\b/gi, '<span class="tok-command">$&</span>');
-      return html;
-    }
-
-    function highlightXml(line) {
-      let html = escapeHtml(line);
-      html = html.replace(/([a-zA-Z_:][a-zA-Z0-9:_.-]*)(=)/g, '<span class="tok-attr">$1</span>$2');
-      html = html.replace(/(&lt;\\/?)([a-zA-Z0-9:_-]+)/g, '$1<span class="tok-tag">$2</span>');
-      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
-      html = html.replace(/(&lt;!--.*?--&gt;)/g, '<span class="tok-comment">$1</span>');
-      return html;
-    }
-
     function renderHighlightedContent() {
-      return;
+      const language = languageForFile(currentFile);
+      const text = content.value || '';
+      const lines = text.split('\\n');
+      const errorLine = language === 'json'
+        ? getJsonErrorLine(text)
+        : (language === 'yaml' ? getYamlErrorLine(text) : null);
+      const html = lines.map((line, index) => {
+        const highlighted = language === 'json'
+          ? highlightJson(line)
+          : (language === 'yaml' ? highlightYaml(line) : escapeHtml(line));
+        const errClass = errorLine === index + 1 ? ' error-line' : '';
+        return '<span class="code-line' + errClass + '">' + (highlighted || ' ') + '</span>';
+      }).join('\\n');
+      highlight.innerHTML = html;
     }
 
     function markActiveFile() {
@@ -480,8 +461,7 @@ function editorPage(prefilledApiKey = '') {
         return parts.join('');
       }
 
-      const treeHtml = walk(root, 0);
-      tree.innerHTML = treeHtml || '<div class="tree-row empty" style="padding-left:12px; color:#9da0a6;">No editable files found (clear filter or check folder depth).</div>';
+      tree.innerHTML = walk(root, 0);
       markActiveFile();
     }
 
