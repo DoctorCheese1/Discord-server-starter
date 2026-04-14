@@ -59,29 +59,42 @@ function isSafePath(baseDir, requestedPath) {
 
 function listEditableFiles(cwd, maxDepth = 3) {
   const results = [];
+  const emptyFolders = [];
 
   function walk(currentDir, depth, prefix = '') {
-    if (depth > maxDepth) return;
+    if (depth > maxDepth) return false;
 
+    let subtreeHasEditableFiles = false;
     const entries = fs.readdirSync(currentDir, { withFileTypes: true });
     for (const entry of entries) {
       const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
       const full = path.join(currentDir, entry.name);
 
       if (entry.isDirectory()) {
-        walk(full, depth + 1, rel);
+        if (walk(full, depth + 1, rel)) {
+          subtreeHasEditableFiles = true;
+        }
         continue;
       }
 
       const ext = path.extname(entry.name).toLowerCase();
       if (TEXT_EXTENSIONS.has(ext) && fs.statSync(full).size <= MAX_FILE_BYTES) {
         results.push(rel);
+        subtreeHasEditableFiles = true;
       }
     }
+
+    if (!subtreeHasEditableFiles && prefix) {
+      emptyFolders.push(prefix);
+    }
+    return subtreeHasEditableFiles;
   }
 
   walk(cwd, 0);
-  return results.sort();
+  return {
+    files: results.sort(),
+    emptyFolders: emptyFolders.sort()
+  };
 }
 
 function editorPage(prefilledApiKey = '') {
@@ -227,6 +240,7 @@ function editorPage(prefilledApiKey = '') {
     const KEY_STORAGE_NAME = 'web_editor_api_key';
     const SERVER_PROVIDED_KEY = ${JSON.stringify(prefilledApiKey)};
     let allFiles = [];
+    let emptyFolders = [];
     let currentFile = '';
     let originalContent = '';
     let popupTimer;
@@ -336,16 +350,29 @@ function editorPage(prefilledApiKey = '') {
         ? allFiles.filter(f => f.toLowerCase().includes(query))
         : allFiles;
 
-      const root = { folders: new Map(), files: [] };
+      const root = { folders: new Map(), files: [], explicitEmpty: false };
+      function ensureFolderNode(folderPath) {
+        const parts = folderPath.split('/');
+        let node = root;
+        for (const part of parts) {
+          if (!node.folders.has(part)) node.folders.set(part, { folders: new Map(), files: [], explicitEmpty: false });
+          node = node.folders.get(part);
+        }
+        return node;
+      }
       for (const file of files) {
         const parts = file.split('/');
         let node = root;
         for (let i = 0; i < parts.length - 1; i++) {
           const folder = parts[i];
-          if (!node.folders.has(folder)) node.folders.set(folder, { folders: new Map(), files: [] });
+          if (!node.folders.has(folder)) node.folders.set(folder, { folders: new Map(), files: [], explicitEmpty: false });
           node = node.folders.get(folder);
         }
         node.files.push(file);
+      }
+      for (const folderPath of emptyFolders) {
+        const node = ensureFolderNode(folderPath);
+        node.explicitEmpty = true;
       }
 
       function walk(node, depth, prefix = '') {
@@ -367,6 +394,9 @@ function editorPage(prefilledApiKey = '') {
         for (const filePath of sortedFiles) {
           const ext = filePath.toLowerCase().endsWith('.yml') || filePath.toLowerCase().endsWith('.yaml') ? ' yaml' : '';
           parts.push('<div class="tree-row file' + ext + '" data-path="' + filePath + '" style="padding-left:' + (depth * 16 + 24) + 'px">' + pathBase(filePath) + '</div>');
+        }
+        if (node.explicitEmpty && node.folders.size === 0 && node.files.length === 0) {
+          parts.push('<div class="tree-row empty" style="padding-left:' + (depth * 16 + 24) + 'px">(folder empty)</div>');
         }
         return parts.join('');
       }
@@ -398,6 +428,7 @@ function editorPage(prefilledApiKey = '') {
       const id = serverSel.value;
       const data = await fetchJson('/api/files?serverId=' + encodeURIComponent(id));
       allFiles = data.files;
+      emptyFolders = data.emptyFolders || [];
       renderFiles(fileSearchInput.value);
     }
 
@@ -597,8 +628,8 @@ export function startWebEditor() {
         const serverConfig = findServer(serverId);
         if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
 
-        const files = listEditableFiles(serverConfig.cwd);
-        return sendJson(res, 200, { files });
+        const { files, emptyFolders } = listEditableFiles(serverConfig.cwd);
+        return sendJson(res, 200, { files, emptyFolders });
       }
 
       if (req.method === 'GET' && url.pathname === '/api/file') {
