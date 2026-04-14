@@ -57,7 +57,7 @@ function isSafePath(baseDir, requestedPath) {
   return resolvedTarget === resolvedBase || resolvedTarget.startsWith(`${resolvedBase}${path.sep}`);
 }
 
-function listEditableFiles(cwd, maxDepth = 3) {
+function listEditableFiles(cwd, maxDepth = 8) {
   const results = [];
   const emptyFolders = [];
 
@@ -494,7 +494,8 @@ function editorPage(prefilledApiKey = '') {
         return parts.join('');
       }
 
-      tree.innerHTML = walk(root, 0);
+      const treeHtml = walk(root, 0);
+      tree.innerHTML = treeHtml || '<div class="tree-row empty" style="padding-left:12px; color:#9da0a6;">No editable files found (clear filter or check folder depth).</div>';
       markActiveFile();
     }
 
