@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { loadServers } from './serverStore.mjs';
 
 const TEXT_EXTENSIONS = new Set([
-  '.txt', '.json', '.cfg', '.ini', '.properties', '.yaml', '.yml', '.xml', '.bat', '.sh', '.log', '.conf'
+  '.txt', '.json', '.cfg', '.ini', '.properties', '.yaml', '.yml', '.xml', '.bat', '.sh', '.log', '.conf', '.toml'
 ]);
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024; // 2GB
@@ -67,7 +67,34 @@ function isSafePath(baseDir, requestedPath) {
   return resolvedTarget === resolvedBase || resolvedTarget.startsWith(`${resolvedBase}${path.sep}`);
 }
 
-function listEditableFiles(cwd, maxDepth = 3) {
+function getFileEditability(fullPath) {
+  if (!fs.existsSync(fullPath)) {
+    return { editable: false, reason: `${path.basename(fullPath)} cannot be edited (not found)` };
+  }
+
+  const stat = fs.statSync(fullPath);
+  if (stat.isDirectory()) {
+    return { editable: false, reason: `${path.basename(fullPath)} cannot be edited (directory)` };
+  }
+  if (!stat.isFile()) {
+    return { editable: false, reason: `${path.basename(fullPath)} cannot be edited (unsupported type)` };
+  }
+  if (stat.size > MAX_FILE_BYTES) {
+    return { editable: false, reason: `${path.basename(fullPath)} cannot be edited (file too large)` };
+  }
+
+  const ext = path.extname(fullPath).toLowerCase();
+  if (!TEXT_EXTENSIONS.has(ext)) {
+    return {
+      editable: false,
+      reason: `${path.basename(fullPath)} cannot be edited (unsupported extension: ${ext || 'none'})`
+    };
+  }
+
+  return { editable: true, reason: '' };
+}
+
+function listFiles(cwd, maxDepth = 12) {
   const results = [];
   const emptyFolders = [];
 
@@ -88,11 +115,7 @@ function listEditableFiles(cwd, maxDepth = 3) {
       }
 
       const editability = getFileEditability(full);
-      results.push({
-        path: rel,
-        editable: editability.editable,
-        reason: editability.reason
-      });
+      results.push({ path: rel, editable: editability.editable, reason: editability.reason });
       subtreeHasVisibleEntries = true;
     }
 
@@ -159,7 +182,8 @@ export function startWebEditor() {
         const serverConfig = findServer(serverId);
         if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
 
-        const { files, emptyFolders } = listFiles(serverConfig.cwd);
+        const maxDepth = Number(process.env.WEB_EDITOR_MAX_DEPTH || 12);
+        const { files, emptyFolders } = listFiles(serverConfig.cwd, Number.isFinite(maxDepth) ? maxDepth : 12);
         return sendJson(res, 200, { files, emptyFolders });
       }
 

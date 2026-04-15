@@ -233,7 +233,7 @@
     function renderFiles(filter = '') {
       const query = filter.trim().toLowerCase();
       const files = query
-        ? allFiles.filter(f => f.toLowerCase().includes(query))
+        ? allFiles.filter(f => f.path.toLowerCase().includes(query))
         : allFiles;
 
       const root = { folders: new Map(), files: [], explicitEmpty: false };
@@ -247,7 +247,7 @@
         return node;
       }
       for (const file of files) {
-        const parts = file.split('/');
+        const parts = file.path.split('/');
         let node = root;
         for (let i = 0; i < parts.length - 1; i++) {
           const folder = parts[i];
@@ -276,10 +276,13 @@
             '</details>'
           );
         }
-        const sortedFiles = node.files.slice().sort((a, b) => a.localeCompare(b));
-        for (const filePath of sortedFiles) {
+        const sortedFiles = node.files.slice().sort((a, b) => a.path.localeCompare(b.path));
+        for (const fileEntry of sortedFiles) {
+          const filePath = fileEntry.path;
           const ext = filePath.toLowerCase().endsWith('.yml') || filePath.toLowerCase().endsWith('.yaml') ? ' yaml' : '';
-          parts.push('<div class="tree-row file' + ext + '" data-path="' + filePath + '" style="padding-left:' + (depth * 12 + 18) + 'px">' + pathBase(filePath) + '</div>');
+          const lockedClass = fileEntry.editable ? '' : ' locked';
+          const title = fileEntry.editable ? filePath : (fileEntry.reason || (pathBase(filePath) + ' cannot be edited'));
+          parts.push('<div class="tree-row file' + ext + lockedClass + '" data-path="' + filePath + '" data-editable="' + fileEntry.editable + '" title="' + title.replace(/"/g, '&quot;') + '" style="padding-left:' + (depth * 12 + 18) + 'px">' + pathBase(filePath) + '</div>');
         }
         if (node.explicitEmpty && node.folders.size === 0 && node.files.length === 0) {
           parts.push('<div class="tree-row empty" style="padding-left:' + (depth * 12 + 18) + 'px">(folder empty)</div>');
@@ -288,7 +291,7 @@
       }
 
       const treeHtml = walk(root, 0);
-      tree.innerHTML = treeHtml || '<div class="tree-row empty" style="padding-left:12px; color:#9da0a6;">No editable files found (clear filter or check folder depth).</div>';
+      tree.innerHTML = treeHtml || '<div class="tree-row empty" style="padding-left:12px; color:#9da0a6;">No files found (clear filter or increase folder depth).</div>';
       markActiveFile();
     }
 
@@ -330,7 +333,7 @@
         expandedFolders.add(folder);
       }
       renderFiles(fileSearchInput.value);
-      if (restored.currentFile && allFiles.includes(restored.currentFile)) {
+      if (restored.currentFile && allFiles.some(file => file.path === restored.currentFile && file.editable)) {
         await loadFile(restored.currentFile);
       }
     }
@@ -385,7 +388,13 @@
 
     tree.onclick = e => {
       const row = e.target.closest('.tree-row.file');
-      if (row) loadFile(row.dataset.path);
+      if (!row) return;
+      if (row.dataset.editable !== 'true') {
+        const filename = pathBase(row.dataset.path);
+        status.textContent = '⚠️ ' + filename + ' cannot be edited';
+        return;
+      }
+      loadFile(row.dataset.path);
     };
 
     serverSel.onchange = () => {
