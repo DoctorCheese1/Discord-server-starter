@@ -676,12 +676,9 @@ function editorPage(prefilledApiKey = '') {
       window.history.replaceState({}, '', nextUrl);
     }
 
-    loadServers().catch(err => status.textContent = '❌ ' + err.message);
-    updateLineNumbers();
-    renderHighlightedContent();
-  </script>
-</body>
-</html>`;
+function editorPage(prefilledApiKey = '') {
+  const template = fs.readFileSync(WEB_EDITOR_TEMPLATE_FILE, 'utf8');
+  return template.replace('__SERVER_PROVIDED_KEY__', JSON.stringify(prefilledApiKey));
 }
 
 export function startWebEditor() {
