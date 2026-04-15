@@ -1,0 +1,526 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Toolbox - Config Editor</title>
+  <link rel="stylesheet" href="/webEditor.css" />
+
+</head>
+<body>
+  <div class="window-title">Toolbox - Config Editor</div>
+  <div class="menu-bar">
+    <div class="menu">
+      <button class="menu-btn" data-menu="file">File</button>
+      <div class="menu-items" id="menu-file">
+        <button class="menu-item" id="newWindow">New Window</button>
+        <button class="menu-item" id="save">Save</button>
+        <button class="menu-item" id="revert">Revert File</button>
+        <button class="menu-item" id="exit">Exit</button>
+      </div>
+    </div>
+    <div class="menu">
+      <button class="menu-btn" data-menu="edit">Edit</button>
+      <div class="menu-items" id="menu-edit">
+        <button class="menu-item" id="undo">Undo</button>
+        <button class="menu-item" id="redo">Redo</button>
+        <button class="menu-item" id="cut">Cut</button>
+        <button class="menu-item" id="copy">Copy</button>
+        <button class="menu-item" id="paste">Paste</button>
+      </div>
+    </div>
+    <div class="menu">
+      <button class="menu-btn" data-menu="format">Format</button>
+      <div class="menu-items" id="menu-format">
+        <button class="menu-item" id="validateJson">Validate JSON</button>
+        <button class="menu-item" id="validateYaml">Validate YAML</button>
+        <button class="menu-item" id="prettifyJson">Prettify JSON</button>
+      </div>
+    </div>
+  </div>
+  <div class="header">Toolbox - Config Editor</div>
+  <div class="toolbar">
+    <select id="server"></select>
+    <input id="key" placeholder="WEB_EDITOR_API_KEY" autocomplete="off" />
+    <input id="fileSearch" placeholder="Filter files..." />
+  </div>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="tree-head"></div>
+      <div id="tree" class="tree"></div>
+    </aside>
+    <section class="editor-wrap">
+      <div class="tabs"><div id="tab" class="tab active">No file open</div></div>
+      <div class="editor-grid">
+        <pre id="lineNumbers" class="line-numbers">1</pre>
+        <div class="editor-stack">
+          <pre id="highlight" class="highlight-layer"></pre>
+          <textarea id="content" spellcheck="false" placeholder="Select a file on the left to load contents..."></textarea>
+        </div>
+      </div>
+      <div class="footer">
+        <div id="status">Ready</div>
+        <div>Ctrl+S Save • Ctrl+F Find in browser</div>
+      </div>
+    </section>
+  </div>
+  <div id="savePopup" class="popup">✅ File saved successfully</div>
+
+  <script>
+    const status = document.getElementById('status');
+    const serverSel = document.getElementById('server');
+    const tree = document.getElementById('tree');
+    const content = document.getElementById('content');
+    const highlight = document.getElementById('highlight');
+    const keyInput = document.getElementById('key');
+    const fileSearchInput = document.getElementById('fileSearch');
+    const savePopup = document.getElementById('savePopup');
+    const tab = document.getElementById('tab');
+    const lineNumbers = document.getElementById('lineNumbers');
+
+    const KEY_STORAGE_NAME = 'web_editor_api_key';
+    const UI_STATE_STORAGE_NAME = 'web_editor_ui_state_v1';
+    const SERVER_STORAGE_NAME = 'web_editor_selected_server';
+    const SERVER_PROVIDED_KEY = __SERVER_PROVIDED_KEY__;
+    let allFiles = [];
+    let allFileEntries = [];
+    const fileEntryByPath = new Map();
+    let emptyFolders = [];
+    let currentFile = '';
+    let originalContent = '';
+    let popupTimer;
+    let openMenu = null;
+    const expandedFolders = new Set();
+    let scrollSyncFrame = null;
+
+    function loadUiState() {
+      try {
+        return JSON.parse(localStorage.getItem(UI_STATE_STORAGE_NAME) || '{}');
+      } catch {
+        return {};
+      }
+    }
+
+    function saveUiState(partial) {
+      const serverId = serverSel.value || '';
+      if (!serverId) return;
+      const state = loadUiState();
+      const current = state[serverId] || {};
+      state[serverId] = { ...current, ...partial };
+      localStorage.setItem(UI_STATE_STORAGE_NAME, JSON.stringify(state));
+    }
+
+    function restoreUiState() {
+      const serverId = serverSel.value || '';
+      if (!serverId) return { expanded: [], currentFile: '' };
+      const state = loadUiState();
+      return state[serverId] || { expanded: [], currentFile: '' };
+    }
+
+    function showSavePopup(file) {
+      savePopup.textContent = '✅ Saved ' + file;
+      savePopup.classList.add('show');
+      clearTimeout(popupTimer);
+      popupTimer = setTimeout(() => savePopup.classList.remove('show'), 1800);
+    }
+
+    function updateLineNumbers() {
+      const lines = Math.max(1, content.value.split('\\n').length);
+      const nums = [];
+      for (let i = 1; i <= lines; i++) nums.push(i);
+      lineNumbers.textContent = nums.join('\\n');
+      syncEditorScroll();
+    }
+
+    function syncEditorScroll() {
+      if (scrollSyncFrame !== null) return;
+
+      scrollSyncFrame = requestAnimationFrame(() => {
+        lineNumbers.scrollTop = content.scrollTop;
+        highlight.scrollTop = content.scrollTop;
+        highlight.scrollLeft = content.scrollLeft;
+        scrollSyncFrame = null;
+      });
+    }
+
+    function escapeHtml(text) {
+      return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    function languageForFile(filePath) {
+      const lower = (filePath || '').toLowerCase();
+      if (lower.endsWith('.json')) return 'json';
+      if (lower.endsWith('.yml') || lower.endsWith('.yaml')) return 'yaml';
+      if (lower.endsWith('.ini') || lower.endsWith('.cfg') || lower.endsWith('.conf') || lower.endsWith('.properties')) return 'ini';
+      if (lower.endsWith('.sh') || lower.endsWith('.bat')) return 'script';
+      if (lower.endsWith('.xml')) return 'xml';
+      return 'plain';
+    }
+
+    function getJsonErrorLine(text) {
+      try {
+        JSON.parse(text);
+        return null;
+      } catch (err) {
+        const match = String(err.message || '').match(/position\\s+(\\d+)/i);
+        if (!match) return null;
+        const pos = Number(match[1]);
+        return text.slice(0, pos).split('\\n').length;
+      }
+    }
+
+    function getYamlErrorLine(text) {
+      const lines = text.split('\\n');
+      const bad = lines.findIndex(l => /^\\s*[^#\\-][^:]*$/.test(l) && l.trim() !== '');
+      return bad >= 0 ? bad + 1 : null;
+    }
+
+    function highlightJson(line) {
+      let html = escapeHtml(line);
+      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
+      html = html.replace(/<span class="tok-string">"([^"]*)"<\\/span>(?=\\s*:)/g, '<span class="tok-key">"$1"</span>');
+      html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?(?:[eE][+\\-]?\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
+      html = html.replace(/\\b(true|false)\\b/g, '<span class="tok-bool">$1</span>');
+      html = html.replace(/\\bnull\\b/g, '<span class="tok-null">null</span>');
+      html = html.replace(/[{}\\[\\]:,]/g, m => '<span class="tok-punct">' + m + '</span>');
+      return html;
+    }
+
+    function highlightYaml(line) {
+      let html = escapeHtml(line);
+      html = html.replace(/(^\\s*#.*$)/g, '<span class="tok-comment">$1</span>');
+      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
+      html = html.replace(/(^\\s*[^:#\\n][^:]*)(:\\s*)/g, '<span class="tok-key">$1</span>$2');
+      html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
+      html = html.replace(/\\b(true|false)\\b/g, '<span class="tok-bool">$1</span>');
+      html = html.replace(/\\bnull\\b/g, '<span class="tok-null">null</span>');
+      return html;
+    }
+
+    function highlightIni(line) {
+      let html = escapeHtml(line);
+      html = html.replace(/(^\\s*[#;].*$)/g, '<span class="tok-comment">$1</span>');
+      html = html.replace(/^(\\s*\\[[^\\]]+\\])/g, '<span class="tok-section">$1</span>');
+      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
+      html = html.replace(/^(\\s*[^=\\s][^=]*)(\\s*=\\s*)/g, '<span class="tok-key">$1</span>$2');
+      html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
+      html = html.replace(/\\b(true|false|yes|no|on|off)\\b/gi, '<span class="tok-bool">$1</span>');
+      return html;
+    }
+
+    function highlightScript(line) {
+      let html = escapeHtml(line);
+      html = html.replace(/(^\\s*#.*$)|(^\\s*::.*$)|(^\\s*REM\\b.*$)/gi, '<span class="tok-comment">$&</span>');
+      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
+      html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
+      html = html.replace(/\\b(if|else|then|fi|for|in|do|done|while|case|esac|set|export|echo|call|goto|setlocal|endlocal)\\b/gi, '<span class="tok-command">$&</span>');
+      return html;
+    }
+
+    function highlightXml(line) {
+      let html = escapeHtml(line);
+      html = html.replace(/([a-zA-Z_:][a-zA-Z0-9:_.-]*)(=)/g, '<span class="tok-attr">$1</span>$2');
+      html = html.replace(/(&lt;\\/?)([a-zA-Z0-9:_-]+)/g, '$1<span class="tok-tag">$2</span>');
+      html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
+      html = html.replace(/(&lt;!--.*?--&gt;)/g, '<span class="tok-comment">$1</span>');
+      return html;
+    }
+
+    function renderHighlightedContent() {
+      return;
+    }
+
+    function markActiveFile() {
+      for (const row of tree.querySelectorAll('.tree-row.file')) {
+        row.classList.toggle('active', row.dataset.path === currentFile);
+      }
+      tab.textContent = currentFile ? pathBase(currentFile) : 'No file open';
+    }
+
+    function pathBase(p) {
+      const parts = p.split('/');
+      return parts[parts.length - 1];
+    }
+
+    function renderFiles(filter = '') {
+      const query = filter.trim().toLowerCase();
+      const files = query
+        ? allFileEntries.filter(entry => entry.path.toLowerCase().includes(query))
+        : allFileEntries;
+
+      const root = { folders: new Map(), files: [], explicitEmpty: false };
+      function ensureFolderNode(folderPath) {
+        const parts = folderPath.split('/');
+        let node = root;
+        for (const part of parts) {
+          if (!node.folders.has(part)) node.folders.set(part, { folders: new Map(), files: [], explicitEmpty: false });
+          node = node.folders.get(part);
+        }
+        return node;
+      }
+      for (const fileEntry of files) {
+        const parts = fileEntry.path.split('/');
+        let node = root;
+        for (let i = 0; i < parts.length - 1; i++) {
+          const folder = parts[i];
+          if (!node.folders.has(folder)) node.folders.set(folder, { folders: new Map(), files: [], explicitEmpty: false });
+          node = node.folders.get(folder);
+        }
+        node.files.push(fileEntry);
+      }
+      for (const folderPath of emptyFolders) {
+        const node = ensureFolderNode(folderPath);
+        node.explicitEmpty = true;
+      }
+
+      function walk(node, depth, prefix = '') {
+        const parts = [];
+        const folders = Array.from(node.folders.keys()).sort((a, b) => a.localeCompare(b));
+        for (const folderName of folders) {
+          const folderPath = prefix ? prefix + '/' + folderName : folderName;
+          const isExpanded = expandedFolders.has(folderPath);
+          parts.push(
+            '<details data-folder="' + folderPath + '" ' + (isExpanded ? 'open' : '') + ' style="margin-left:' + (depth * 12 + 6) + 'px">' +
+              '<summary><span class="folder-caret">▸</span>' + folderName + '</summary>' +
+              '<div class="folder-children"><div class="folder-children-inner">' +
+                walk(node.folders.get(folderName), depth + 1, folderPath) +
+              '</div></div>' +
+            '</details>'
+          );
+        }
+        const sortedFiles = node.files.slice().sort((a, b) => a.path.localeCompare(b.path));
+        for (const fileEntry of sortedFiles) {
+          const filePath = fileEntry.path;
+          const ext = filePath.toLowerCase().endsWith('.yml') || filePath.toLowerCase().endsWith('.yaml') ? ' yaml' : '';
+          const locked = fileEntry.editable ? '' : ' locked';
+          const title = fileEntry.editable ? '' : ' title="' + (fileEntry.reason || (pathBase(filePath) + ' cannot be edited')) + '"';
+          const suffix = fileEntry.editable ? '' : ' <span style="color:#9da0a6;">(read-only)</span>';
+          parts.push('<div class="tree-row file' + ext + locked + '" data-path="' + filePath + '"' + title + ' style="padding-left:' + (depth * 12 + 18) + 'px">' + pathBase(filePath) + suffix + '</div>');
+        }
+        if (node.explicitEmpty && node.folders.size === 0 && node.files.length === 0) {
+          parts.push('<div class="tree-row empty" style="padding-left:' + (depth * 12 + 18) + 'px">(folder empty)</div>');
+        }
+        return parts.join('');
+      }
+
+      const treeHtml = walk(root, 0);
+      tree.innerHTML = treeHtml || '<div class="tree-row empty" style="padding-left:12px; color:#9da0a6;">No files found for this filter.</div>';
+      markActiveFile();
+    }
+
+    function withKey(url) {
+      const key = keyInput.value.trim();
+      if (!key) return url;
+      return url + (url.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(key);
+    }
+
+    async function fetchJson(url, opts) {
+      const res = await fetch(withKey(url), opts);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    async function loadServers() {
+      const data = await fetchJson('/api/servers');
+      serverSel.innerHTML = data.servers.map(s => '<option value="' + s.id + '">' + s.name + ' (' + s.id + ')</option>').join('');
+      if (data.servers.length) {
+        const savedServerId = localStorage.getItem(SERVER_STORAGE_NAME);
+        const exists = data.servers.some(s => s.id === savedServerId);
+        if (exists) {
+          serverSel.value = savedServerId;
+        }
+        await loadFiles();
+      }
+    }
+
+    async function loadFiles() {
+      const id = serverSel.value;
+      localStorage.setItem(SERVER_STORAGE_NAME, id);
+      const data = await fetchJson('/api/files?serverId=' + encodeURIComponent(id));
+      allFileEntries = Array.isArray(data.files) ? data.files : [];
+      fileEntryByPath.clear();
+      for (const entry of allFileEntries) {
+        if (entry && entry.path) fileEntryByPath.set(entry.path, entry);
+      }
+      allFiles = allFileEntries.map(entry => entry.path);
+      emptyFolders = data.emptyFolders || [];
+      expandedFolders.clear();
+      const restored = restoreUiState();
+      for (const folder of restored.expanded || []) {
+        expandedFolders.add(folder);
+      }
+      renderFiles(fileSearchInput.value);
+      if (restored.currentFile && fileEntryByPath.get(restored.currentFile)?.editable) {
+        await loadFile(restored.currentFile);
+      }
+    }
+
+    async function loadFile(file) {
+      try {
+        const id = serverSel.value;
+        const data = await fetchJson('/api/file?serverId=' + encodeURIComponent(id) + '&path=' + encodeURIComponent(file));
+        content.value = data.content;
+        originalContent = data.content;
+        currentFile = file;
+        saveUiState({
+          currentFile
+        });
+        status.textContent = 'Loaded ' + file;
+        markActiveFile();
+        updateLineNumbers();
+        renderHighlightedContent();
+      } catch (err) {
+        status.textContent = '❌ ' + err.message;
+      }
+    }
+
+    async function saveCurrentFile() {
+      try {
+        if (!currentFile) throw new Error('No file selected');
+        const id = serverSel.value;
+        await fetchJson('/api/file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ serverId: id, path: currentFile, content: content.value })
+        });
+        originalContent = content.value;
+        status.textContent = '✅ Saved ' + currentFile;
+        showSavePopup(currentFile);
+      } catch (err) {
+        status.textContent = '❌ ' + err.message;
+      }
+    }
+
+    tree.addEventListener('toggle', e => {
+      const details = e.target.closest('details[data-folder]');
+      if (!details) return;
+      const folderPath = details.dataset.folder;
+      if (details.open) {
+        expandedFolders.add(folderPath);
+      } else {
+        expandedFolders.delete(folderPath);
+      }
+      saveUiState({ expanded: Array.from(expandedFolders).sort() });
+    });
+
+    tree.onclick = e => {
+      const row = e.target.closest('.tree-row.file');
+      if (!row) return;
+      const selectedPath = row.dataset.path;
+      const entry = fileEntryByPath.get(selectedPath);
+      if (entry && !entry.editable) {
+        status.textContent = '⚠️ ' + (entry.reason || (pathBase(selectedPath) + ' cannot be edited'));
+        return;
+      }
+      loadFile(selectedPath);
+    };
+
+    serverSel.onchange = () => {
+      localStorage.setItem(SERVER_STORAGE_NAME, serverSel.value);
+      loadFiles();
+    };
+    fileSearchInput.oninput = () => renderFiles(fileSearchInput.value);
+    keyInput.onchange = () => {
+      localStorage.setItem(KEY_STORAGE_NAME, keyInput.value.trim());
+      loadServers().catch(err => status.textContent = '❌ ' + err.message);
+    };
+    content.oninput = () => {
+      updateLineNumbers();
+      renderHighlightedContent();
+    };
+    content.onscroll = syncEditorScroll;
+
+    document.getElementById('save').onclick = saveCurrentFile;
+    document.getElementById('revert').onclick = () => {
+      if (!currentFile) return;
+      content.value = originalContent;
+      updateLineNumbers();
+      renderHighlightedContent();
+      status.textContent = 'Reverted ' + currentFile;
+    };
+    document.getElementById('newWindow').onclick = () => window.open(window.location.href, '_blank');
+    document.getElementById('exit').onclick = () => window.close();
+    document.getElementById('undo').onclick = () => document.execCommand('undo');
+    document.getElementById('redo').onclick = () => document.execCommand('redo');
+    document.getElementById('cut').onclick = () => document.execCommand('cut');
+    document.getElementById('copy').onclick = () => document.execCommand('copy');
+    document.getElementById('paste').onclick = () => document.execCommand('paste');
+    document.getElementById('validateJson').onclick = () => {
+      try {
+        JSON.parse(content.value);
+        status.textContent = '✅ Valid JSON';
+      } catch (err) {
+        status.textContent = '❌ JSON: ' + err.message;
+      }
+    };
+    document.getElementById('validateYaml').onclick = () => {
+      const lines = content.value.split('\\n');
+      const bad = lines.findIndex(l => /^\\s*[^#\\-][^:]*$/.test(l) && l.trim() !== '');
+      status.textContent = bad >= 0 ? '⚠️ YAML likely invalid near line ' + (bad + 1) : '✅ YAML looks valid';
+    };
+    document.getElementById('prettifyJson').onclick = () => {
+      try {
+        content.value = JSON.stringify(JSON.parse(content.value), null, 2);
+        updateLineNumbers();
+        renderHighlightedContent();
+        status.textContent = '✅ JSON formatted';
+      } catch (err) {
+        status.textContent = '❌ Cannot format JSON: ' + err.message;
+      }
+    };
+
+    document.addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        saveCurrentFile();
+      }
+    });
+
+    document.querySelectorAll('.menu-btn').forEach(btn => {
+      btn.onclick = e => {
+        e.stopPropagation();
+        const name = btn.dataset.menu;
+        const target = document.getElementById('menu-' + name);
+        const shouldOpen = openMenu !== target;
+        document.querySelectorAll('.menu-items').forEach(m => m.classList.remove('open'));
+        document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('open'));
+        openMenu = shouldOpen ? target : null;
+        if (shouldOpen) {
+          target.classList.add('open');
+          btn.classList.add('open');
+        }
+      };
+    });
+    document.addEventListener('click', () => {
+      openMenu = null;
+      document.querySelectorAll('.menu-items').forEach(m => m.classList.remove('open'));
+      document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('open'));
+    });
+
+    const params = new URLSearchParams(window.location.search);
+    const keyFromUrl = params.get('key');
+    const storedKey = localStorage.getItem(KEY_STORAGE_NAME);
+    const initialKey = keyFromUrl || storedKey || SERVER_PROVIDED_KEY || '';
+
+    if (initialKey) {
+      keyInput.value = initialKey;
+      localStorage.setItem(KEY_STORAGE_NAME, initialKey);
+    }
+
+    if (keyFromUrl) {
+      params.delete('key');
+      const nextQuery = params.toString();
+      const nextUrl = window.location.pathname + (nextQuery ? '?' + nextQuery : '') + window.location.hash;
+      window.history.replaceState({}, '', nextUrl);
+    }
+
+    loadServers().catch(err => status.textContent = '❌ ' + err.message);
+    updateLineNumbers();
+    renderHighlightedContent();
+  </script>
+</body>
+</html>
