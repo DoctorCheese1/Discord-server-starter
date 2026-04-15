@@ -218,20 +218,6 @@ export function serverChoices({ steamOnly = false, includeDisabled = false, grou
     .slice(0, 25); // Discord hard limit
 }
 
-export function groupChoices({ includeEmpty = false } = {}) {
-  const raw = readRawConfig();
-  const names = Array.from(new Set(
-    (raw.servers || [])
-      .map(s => String(s.group || '').trim())
-      .filter(name => includeEmpty || name.length > 0)
-  ));
-
-  return names
-    .sort((a, b) => a.localeCompare(b))
-    .map(name => ({ name, value: name }))
-    .slice(0, 25); // Discord hard limit
-}
-
 /**
  * Add a new server to servers.json
  */

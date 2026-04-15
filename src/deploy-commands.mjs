@@ -134,7 +134,6 @@ export function buildCommands() {
             o.setName('name')
               .setDescription('Optional group name filter')
               .setRequired(false)
-              .setAutocomplete(true)
           )
       )
       .addSubcommand(sc =>
@@ -149,7 +148,6 @@ export function buildCommands() {
             o.setName('id')
               .setDescription('Optional server id (leave empty to apply to all enabled servers)')
               .setRequired(false)
-              .setAutocomplete(true)
           )
       )
       .addSubcommand(sc =>
@@ -169,7 +167,6 @@ export function buildCommands() {
             o.setName('name')
               .setDescription('Group name')
               .setRequired(true)
-              .setAutocomplete(true)
           )
       )
       .addSubcommand(sc =>
@@ -179,7 +176,6 @@ export function buildCommands() {
             o.setName('name')
               .setDescription('Group name')
               .setRequired(true)
-              .setAutocomplete(true)
           )
       )
       .addSubcommand(sc =>
@@ -189,7 +185,6 @@ export function buildCommands() {
             o.setName('name')
               .setDescription('Group name')
               .setRequired(true)
-              .setAutocomplete(true)
           )
       ),
 
@@ -219,7 +214,6 @@ export function buildCommands() {
           .addStringOption(o =>
             o.setName('group')
              .setDescription('Filter by custom group label')
-             .setAutocomplete(true)
           )
       )
 
