@@ -2,12 +2,10 @@ import {
   loadServers,
   getServer,
   removeServer,
-  setServer,
-  groupChoices,
-  serverChoices
+  setServer
 } from './serverStore.mjs';
 import fs from 'fs';
-import { EmbedBuilder, MessageFlags } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 import {
   ensureInstalledUpdateTasks,
   ensureUpdateTask,
@@ -69,119 +67,6 @@ async function getServerState(server) {
 
   // 🔴 Stopped
   return { emoji: '🔴', label: 'Stopped', color: 0xe74c3c };
-}
-
-const DISCORD_CONTENT_MAX = 2000;
-
-function splitLongMessage(content, maxLen = DISCORD_CONTENT_MAX) {
-  if (content.length <= maxLen) return [content];
-
-  const chunks = [];
-  let current = '';
-
-  const pushCurrent = () => {
-    if (current) {
-      chunks.push(current);
-      current = '';
-    }
-  };
-
-  const appendSegment = (segment) => {
-    if (segment.length <= maxLen) {
-      if (!current) {
-        current = segment;
-        return;
-      }
-      if ((current.length + 2 + segment.length) <= maxLen) {
-        current += `\n\n${segment}`;
-      } else {
-        pushCurrent();
-        current = segment;
-      }
-      return;
-    }
-
-    const lines = segment.split('\n');
-    let lineChunk = '';
-    for (const line of lines) {
-      if (!lineChunk) {
-        if (line.length <= maxLen) {
-          lineChunk = line;
-        } else {
-          for (let i = 0; i < line.length; i += maxLen) {
-            appendSegment(line.slice(i, i + maxLen));
-          }
-        }
-        continue;
-      }
-
-      if ((lineChunk.length + 1 + line.length) <= maxLen) {
-        lineChunk += `\n${line}`;
-      } else {
-        appendSegment(lineChunk);
-        lineChunk = line;
-      }
-    }
-
-    if (lineChunk) {
-      appendSegment(lineChunk);
-    }
-  };
-
-  for (const block of content.split('\n\n')) {
-    appendSegment(block);
-  }
-
-  pushCurrent();
-  return chunks.length ? chunks : [''];
-}
-
-async function replyChunked(interaction, content) {
-  const chunks = splitLongMessage(content);
-  await interaction.editReply(chunks[0]);
-  for (let i = 1; i < chunks.length; i++) {
-    await interaction.followUp({
-      content: chunks[i],
-      flags: MessageFlags.Ephemeral
-    });
-  }
-}
-
-function filterChoicesByQuery(choices, query) {
-  const q = String(query || '').trim().toLowerCase();
-  if (!q) return choices.slice(0, 25);
-
-  return choices
-    .filter(choice =>
-      String(choice.name || '').toLowerCase().includes(q) ||
-      String(choice.value || '').toLowerCase().includes(q)
-    )
-    .slice(0, 25);
-}
-
-export async function handleAutocomplete(interaction) {
-  const cmd = interaction.commandName;
-  const sub = interaction.options.getSubcommand(false);
-  const focused = interaction.options.getFocused(true);
-
-  if (!focused) {
-    return interaction.respond([]);
-  }
-
-  if (cmd === 'group' && focused.name === 'id' && sub === 'add') {
-    const choices = serverChoices({ includeDisabled: true });
-    return interaction.respond(filterChoicesByQuery(choices, focused.value));
-  }
-
-  if (
-    ((cmd === 'group') && focused.name === 'name' && ['list', 'start', 'stop', 'restart'].includes(sub)) ||
-    ((cmd === 'config') && sub === 'list' && focused.name === 'group')
-  ) {
-    const choices = groupChoices();
-    return interaction.respond(filterChoicesByQuery(choices, focused.value));
-  }
-
-  return interaction.respond([]);
 }
 
 
@@ -266,7 +151,7 @@ export async function handleCommand(interaction) {
         return `${st.emoji} **${s.name}** (${s.id}) — ${st.label}`;
       }));
 
-      return replyChunked(interaction, lines.join('\n'));
+      return interaction.editReply(lines.join('\n'));
     }
 
     if (sub === 'validate') {
@@ -330,7 +215,7 @@ export async function handleCommand(interaction) {
       ].join('\n');
     }));
 
-    return replyChunked(interaction, lines.join('\n\n'));
+    return interaction.editReply(lines.join('\n\n'));
   }
 
 
@@ -531,7 +416,7 @@ export async function handleCommand(interaction) {
         ].join('\n');
       }));
 
-      return replyChunked(interaction, lines.join('\n\n'));
+      return interaction.editReply(lines.join('\n\n'));
     }
 
     if (sub === 'validate') {
@@ -549,8 +434,7 @@ export async function handleCommand(interaction) {
         })
         .join('\n');
 
-      return replyChunked(
-        interaction,
+      return interaction.editReply(
         `✅ Config checked (${servers.length} servers)\nTask Scheduler: ${synced} synced, ${skipped} skipped, ${failed} failed.\n${details}`
       );
     }
