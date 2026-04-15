@@ -74,7 +74,7 @@ function listEditableFiles(cwd, maxDepth = 3) {
   function walk(currentDir, depth, prefix = '') {
     if (depth > maxDepth) return false;
 
-    let subtreeHasEditableFiles = false;
+    let subtreeHasVisibleEntries = false;
     const entries = fs.readdirSync(currentDir, { withFileTypes: true });
     for (const entry of entries) {
       const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
@@ -82,27 +82,29 @@ function listEditableFiles(cwd, maxDepth = 3) {
 
       if (entry.isDirectory()) {
         if (walk(full, depth + 1, rel)) {
-          subtreeHasEditableFiles = true;
+          subtreeHasVisibleEntries = true;
         }
         continue;
       }
 
-      const ext = path.extname(entry.name).toLowerCase();
-      if (TEXT_EXTENSIONS.has(ext) && fs.statSync(full).size <= MAX_FILE_BYTES) {
-        results.push(rel);
-        subtreeHasEditableFiles = true;
-      }
+      const editability = getFileEditability(full);
+      results.push({
+        path: rel,
+        editable: editability.editable,
+        reason: editability.reason
+      });
+      subtreeHasVisibleEntries = true;
     }
 
-    if (!subtreeHasEditableFiles && prefix) {
+    if (!subtreeHasVisibleEntries && prefix) {
       emptyFolders.push(prefix);
     }
-    return subtreeHasEditableFiles;
+    return subtreeHasVisibleEntries;
   }
 
   walk(cwd, 0);
   return {
-    files: results.sort(),
+    files: results.sort((a, b) => a.path.localeCompare(b.path)),
     emptyFolders: emptyFolders.sort()
   };
 }
@@ -727,7 +729,7 @@ export function startWebEditor() {
         const serverConfig = findServer(serverId);
         if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
 
-        const { files, emptyFolders } = listEditableFiles(serverConfig.cwd);
+        const { files, emptyFolders } = listFiles(serverConfig.cwd);
         return sendJson(res, 200, { files, emptyFolders });
       }
 
@@ -740,12 +742,11 @@ export function startWebEditor() {
         if (!isSafePath(serverConfig.cwd, relPath)) return sendJson(res, 400, { error: 'Invalid path' });
 
         const fullPath = path.resolve(serverConfig.cwd, relPath);
-        const ext = path.extname(fullPath).toLowerCase();
-        if (!TEXT_EXTENSIONS.has(ext)) return sendJson(res, 400, { error: 'File type not allowed' });
         if (!fs.existsSync(fullPath)) return sendJson(res, 404, { error: 'File not found' });
+        if (fs.statSync(fullPath).isDirectory()) return sendJson(res, 400, { error: `${path.basename(fullPath)} cannot be edited (directory)` });
 
-        const stats = fs.statSync(fullPath);
-        if (stats.size > MAX_FILE_BYTES) return sendJson(res, 400, { error: 'File too large' });
+        const editability = getFileEditability(fullPath);
+        if (!editability.editable) return sendJson(res, 400, { error: editability.reason });
 
         const content = fs.readFileSync(fullPath, 'utf8');
         return sendJson(res, 200, { content });
@@ -765,8 +766,8 @@ export function startWebEditor() {
         if (Buffer.byteLength(content, 'utf8') > MAX_FILE_BYTES) return sendJson(res, 400, { error: 'Content too large' });
 
         const fullPath = path.resolve(serverConfig.cwd, relPath);
-        const ext = path.extname(fullPath).toLowerCase();
-        if (!TEXT_EXTENSIONS.has(ext)) return sendJson(res, 400, { error: 'File type not allowed' });
+        const editability = getFileEditability(fullPath);
+        if (!editability.editable) return sendJson(res, 400, { error: editability.reason });
 
         fs.mkdirSync(path.dirname(fullPath), { recursive: true });
         fs.writeFileSync(fullPath, content, 'utf8');
