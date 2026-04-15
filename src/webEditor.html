@@ -83,15 +83,12 @@
     const SERVER_STORAGE_NAME = 'web_editor_selected_server';
     const SERVER_PROVIDED_KEY = __SERVER_PROVIDED_KEY__;
     let allFiles = [];
-    let allFileEntries = [];
-    const fileEntryByPath = new Map();
     let emptyFolders = [];
     let currentFile = '';
     let originalContent = '';
     let popupTimer;
     let openMenu = null;
     const expandedFolders = new Set();
-    let scrollSyncFrame = null;
 
     function loadUiState() {
       try {
@@ -129,31 +126,11 @@
       const nums = [];
       for (let i = 1; i <= lines; i++) nums.push(i);
       lineNumbers.textContent = nums.join('\\n');
-      syncEditorScroll();
-    }
-
-    function syncEditorScroll() {
-      if (scrollSyncFrame !== null) return;
-
-      scrollSyncFrame = requestAnimationFrame(() => {
-        lineNumbers.scrollTop = content.scrollTop;
-        highlight.scrollTop = content.scrollTop;
-        highlight.scrollLeft = content.scrollLeft;
-        scrollSyncFrame = null;
-      });
     }
 
     function escapeHtml(text) {
       return text
         .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-    }
-
-    function escapeAttr(text) {
-      return String(text || '')
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
     }
@@ -256,8 +233,8 @@
     function renderFiles(filter = '') {
       const query = filter.trim().toLowerCase();
       const files = query
-        ? allFileEntries.filter(entry => entry.path.toLowerCase().includes(query))
-        : allFileEntries;
+        ? allFiles.filter(f => f.toLowerCase().includes(query))
+        : allFiles;
 
       const root = { folders: new Map(), files: [], explicitEmpty: false };
       function ensureFolderNode(folderPath) {
@@ -269,15 +246,15 @@
         }
         return node;
       }
-      for (const fileEntry of files) {
-        const parts = fileEntry.path.split('/');
+      for (const file of files) {
+        const parts = file.split('/');
         let node = root;
         for (let i = 0; i < parts.length - 1; i++) {
           const folder = parts[i];
           if (!node.folders.has(folder)) node.folders.set(folder, { folders: new Map(), files: [], explicitEmpty: false });
           node = node.folders.get(folder);
         }
-        node.files.push(fileEntry);
+        node.files.push(file);
       }
       for (const folderPath of emptyFolders) {
         const node = ensureFolderNode(folderPath);
@@ -299,14 +276,10 @@
             '</details>'
           );
         }
-        const sortedFiles = node.files.slice().sort((a, b) => a.path.localeCompare(b.path));
-        for (const fileEntry of sortedFiles) {
-          const filePath = fileEntry.path;
+        const sortedFiles = node.files.slice().sort((a, b) => a.localeCompare(b));
+        for (const filePath of sortedFiles) {
           const ext = filePath.toLowerCase().endsWith('.yml') || filePath.toLowerCase().endsWith('.yaml') ? ' yaml' : '';
-          const locked = fileEntry.editable ? '' : ' locked';
-          const title = fileEntry.editable ? '' : ' title="' + escapeAttr(fileEntry.reason || (pathBase(filePath) + ' cannot be edited')) + '"';
-          const suffix = fileEntry.editable ? '' : ' <span style="color:#9da0a6;">(read-only)</span>';
-          parts.push('<div class="tree-row file' + ext + locked + '" data-path="' + filePath + '"' + title + ' style="padding-left:' + (depth * 12 + 18) + 'px">' + pathBase(filePath) + suffix + '</div>');
+          parts.push('<div class="tree-row file' + ext + '" data-path="' + filePath + '" style="padding-left:' + (depth * 12 + 18) + 'px">' + pathBase(filePath) + '</div>');
         }
         if (node.explicitEmpty && node.folders.size === 0 && node.files.length === 0) {
           parts.push('<div class="tree-row empty" style="padding-left:' + (depth * 12 + 18) + 'px">(folder empty)</div>');
@@ -315,7 +288,7 @@
       }
 
       const treeHtml = walk(root, 0);
-      tree.innerHTML = treeHtml || '<div class="tree-row empty" style="padding-left:12px; color:#9da0a6;">No files found for this filter.</div>';
+      tree.innerHTML = treeHtml || '<div class="tree-row empty" style="padding-left:12px; color:#9da0a6;">No editable files found (clear filter or check folder depth).</div>';
       markActiveFile();
     }
 
@@ -349,23 +322,7 @@
       const id = serverSel.value;
       localStorage.setItem(SERVER_STORAGE_NAME, id);
       const data = await fetchJson('/api/files?serverId=' + encodeURIComponent(id));
-      allFileEntries = (Array.isArray(data.files) ? data.files : [])
-        .map(entry => {
-          if (typeof entry === 'string') {
-            return { path: entry, editable: true, reason: '' };
-          }
-          return {
-            path: String(entry?.path || ''),
-            editable: entry?.editable === true,
-            reason: String(entry?.reason || '')
-          };
-        })
-        .filter(entry => entry.path.length > 0);
-      fileEntryByPath.clear();
-      for (const entry of allFileEntries) {
-        if (entry && entry.path) fileEntryByPath.set(entry.path, entry);
-      }
-      allFiles = allFileEntries.map(entry => entry.path);
+      allFiles = data.files;
       emptyFolders = data.emptyFolders || [];
       expandedFolders.clear();
       const restored = restoreUiState();
@@ -373,7 +330,7 @@
         expandedFolders.add(folder);
       }
       renderFiles(fileSearchInput.value);
-      if (restored.currentFile && fileEntryByPath.get(restored.currentFile)?.editable) {
+      if (restored.currentFile && allFiles.includes(restored.currentFile)) {
         await loadFile(restored.currentFile);
       }
     }
@@ -428,14 +385,7 @@
 
     tree.onclick = e => {
       const row = e.target.closest('.tree-row.file');
-      if (!row) return;
-      const selectedPath = row.dataset.path;
-      const entry = fileEntryByPath.get(selectedPath);
-      if (entry && !entry.editable) {
-        status.textContent = '⚠️ ' + (entry.reason || (pathBase(selectedPath) + ' cannot be edited'));
-        return;
-      }
-      loadFile(selectedPath);
+      if (row) loadFile(row.dataset.path);
     };
 
     serverSel.onchange = () => {
@@ -451,7 +401,11 @@
       updateLineNumbers();
       renderHighlightedContent();
     };
-    content.onscroll = syncEditorScroll;
+    content.onscroll = () => {
+      lineNumbers.scrollTop = content.scrollTop;
+      highlight.scrollTop = content.scrollTop;
+      highlight.scrollLeft = content.scrollLeft;
+    };
 
     document.getElementById('save').onclick = saveCurrentFile;
     document.getElementById('revert').onclick = () => {
