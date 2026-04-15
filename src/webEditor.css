@@ -36,10 +36,8 @@
     .tree-row { white-space: nowrap; padding: 3px 6px; cursor: pointer; border-radius: 3px; margin: 1px 0; color: #d8dfeb; }
     .tree-row:hover { background: #2a2d2e; }
     .tree-row.active { background: var(--active); color: #ffffff; }
-    .tree-row.locked { color: #9da0a6; }
     .tree-row.file::before { content: "{}"; color: #d7ba7d; margin-right: 6px; font-weight: 700; }
     .tree-row.file.yaml::before { content: "YML"; font-size: 11px; color: #c586c0; }
-    .tree-row.file.locked::before { content: "🔒"; color: #9da0a6; font-weight: 400; }
     .tree details { margin: 1px 0; }
     .tree summary { list-style: none; cursor: pointer; color: #cccccc; font-weight: 600; padding: 3px 6px; border-radius: 3px; }
     .tree summary::-webkit-details-marker { display: none; }
@@ -72,8 +70,7 @@
       line-height: 20px;
       font-size: 14px;
       padding: 8px 12px;
-      tab-size: 4;
-      -moz-tab-size: 4;
+      tab-size: 2;
       overflow: auto;
       white-space: pre;
     }
