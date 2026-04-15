@@ -61,7 +61,7 @@ export async function stopServer(server) {
   return false;
 }
 
-export async function isRunning(server) {
+export async function isRunning(server, { allowProcessFallback = true } = {}) {
   const pid = getPid(server);
   if (pid) {
     try {
@@ -74,7 +74,7 @@ export async function isRunning(server) {
     }
   }
 
-  if (hasProcessFallback(server)) {
+  if (allowProcessFallback && hasProcessFallback(server)) {
     try {
       const { stdout } = await execWindows(
         `tasklist /FI "IMAGENAME eq ${server.processName}"`
