@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { loadServers } from './serverStore.mjs';
 
 const TEXT_EXTENSIONS = new Set([
-  '.txt', '.json', '.cfg', '.ini', '.properties', '.yaml', '.yml', '.xml', '.bat', '.sh', '.log', '.conf'
+  '.txt', '.json', '.cfg', '.ini', '.properties', '.yaml', '.yml', '.xml', '.bat', '.sh', '.log', '.conf', '.toml'
 ]);
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024; // 2GB

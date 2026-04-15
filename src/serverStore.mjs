@@ -71,6 +71,13 @@ function inferServerType(cwd) {
   const files = fs.existsSync(cwd) ? fs.readdirSync(cwd) : [];
   const lowered = files.map(f => f.toLowerCase());
 
+  const hasVelocityToml = lowered.includes('velocity.toml');
+  const hasBungeeConfig = lowered.includes('config.yml') && lowered.includes('plugins');
+  const hasProxyJar = lowered.some(f => f.endsWith('.jar') && (f.includes('velocity') || f.includes('waterfall') || f.includes('bungeecord')));
+  if (hasVelocityToml || hasBungeeConfig || hasProxyJar) {
+    return 'proxy';
+  }
+
   const hasMinecraftJar = lowered.some(f => f.endsWith('.jar') && f.includes('minecraft'));
   const hasEula = lowered.includes('eula.txt');
   const hasServerProperties = lowered.includes('server.properties');
@@ -101,7 +108,15 @@ function syncServersFolder(raw) {
   }
 
   const dirs = fs.readdirSync(rootDir, { withFileTypes: true })
-    .filter(entry => entry.isDirectory())
+    .filter(entry => {
+      if (entry.isDirectory()) return true;
+      if (!entry.isSymbolicLink()) return false;
+      try {
+        return fs.statSync(path.join(rootDir, entry.name)).isDirectory();
+      } catch {
+        return false;
+      }
+    })
     .map(entry => entry.name);
   const existingDirSet = new Set(dirs.map(dirName => path.resolve(path.join(rootDir, dirName))));
 
