@@ -38,6 +38,9 @@
     .tree-row.active { background: var(--active); color: #ffffff; }
     .tree-row.file::before { content: "{}"; color: #d7ba7d; margin-right: 6px; font-weight: 700; }
     .tree-row.file.yaml::before { content: "YML"; font-size: 11px; color: #c586c0; }
+    .tree-row.file.locked { color: #a98585; }
+    .tree-row.file.locked::before { content: "🔒"; margin-right: 6px; }
+    .tree-row.file.locked:hover { background: #332222; }
     .tree details { margin: 1px 0; }
     .tree summary { list-style: none; cursor: pointer; color: #cccccc; font-weight: 600; padding: 3px 6px; border-radius: 3px; }
     .tree summary::-webkit-details-marker { display: none; }
