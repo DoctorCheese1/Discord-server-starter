@@ -65,6 +65,7 @@
     </section>
   </div>
   <div id="savePopup" class="popup">✅ File saved successfully</div>
+  <div id="loadPopup" class="popup">📁 Files loaded</div>
 
   <script>
     const status = document.getElementById('status');
@@ -75,6 +76,7 @@
     const keyInput = document.getElementById('key');
     const fileSearchInput = document.getElementById('fileSearch');
     const savePopup = document.getElementById('savePopup');
+    const loadPopup = document.getElementById('loadPopup');
     const tab = document.getElementById('tab');
     const lineNumbers = document.getElementById('lineNumbers');
 
@@ -87,7 +89,9 @@
     let currentFile = '';
     let originalContent = '';
     let popupTimer;
+    let loadPopupTimer;
     let openMenu = null;
+    let activeFilesRequestId = 0;
     const expandedFolders = new Set();
 
     function loadUiState() {
@@ -119,6 +123,13 @@
       savePopup.classList.add('show');
       clearTimeout(popupTimer);
       popupTimer = setTimeout(() => savePopup.classList.remove('show'), 1800);
+    }
+
+    function showLoadPopup(message) {
+      loadPopup.textContent = message;
+      loadPopup.classList.add('show');
+      clearTimeout(loadPopupTimer);
+      loadPopupTimer = setTimeout(() => loadPopup.classList.remove('show'), 2200);
     }
 
     function updateLineNumbers() {
@@ -323,18 +334,40 @@
 
     async function loadFiles() {
       const id = serverSel.value;
+      if (!id) return;
+      const requestId = ++activeFilesRequestId;
       localStorage.setItem(SERVER_STORAGE_NAME, id);
-      const data = await fetchJson('/api/files?serverId=' + encodeURIComponent(id));
-      allFiles = data.files;
-      emptyFolders = data.emptyFolders || [];
-      expandedFolders.clear();
-      const restored = restoreUiState();
-      for (const folder of restored.expanded || []) {
-        expandedFolders.add(folder);
-      }
-      renderFiles(fileSearchInput.value);
-      if (restored.currentFile && allFiles.some(file => file.path === restored.currentFile && file.editable)) {
-        await loadFile(restored.currentFile);
+      const serverLabel = serverSel.options[serverSel.selectedIndex]?.text || id;
+      const started = performance.now();
+      status.textContent = '⏳ Loading files for ' + serverLabel + '...';
+      serverSel.disabled = true;
+
+      try {
+        const data = await fetchJson('/api/files?serverId=' + encodeURIComponent(id));
+        if (requestId !== activeFilesRequestId) return;
+
+        allFiles = data.files;
+        emptyFolders = data.emptyFolders || [];
+        expandedFolders.clear();
+        const restored = restoreUiState();
+        for (const folder of restored.expanded || []) {
+          expandedFolders.add(folder);
+        }
+        renderFiles(fileSearchInput.value);
+        status.textContent = '✅ Loaded ' + allFiles.length + ' files for ' + serverLabel;
+        const elapsedMs = Math.round(performance.now() - started);
+        showLoadPopup('📁 ' + serverLabel + ': ' + allFiles.length + ' files loaded in ' + elapsedMs + 'ms');
+
+        if (restored.currentFile && allFiles.some(file => file.path === restored.currentFile && file.editable)) {
+          await loadFile(restored.currentFile);
+        }
+      } catch (err) {
+        if (requestId !== activeFilesRequestId) return;
+        status.textContent = '❌ ' + err.message;
+      } finally {
+        if (requestId === activeFilesRequestId) {
+          serverSel.disabled = false;
+        }
       }
     }
 
