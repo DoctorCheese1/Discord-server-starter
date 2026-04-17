@@ -364,12 +364,6 @@
       } catch (err) {
         if (requestId !== activeFilesRequestId) return;
         status.textContent = '❌ ' + err.message;
-        const lower = String(err.message || '').toLowerCase();
-        if (lower.includes('directory does not exist') || lower.includes('cwd path') || lower.includes('no such file or directory')) {
-          showLoadPopup('❌ Server directory missing. Check the server cwd path.');
-        } else {
-          showLoadPopup('❌ Failed to load files for ' + serverLabel);
-        }
       } finally {
         if (requestId === activeFilesRequestId) {
           serverSel.disabled = false;
