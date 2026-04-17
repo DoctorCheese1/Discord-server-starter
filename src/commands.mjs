@@ -5,7 +5,7 @@ import {
   setServer
 } from './serverStore.mjs';
 import fs from 'fs';
-import { EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, MessageFlags } from 'discord.js';
 import {
   ensureInstalledUpdateTasks,
   ensureUpdateTask,
@@ -103,6 +103,68 @@ function isMutatingConfigSubcommand(sub) {
   return ['enable', 'disable', 'rename', 'set-java', 'set-steam', 'set-group', 'set-process', 'set-dir', 'remove'].includes(sub);
 }
 
+const DISCORD_MESSAGE_LIMIT = 2000;
+const SAFE_PAGE_LIMIT = 1800;
+
+function toSafeLineChunks(line, maxLen = SAFE_PAGE_LIMIT) {
+  const text = String(line ?? '');
+  if (text.length <= maxLen) return [text];
+
+  const chunks = [];
+  for (let i = 0; i < text.length; i += maxLen) {
+    chunks.push(text.slice(i, i + maxLen));
+  }
+  return chunks;
+}
+
+function buildPagesFromLines(lines, title = '') {
+  const normalizedLines = [];
+  for (const line of lines) {
+    normalizedLines.push(...toSafeLineChunks(line));
+  }
+
+  const pages = [];
+  let buffer = [];
+  let size = 0;
+
+  for (const line of normalizedLines) {
+    const lineLen = line.length + 1; // newline
+    if (size + lineLen > SAFE_PAGE_LIMIT && buffer.length) {
+      pages.push(buffer.join('\n'));
+      buffer = [];
+      size = 0;
+    }
+    buffer.push(line);
+    size += lineLen;
+  }
+
+  if (buffer.length) {
+    pages.push(buffer.join('\n'));
+  }
+
+  if (!pages.length) {
+    pages.push(title ? `${title}\n(no entries)` : '(no entries)');
+  }
+
+  return pages.map((content, index) => {
+    const prefix = `${title || 'List'} — Page ${index + 1}/${pages.length}`;
+    const text = `${prefix}\n${content}`;
+    return text.length > DISCORD_MESSAGE_LIMIT ? text.slice(0, DISCORD_MESSAGE_LIMIT - 3) + '...' : text;
+  });
+}
+
+async function replyWithPages(interaction, lines, title = 'List') {
+  const pages = buildPagesFromLines(lines, title);
+  await interaction.editReply(pages[0]);
+
+  for (let i = 1; i < pages.length; i += 1) {
+    await interaction.followUp({
+      content: pages[i],
+      flags: MessageFlags.Ephemeral
+    });
+  }
+}
+
 
 async function runLifecycleCommand(server, cmd) {
   if (cmd === 'start') {
@@ -151,7 +213,7 @@ export async function handleCommand(interaction) {
         return `${st.emoji} **${s.name}** (${s.id}) — ${st.label}`;
       }));
 
-      return interaction.editReply(lines.join('\n'));
+      return replyWithPages(interaction, lines, 'Servers');
     }
 
     if (sub === 'validate') {
@@ -427,7 +489,11 @@ export async function handleCommand(interaction) {
         ].join('\n');
       }));
 
-      return interaction.editReply(lines.join('\n\n'));
+      const expanded = lines.flatMap((block, index) => {
+        const divider = index > 0 ? [''] : [];
+        return [...divider, ...block.split('\n')];
+      });
+      return replyWithPages(interaction, expanded, 'Config list');
     }
 
     if (sub === 'validate') {
