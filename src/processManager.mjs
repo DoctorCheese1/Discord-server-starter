@@ -14,6 +14,16 @@ function getPid(server) {
   return pid || null;
 }
 
+function clearPidFile(server) {
+  if (!server?.pidFile) return;
+  if (!fs.existsSync(server.pidFile)) return;
+  try {
+    fs.unlinkSync(server.pidFile);
+  } catch {
+    // ignore pid cleanup errors
+  }
+}
+
 
 function hasProcessFallback(server) {
   return Boolean(server?.processName);
@@ -33,9 +43,17 @@ export async function startServer(server) {
     throw new Error('Server has no startBat defined');
   }
 
-  // Launch exactly like the legacy flow: start the server's start.bat directly.
-  // Keeping this as a simple cmd invocation avoids PowerShell quoting/working-dir issues.
-  await execWindows(`cmd /c start "" "${server.startBat}"`);
+  // Remove stale PID so status checks do not read old process IDs.
+  clearPidFile(server);
+
+  // Launch via PowerShell so we can persist the spawned PID in server.pid.
+  const escapedStartBat = String(server.startBat).replace(/'/g, "''");
+  const escapedPidFile = String(server.pidFile || '').replace(/'/g, "''");
+  const launchCmd = server.pidFile
+    ? `powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c','start \"\" \"${escapedStartBat}\"' -PassThru; $p.Id | Out-File -FilePath '${escapedPidFile}' -Encoding ascii"`
+    : `powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'cmd.exe' -ArgumentList '/c','start \"\" \"${escapedStartBat}\"'"`;
+
+  await execWindows(launchCmd);
 }
 
 export async function stopServer(server) {
@@ -43,6 +61,7 @@ export async function stopServer(server) {
   if (pid) {
     try {
       await execWindows(`taskkill /PID ${pid} /F`);
+      clearPidFile(server);
       return true;
     } catch {
       // fall through to process-name fallback
@@ -52,6 +71,7 @@ export async function stopServer(server) {
   if (hasProcessFallback(server)) {
     try {
       await execWindows(`taskkill /IM "${server.processName}" /F`);
+      clearPidFile(server);
       return true;
     } catch {
       return false;
@@ -68,7 +88,9 @@ export async function isRunning(server, { allowProcessFallback = true } = {}) {
       const { stdout } = await execWindows(
         `tasklist /FI "PID eq ${pid}"`
       );
-      return stdout.includes(pid);
+      const running = stdout.includes(pid);
+      if (!running) clearPidFile(server);
+      return running;
     } catch {
       // fall through to process-name fallback
     }
