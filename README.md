@@ -376,7 +376,13 @@ This key is local to your bot config. If you lost it, create a new random value 
 WEB_EDITOR_API_KEY=replace-with-a-new-random-secret
 ```
 
-Quick PowerShell generator example:
+Quick Node.js generator example:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
+```
+
+PowerShell alternative:
 
 ```powershell
 [Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Maximum 256 }))
