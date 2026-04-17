@@ -148,6 +148,7 @@ export function buildCommands() {
             o.setName('id')
               .setDescription('Optional server id (leave empty to apply to all enabled servers)')
               .setRequired(false)
+              .addChoices(...safeServerChoicesAll())
           )
       )
       .addSubcommand(sc =>
@@ -162,29 +163,47 @@ export function buildCommands() {
       )
       .addSubcommand(sc =>
         sc.setName('start')
-          .setDescription('Start all servers in a group')
+          .setDescription('Start all servers in a group (or one server in that group)')
           .addStringOption(o =>
             o.setName('name')
               .setDescription('Group name')
               .setRequired(true)
+          )
+          .addStringOption(o =>
+            o.setName('id')
+              .setDescription('Optional single server id in that group')
+              .setRequired(false)
+              .addChoices(...safeServerChoices())
           )
       )
       .addSubcommand(sc =>
         sc.setName('stop')
-          .setDescription('Stop all servers in a group')
+          .setDescription('Stop all servers in a group (or one server in that group)')
           .addStringOption(o =>
             o.setName('name')
               .setDescription('Group name')
               .setRequired(true)
           )
+          .addStringOption(o =>
+            o.setName('id')
+              .setDescription('Optional single server id in that group')
+              .setRequired(false)
+              .addChoices(...safeServerChoices())
+          )
       )
       .addSubcommand(sc =>
         sc.setName('restart')
-          .setDescription('Restart all servers in a group')
+          .setDescription('Restart all servers in a group (or one server in that group)')
           .addStringOption(o =>
             o.setName('name')
               .setDescription('Group name')
               .setRequired(true)
+          )
+          .addStringOption(o =>
+            o.setName('id')
+              .setDescription('Optional single server id in that group')
+              .setRequired(false)
+              .addChoices(...safeServerChoices())
           )
       ),
 
@@ -208,6 +227,7 @@ export function buildCommands() {
              .addChoices(
                { name: 'minecraft', value: 'minecraft' },
                { name: 'steam', value: 'steam' },
+               { name: 'proxy', value: 'proxy' },
                { name: 'generic', value: 'generic' }
              )
           )
@@ -348,6 +368,7 @@ export function buildCommands() {
             o.setName('id')
               .setDescription('Server id')
               .setRequired(true)
+              .addChoices(...safeServerChoicesAll())
           )
       ),
 
@@ -369,6 +390,7 @@ export function buildCommands() {
             o.setName('id')
               .setDescription('Server id (optional when using all=true)')
               .setRequired(false)
+              .addChoices(...safeServerChoices({ steamOnly: true }))
           )
           .addBooleanOption(o =>
             o.setName('all')
@@ -384,6 +406,7 @@ export function buildCommands() {
             o.setName('id')
               .setDescription('Server id')
               .setRequired(true)
+              .addChoices(...safeServerChoices({ steamOnly: true }))
           )
       )
 

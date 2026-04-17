@@ -71,10 +71,13 @@ function inferServerType(cwd) {
   const files = fs.existsSync(cwd) ? fs.readdirSync(cwd) : [];
   const lowered = files.map(f => f.toLowerCase());
 
-  const hasVelocityToml = lowered.includes('velocity.toml');
+  const hasVelocityToml =
+    lowered.includes('velocity.toml') ||
+    fs.existsSync(path.join(cwd, 'config', 'velocity.toml'));
+  const hasVelocitySecret = lowered.includes('forwarding.secret') || lowered.includes('modern-forwarding.secret');
   const hasBungeeConfig = lowered.includes('config.yml') && lowered.includes('plugins');
   const hasProxyJar = lowered.some(f => f.endsWith('.jar') && (f.includes('velocity') || f.includes('waterfall') || f.includes('bungeecord')));
-  if (hasVelocityToml || hasBungeeConfig || hasProxyJar) {
+  if (hasVelocityToml || hasVelocitySecret || hasBungeeConfig || hasProxyJar) {
     return 'proxy';
   }
 
