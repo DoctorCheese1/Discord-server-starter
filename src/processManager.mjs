@@ -46,12 +46,14 @@ export async function startServer(server) {
   // Remove stale PID so status checks do not read old process IDs.
   clearPidFile(server);
 
-  // Launch via PowerShell so we can persist the spawned PID in server.pid.
+  // Launch via PowerShell so we can persist the spawned wrapper PID in server.pid.
+  // Use the server cwd as working directory so relative paths inside start.bat work.
   const escapedStartBat = String(server.startBat).replace(/'/g, "''");
+  const escapedCwd = String(server.cwd || '').replace(/'/g, "''");
   const escapedPidFile = String(server.pidFile || '').replace(/'/g, "''");
   const launchCmd = server.pidFile
-    ? `powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c','start \"\" \"${escapedStartBat}\"' -PassThru; $p.Id | Out-File -FilePath '${escapedPidFile}' -Encoding ascii"`
-    : `powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'cmd.exe' -ArgumentList '/c','start \"\" \"${escapedStartBat}\"'"`;
+    ? `powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = Start-Process -FilePath 'cmd.exe' -WorkingDirectory '${escapedCwd}' -ArgumentList '/c','call ""${escapedStartBat}""' -PassThru; $p.Id | Out-File -FilePath '${escapedPidFile}' -Encoding ascii"`
+    : `powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'cmd.exe' -WorkingDirectory '${escapedCwd}' -ArgumentList '/c','call ""${escapedStartBat}""'"`;
 
   await execWindows(launchCmd);
 }
