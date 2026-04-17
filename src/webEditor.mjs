@@ -181,6 +181,12 @@ export function startWebEditor() {
         const serverId = url.searchParams.get('serverId');
         const serverConfig = findServer(serverId);
         if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
+        if (!fs.existsSync(serverConfig.cwd)) {
+          return sendJson(res, 400, { error: `Server directory does not exist: ${serverConfig.cwd}. Check the server cwd path.` });
+        }
+        if (!fs.statSync(serverConfig.cwd).isDirectory()) {
+          return sendJson(res, 400, { error: `Server cwd is not a directory: ${serverConfig.cwd}. Check the server cwd path.` });
+        }
 
         const maxDepth = Number(process.env.WEB_EDITOR_MAX_DEPTH || 12);
         const { files, emptyFolders } = listFiles(serverConfig.cwd, Number.isFinite(maxDepth) ? maxDepth : 12);
