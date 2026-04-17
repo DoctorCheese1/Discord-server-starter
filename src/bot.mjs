@@ -243,25 +243,34 @@ client.on('interactionCreate', async interaction => {
       }
 
       const query = String(focused.value || '').trim().toLowerCase();
-      const candidates = loadServers({ includeDisabled: false });
+      const candidates = loadServers({ includeDisabled: true });
       const scored = candidates
         .filter(s => {
           if (!query) return true;
           const id = String(s.id || '').toLowerCase();
           const name = String(s.name || '').toLowerCase();
-          return id.includes(query) || name.includes(query);
+          const type = String(s.type || '').toLowerCase();
+          const cwd = String(s.cwd || '').toLowerCase();
+          return id.includes(query) || name.includes(query) || type.includes(query) || cwd.includes(query);
         })
         .sort((a, b) => {
           const aId = String(a.id || '').toLowerCase();
           const bId = String(b.id || '').toLowerCase();
-          const aStarts = query ? aId.startsWith(query) : false;
-          const bStarts = query ? bId.startsWith(query) : false;
+          const aName = String(a.name || '').toLowerCase();
+          const bName = String(b.name || '').toLowerCase();
+          const aStarts = query ? (aId.startsWith(query) || aName.startsWith(query)) : false;
+          const bStarts = query ? (bId.startsWith(query) || bName.startsWith(query)) : false;
           if (aStarts !== bStarts) return aStarts ? -1 : 1;
+          if (!query) {
+            const aProxy = String(a.type || '').toLowerCase() === 'proxy';
+            const bProxy = String(b.type || '').toLowerCase() === 'proxy';
+            if (aProxy !== bProxy) return aProxy ? -1 : 1;
+          }
           return aId.localeCompare(bId);
         })
         .slice(0, 25)
         .map(s => ({
-          name: `${s.name} (${s.id})`.slice(0, 100),
+          name: `${s.name} (${s.id})${s.enabled === false ? ' [disabled]' : ''}`.slice(0, 100),
           value: s.id
         }));
 
