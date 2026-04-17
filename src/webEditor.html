@@ -363,14 +363,7 @@
         }
       } catch (err) {
         if (requestId !== activeFilesRequestId) return;
-        const errorMessage = String(err.message || 'Failed to load files');
-        status.textContent = '❌ ' + errorMessage;
-        const lower = errorMessage.toLowerCase();
-        if (lower.includes('directory does not exist') || lower.includes('cwd path') || lower.includes('no such file or directory')) {
-          showLoadPopup('❌ ' + errorMessage);
-        } else {
-          showLoadPopup('❌ Failed to load files for ' + serverLabel);
-        }
+        status.textContent = '❌ ' + err.message;
       } finally {
         if (requestId === activeFilesRequestId) {
           serverSel.disabled = false;
