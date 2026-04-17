@@ -339,12 +339,23 @@ export async function handleCommand(interaction) {
     }
 
     const groupName = interaction.options.getString('name', true);
+    const serverId = interaction.options.getString('id');
     const normalizedGroup = groupName.toLowerCase();
-    const targets = loadServers({ includeDisabled: false })
+    let targets = loadServers({ includeDisabled: false })
       .filter(s => (s.group || '').toLowerCase() === normalizedGroup);
 
     if (!targets.length) {
       return interaction.editReply(`❌ No enabled servers found in group **${groupName}**.`);
+    }
+
+    if (serverId) {
+      const selected = targets.find(s => s.id === serverId);
+      if (!selected) {
+        return interaction.editReply(
+          `❌ Server **${serverId}** is not enabled in group **${groupName}**.`
+        );
+      }
+      targets = [selected];
     }
 
     const ok = [];
@@ -361,7 +372,7 @@ export async function handleCommand(interaction) {
 
     try {
       return interaction.editReply([
-        `🧩 Group **${groupName}** ${sub}: ${ok.length}/${targets.length} completed.`,
+        `🧩 Group **${groupName}** ${sub}: ${ok.length}/${targets.length} completed.${serverId ? ` (target: \`${serverId}\`)` : ''}`,
         ...ok,
         ...fail
       ].join('\n'));
