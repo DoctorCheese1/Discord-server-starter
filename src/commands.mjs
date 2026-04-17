@@ -243,15 +243,14 @@ export async function handleCommand(interaction) {
       const failed = results.filter(r => r.status === 'failed').length;
 
       const summary = `✅ Task Scheduler sync complete — ${synced} synced, ${skipped} skipped, ${failed} failed.`;
-      const details = results
+      const detailLines = results
         .map(r => {
           if (r.status === 'synced') return `🟢 ${r.id} → ${r.taskName}`;
           if (r.status === 'skipped') return `🟡 ${r.id} → skipped (${r.reason})`;
           return `🔴 ${r.id} → failed (${r.reason})`;
-        })
-        .join('\n');
+        });
 
-      return interaction.editReply(`${summary}\n${details}`);
+      return replyWithPages(interaction, [summary, '', ...detailLines], 'Servers validate');
     }
   }
 
@@ -508,11 +507,17 @@ export async function handleCommand(interaction) {
           if (r.status === 'synced') return `🟢 ${r.id} → ${r.taskName}`;
           if (r.status === 'skipped') return `🟡 ${r.id} → skipped (${r.reason})`;
           return `🔴 ${r.id} → failed (${r.reason})`;
-        })
-        .join('\n');
+        });
 
-      return interaction.editReply(
-        `✅ Config checked (${servers.length} servers)\nTask Scheduler: ${synced} synced, ${skipped} skipped, ${failed} failed.\n${details}`
+      return replyWithPages(
+        interaction,
+        [
+          `✅ Config checked (${servers.length} servers)`,
+          `Task Scheduler: ${synced} synced, ${skipped} skipped, ${failed} failed.`,
+          '',
+          ...details
+        ],
+        'Config validate'
       );
     }
     if (sub === 'enable' || sub === 'disable') {
