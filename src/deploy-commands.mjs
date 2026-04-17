@@ -98,7 +98,7 @@ export function buildCommands() {
         o.setName('id')
           .setDescription('Server id')
           .setRequired(true)
-          .addChoices(...safeServerChoices())
+          .setAutocomplete(true)
       ),
 
     new SlashCommandBuilder()
