@@ -107,6 +107,7 @@ Every direct subfolder is auto-added into `data/servers.json` if it is not alrea
 
 Newly discovered folders are classified as:
 
+* `proxy` if proxy markers are found (`velocity.toml` in root or `config/velocity.toml`, `forwarding.secret`, `modern-forwarding.secret`, or a proxy jar name like velocity/waterfall/bungeecord)
 * `minecraft` if common Minecraft files exist (`eula.txt`, `server.properties`, or a `minecraft*.jar`)
 * `steam` if Steam artifacts are found (`steam_appid`, `steamcmd`, or `.acf`)
 * `generic` otherwise
@@ -238,6 +239,14 @@ For `/group add`, `id` is optional; if omitted, the group is applied to all enab
 
 Runs lifecycle actions for all enabled servers in that group.
 
+You can also target one server inside that group:
+
+### /group start name:<groupName> [id:<serverId>]
+### /group stop name:<groupName> [id:<serverId>]
+### /group restart name:<groupName> [id:<serverId>]
+
+When `id` is provided, only that enabled server in the selected group is targeted.
+
 ---
 
 ## Design Philosophy
@@ -337,6 +346,49 @@ Safety limits:
 * max file size/content: 1MB
 
 > Use `WEB_EDITOR_API_KEY` in production.
+
+---
+
+## API Keys / Tokens (How to Get Them Again)
+
+If you lost keys from older versions, you usually **cannot view the old secret again**.  
+Generate a new one and update `.env`.
+
+### 1) Discord bot token (`DISCORD_TOKEN`)
+
+1. Open Discord Developer Portal: https://discord.com/developers/applications
+2. Select your bot application.
+3. Go to **Bot**.
+4. Click **Reset Token** (or **Copy** if a visible token is available).
+5. Put it in `.env`:
+
+```env
+DISCORD_TOKEN=your-new-bot-token
+```
+
+> Keep this secret private. If leaked, reset it immediately.
+
+### 2) Web editor API key (`WEB_EDITOR_API_KEY`)
+
+This key is local to your bot config. If you lost it, create a new random value and save it in `.env`:
+
+```env
+WEB_EDITOR_API_KEY=replace-with-a-new-random-secret
+```
+
+Quick Node.js generator example:
+
+```cmd
+node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
+```
+
+PowerShell alternative:
+
+```powershell
+[Convert]::ToBase64String((1..48 | ForEach-Object { Get-Random -Maximum 256 }))
+```
+
+Then restart the bot and use the new key in the web editor login field.
 
 ---
 
