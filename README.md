@@ -378,7 +378,7 @@ WEB_EDITOR_API_KEY=replace-with-a-new-random-secret
 
 Quick Node.js generator example:
 
-```bash
+```cmd
 node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
 ```
 
