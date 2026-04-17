@@ -14,6 +14,16 @@ function getPid(server) {
   return pid || null;
 }
 
+function clearPidFile(server) {
+  if (!server?.pidFile) return;
+  if (!fs.existsSync(server.pidFile)) return;
+  try {
+    fs.unlinkSync(server.pidFile);
+  } catch {
+    // ignore pid cleanup errors
+  }
+}
+
 
 function hasProcessFallback(server) {
   return Boolean(server?.processName);
@@ -33,8 +43,11 @@ export async function startServer(server) {
     throw new Error('Server has no startBat defined');
   }
 
-  // Launch exactly like the legacy flow: start the server's start.bat directly.
-  // Keeping this as a simple cmd invocation avoids PowerShell quoting/working-dir issues.
+  // Remove stale PID so status checks do not read old process IDs.
+  clearPidFile(server);
+
+  // Launch exactly like the original/manual flow to preserve compatibility
+  // with custom start scripts.
   await execWindows(`cmd /c start "" "${server.startBat}"`);
 }
 
@@ -43,6 +56,7 @@ export async function stopServer(server) {
   if (pid) {
     try {
       await execWindows(`taskkill /PID ${pid} /F`);
+      clearPidFile(server);
       return true;
     } catch {
       // fall through to process-name fallback
@@ -52,6 +66,7 @@ export async function stopServer(server) {
   if (hasProcessFallback(server)) {
     try {
       await execWindows(`taskkill /IM "${server.processName}" /F`);
+      clearPidFile(server);
       return true;
     } catch {
       return false;
@@ -68,7 +83,9 @@ export async function isRunning(server, { allowProcessFallback = true } = {}) {
       const { stdout } = await execWindows(
         `tasklist /FI "PID eq ${pid}"`
       );
-      return stdout.includes(pid);
+      const running = stdout.includes(pid);
+      if (!running) clearPidFile(server);
+      return running;
     } catch {
       // fall through to process-name fallback
     }
