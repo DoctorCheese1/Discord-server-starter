@@ -227,6 +227,51 @@ client.once('clientReady', async () => {
 client.on('interactionCreate', async interaction => {
   const idracOnly = isIdracOnlyMode();
 
+  if (interaction.isAutocomplete()) {
+    if (idracOnly) {
+      return interaction.respond([]);
+    }
+
+    try {
+      if (interaction.commandName !== 'start') {
+        return interaction.respond([]);
+      }
+
+      const focused = interaction.options.getFocused(true);
+      if (!focused || focused.name !== 'id') {
+        return interaction.respond([]);
+      }
+
+      const query = String(focused.value || '').trim().toLowerCase();
+      const candidates = loadServers({ includeDisabled: false });
+      const scored = candidates
+        .filter(s => {
+          if (!query) return true;
+          const id = String(s.id || '').toLowerCase();
+          const name = String(s.name || '').toLowerCase();
+          return id.includes(query) || name.includes(query);
+        })
+        .sort((a, b) => {
+          const aId = String(a.id || '').toLowerCase();
+          const bId = String(b.id || '').toLowerCase();
+          const aStarts = query ? aId.startsWith(query) : false;
+          const bStarts = query ? bId.startsWith(query) : false;
+          if (aStarts !== bStarts) return aStarts ? -1 : 1;
+          return aId.localeCompare(bId);
+        })
+        .slice(0, 25)
+        .map(s => ({
+          name: `${s.name} (${s.id})`.slice(0, 100),
+          value: s.id
+        }));
+
+      return interaction.respond(scored);
+    } catch (err) {
+      console.error('❌ Autocomplete error:', err);
+      return interaction.respond([]);
+    }
+  }
+
   // SLASH COMMANDS
   if (interaction.isChatInputCommand()) {
     try {
