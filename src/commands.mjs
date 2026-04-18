@@ -104,7 +104,7 @@ function isMutatingConfigSubcommand(sub) {
 }
 
 const DISCORD_MESSAGE_LIMIT = 2000;
-const SAFE_PAGE_LIMIT = 1400;
+const SAFE_PAGE_LIMIT = 1800;
 
 function toSafeLineChunks(line, maxLen = SAFE_PAGE_LIMIT) {
   const text = String(line ?? '');
