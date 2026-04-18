@@ -42,6 +42,7 @@ const __dirname = path.dirname(__filename);
 const ROOT = path.join(__dirname, '..');
 
 const AUTH_FILE = path.join(ROOT, 'data', 'authUsers.json');
+const SERVERS_FILE = path.join(ROOT, 'data', 'servers.json');
 const DEFAULT_SERVERS_DIR = 'C:/Servers';
 const DEFAULT_AUTH_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
 const AUTH_CHECK_INTERVAL = Number.isFinite(Number(process.env.AUTH_CHECK_INTERVAL_MS))

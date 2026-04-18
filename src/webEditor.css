@@ -92,6 +92,8 @@
     .tok-tag { color: #569cd6; }
     .tok-command { color: #dcdcaa; }
     .footer { height: 28px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #2d2d30; background: #007acc; padding: 0 10px; color: #ffffff; font-size: 12px; }
+    .api-error { display: none; border-top: 1px solid #4b2222; background: #3a1212; color: #ffbcbc; padding: 6px 10px; font-size: 12px; font-family: Consolas, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .api-error.show { display: block; }
     .popup { position: fixed; top: 12px; right: 12px; background: #1f6f43; color: #fff; border: 1px solid #2ecc71; border-radius: .5rem; padding: .8rem 1rem; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity .2s, transform .2s; z-index: 50; }
     .popup.show { opacity: 1; transform: translateY(0); }
     #loadPopup { top: 62px; background: #1f4f6f; border-color: #4ab3ff; }
