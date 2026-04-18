@@ -42,6 +42,7 @@ const __dirname = path.dirname(__filename);
 const ROOT = path.join(__dirname, '..');
 
 const AUTH_FILE = path.join(ROOT, 'data', 'authUsers.json');
+const SERVERS_FILE = path.join(ROOT, 'data', 'servers.json');
 const DEFAULT_SERVERS_DIR = 'C:/Servers';
 const DEFAULT_AUTH_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
 const AUTH_CHECK_INTERVAL = Number.isFinite(Number(process.env.AUTH_CHECK_INTERVAL_MS))
@@ -226,6 +227,136 @@ client.once('clientReady', async () => {
 /* ================= INTERACTIONS ================= */
 client.on('interactionCreate', async interaction => {
   const idracOnly = isIdracOnlyMode();
+
+  function readServerAutocompleteSnapshot() {
+    try {
+      if (!fs.existsSync(SERVERS_FILE)) return [];
+      const raw = JSON.parse(fs.readFileSync(SERVERS_FILE, 'utf8'));
+      if (!Array.isArray(raw?.servers)) return [];
+      return raw.servers.map(s => ({
+        id: String(s?.id || ''),
+        name: String(s?.name || s?.id || ''),
+        type: String(s?.type || ''),
+        cwd: String(s?.cwd || ''),
+        group: String(s?.group || ''),
+        steam: s?.steam === true || String(s?.type || '').toLowerCase() === 'steam',
+        enabled: s?.enabled !== false
+      })).filter(s => s.id);
+    } catch {
+      return [];
+    }
+  }
+
+  async function safeAutocompleteRespond(choices) {
+    try {
+      await interaction.respond(choices.slice(0, 25));
+    } catch (err) {
+      const code = Number(err?.code);
+      if (code === 10062 || code === 40060) {
+        return;
+      }
+      throw err;
+    }
+  }
+
+  function scoreAndMapServers(servers, query = '') {
+    return servers
+      .filter(s => {
+        if (!query) return true;
+        const id = s.id.toLowerCase();
+        const name = s.name.toLowerCase();
+        const type = s.type.toLowerCase();
+        const cwd = s.cwd.toLowerCase();
+        return id.includes(query) || name.includes(query) || type.includes(query) || cwd.includes(query);
+      })
+      .sort((a, b) => {
+        const aId = a.id.toLowerCase();
+        const bId = b.id.toLowerCase();
+        const aName = a.name.toLowerCase();
+        const bName = b.name.toLowerCase();
+        const aStarts = query ? (aId.startsWith(query) || aName.startsWith(query)) : false;
+        const bStarts = query ? (bId.startsWith(query) || bName.startsWith(query)) : false;
+        if (aStarts !== bStarts) return aStarts ? -1 : 1;
+        if (!query) {
+          const aProxy = a.type.toLowerCase() === 'proxy';
+          const bProxy = b.type.toLowerCase() === 'proxy';
+          if (aProxy !== bProxy) return aProxy ? -1 : 1;
+        }
+        return aId.localeCompare(bId);
+      })
+      .slice(0, 25)
+      .map(s => ({
+        name: `${s.name} (${s.id})${s.enabled ? '' : ' [disabled]'}`.slice(0, 100),
+        value: s.id
+      }));
+  }
+
+  function scoreAndMapGroups(servers, query = '') {
+    const grouped = Array.from(
+      new Set(
+        servers
+          .map(s => (s.group || '').trim())
+          .filter(Boolean)
+      )
+    );
+    return grouped
+      .filter(g => !query || g.toLowerCase().includes(query))
+      .sort((a, b) => {
+        const aStarts = query ? a.toLowerCase().startsWith(query) : false;
+        const bStarts = query ? b.toLowerCase().startsWith(query) : false;
+        if (aStarts !== bStarts) return aStarts ? -1 : 1;
+        return a.localeCompare(b);
+      })
+      .slice(0, 25)
+      .map(g => ({ name: g.slice(0, 100), value: g }));
+  }
+
+  if (interaction.isAutocomplete()) {
+    if (idracOnly) {
+      return safeAutocompleteRespond([]);
+    }
+
+    try {
+      const supported = new Set(['start', 'stop', 'restart', 'info', 'group', 'config', 'steam']);
+      if (!supported.has(interaction.commandName)) {
+        return safeAutocompleteRespond([]);
+      }
+
+      const focused = interaction.options.getFocused(true);
+      if (!focused) return safeAutocompleteRespond([]);
+      const query = String(focused.value || '').trim().toLowerCase();
+      const snapshot = readServerAutocompleteSnapshot();
+      const command = interaction.commandName;
+      const sub = interaction.options.getSubcommand(false) || '';
+
+      if ((command === 'group' && focused.name === 'name') || (command === 'config' && focused.name === 'group')) {
+        return safeAutocompleteRespond(scoreAndMapGroups(snapshot, query));
+      }
+
+      if (focused.name !== 'id') {
+        return safeAutocompleteRespond([]);
+      }
+
+      if (command === 'group') {
+        const selectedGroup = String(interaction.options.getString('name') || '').trim().toLowerCase();
+        let filtered = snapshot;
+        if (['start', 'stop', 'restart'].includes(sub) && selectedGroup) {
+          filtered = snapshot.filter(s => String(s.group || '').trim().toLowerCase() === selectedGroup);
+        }
+        return safeAutocompleteRespond(scoreAndMapServers(filtered, query));
+      }
+
+      if (command === 'steam') {
+        const filtered = snapshot.filter(s => s.steam);
+        return safeAutocompleteRespond(scoreAndMapServers(filtered, query));
+      }
+
+      return safeAutocompleteRespond(scoreAndMapServers(snapshot, query));
+    } catch (err) {
+      console.error('❌ Autocomplete error:', err);
+      return safeAutocompleteRespond([]);
+    }
+  }
 
   // SLASH COMMANDS
   if (interaction.isChatInputCommand()) {

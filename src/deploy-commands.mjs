@@ -4,7 +4,6 @@ import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { REST, Routes, SlashCommandBuilder } from 'discord.js';
 
-import { serverChoices } from './serverStore.mjs';
 import { steamGameChoices } from './steam/steamGameStore.mjs';
 import { isIdracOnlyMode } from './mode.mjs';
 
@@ -26,17 +25,6 @@ if (!TOKEN || !CLIENT_ID) {
 }
 
 /* ================= SAFE CHOICES ================= */
-
-function safeServerChoices(opts) {
-  const c = serverChoices(opts);
-  return c.length ? c : [];
-}
-
-
-function safeServerChoicesAll(opts) {
-  const c = serverChoices({ includeDisabled: true, ...(opts || {}) });
-  return c.length ? c : [];
-}
 
 function safeSteamGameChoices() {
   const c = steamGameChoices();
@@ -87,7 +75,7 @@ export function buildCommands() {
   o.setName('id')
    .setDescription('Server id')
    .setRequired(true)
-   .addChoices(...safeServerChoicesAll())
+   .setAutocomplete(true)
       ),
 
     new SlashCommandBuilder()
@@ -98,7 +86,7 @@ export function buildCommands() {
         o.setName('id')
           .setDescription('Server id')
           .setRequired(true)
-          .addChoices(...safeServerChoices())
+          .setAutocomplete(true)
       ),
 
     new SlashCommandBuilder()
@@ -109,7 +97,7 @@ export function buildCommands() {
         o.setName('id')
           .setDescription('Server id')
           .setRequired(true)
-          .addChoices(...safeServerChoices())
+          .setAutocomplete(true)
       ),
 
     new SlashCommandBuilder()
@@ -120,7 +108,7 @@ export function buildCommands() {
         o.setName('id')
           .setDescription('Server id')
           .setRequired(true)
-          .addChoices(...safeServerChoices())
+          .setAutocomplete(true)
       ),
 
     new SlashCommandBuilder()
@@ -134,6 +122,7 @@ export function buildCommands() {
             o.setName('name')
               .setDescription('Optional group name filter')
               .setRequired(false)
+              .setAutocomplete(true)
           )
       )
       .addSubcommand(sc =>
@@ -143,12 +132,13 @@ export function buildCommands() {
             o.setName('name')
               .setDescription('Group name')
               .setRequired(true)
+              .setAutocomplete(true)
           )
           .addStringOption(o =>
             o.setName('id')
               .setDescription('Optional server id (leave empty to apply to all enabled servers)')
               .setRequired(false)
-              .addChoices(...safeServerChoicesAll())
+              .setAutocomplete(true)
           )
       )
       .addSubcommand(sc =>
@@ -158,7 +148,7 @@ export function buildCommands() {
             o.setName('id')
               .setDescription('Server id')
               .setRequired(true)
-              .addChoices(...safeServerChoicesAll())
+              .setAutocomplete(true)
           )
       )
       .addSubcommand(sc =>
@@ -168,12 +158,13 @@ export function buildCommands() {
             o.setName('name')
               .setDescription('Group name')
               .setRequired(true)
+              .setAutocomplete(true)
           )
           .addStringOption(o =>
             o.setName('id')
               .setDescription('Optional single server id in that group')
               .setRequired(false)
-              .addChoices(...safeServerChoices())
+              .setAutocomplete(true)
           )
       )
       .addSubcommand(sc =>
@@ -183,12 +174,13 @@ export function buildCommands() {
             o.setName('name')
               .setDescription('Group name')
               .setRequired(true)
+              .setAutocomplete(true)
           )
           .addStringOption(o =>
             o.setName('id')
               .setDescription('Optional single server id in that group')
               .setRequired(false)
-              .addChoices(...safeServerChoices())
+              .setAutocomplete(true)
           )
       )
       .addSubcommand(sc =>
@@ -198,12 +190,13 @@ export function buildCommands() {
             o.setName('name')
               .setDescription('Group name')
               .setRequired(true)
+              .setAutocomplete(true)
           )
           .addStringOption(o =>
             o.setName('id')
               .setDescription('Optional single server id in that group')
               .setRequired(false)
-              .addChoices(...safeServerChoices())
+              .setAutocomplete(true)
           )
       ),
 
@@ -234,6 +227,7 @@ export function buildCommands() {
           .addStringOption(o =>
             o.setName('group')
              .setDescription('Filter by custom group label')
+             .setAutocomplete(true)
           )
       )
 
@@ -250,7 +244,7 @@ export function buildCommands() {
             o.setName('id')
               .setDescription('Server id')
               .setRequired(true)
-              .addChoices(...safeServerChoices())
+              .setAutocomplete(true)
           )
       )
 
@@ -261,7 +255,7 @@ export function buildCommands() {
             o.setName('id')
               .setDescription('Server id')
               .setRequired(true)
-              .addChoices(...safeServerChoices())
+              .setAutocomplete(true)
           )
       )
 
@@ -272,7 +266,7 @@ export function buildCommands() {
             o.setName('id')
               .setDescription('Server id')
               .setRequired(true)
-              .addChoices(...safeServerChoices())
+              .setAutocomplete(true)
           )
           .addStringOption(o =>
             o.setName('name')
@@ -288,7 +282,7 @@ export function buildCommands() {
             o.setName('id')
               .setDescription('Server id')
               .setRequired(true)
-              .addChoices(...safeServerChoices())
+              .setAutocomplete(true)
           )
           .addBooleanOption(o =>
             o.setName('value')
@@ -304,7 +298,7 @@ export function buildCommands() {
             o.setName('id')
               .setDescription('Server id')
               .setRequired(true)
-              .addChoices(...safeServerChoices())
+              .setAutocomplete(true)
           )
           .addBooleanOption(o =>
             o.setName('value')
@@ -320,12 +314,13 @@ export function buildCommands() {
             o.setName('id')
               .setDescription('Server id')
               .setRequired(true)
-              .addChoices(...safeServerChoicesAll())
+              .setAutocomplete(true)
           )
           .addStringOption(o =>
             o.setName('group')
               .setDescription('Group label (example: network-a)')
               .setRequired(true)
+              .setAutocomplete(true)
           )
       )
 
@@ -336,7 +331,7 @@ export function buildCommands() {
             o.setName('id')
               .setDescription('Server id')
               .setRequired(true)
-              .addChoices(...safeServerChoices())
+              .setAutocomplete(true)
           )
           .addStringOption(o =>
             o.setName('name')
@@ -352,7 +347,7 @@ export function buildCommands() {
             o.setName('id')
               .setDescription('Server id')
               .setRequired(true)
-              .addChoices(...safeServerChoicesAll())
+              .setAutocomplete(true)
           )
           .addStringOption(o =>
             o.setName('dir')
@@ -368,7 +363,7 @@ export function buildCommands() {
             o.setName('id')
               .setDescription('Server id')
               .setRequired(true)
-              .addChoices(...safeServerChoicesAll())
+              .setAutocomplete(true)
           )
       ),
 
@@ -390,7 +385,7 @@ export function buildCommands() {
             o.setName('id')
               .setDescription('Server id (optional when using all=true)')
               .setRequired(false)
-              .addChoices(...safeServerChoices({ steamOnly: true }))
+              .setAutocomplete(true)
           )
           .addBooleanOption(o =>
             o.setName('all')
@@ -406,7 +401,7 @@ export function buildCommands() {
             o.setName('id')
               .setDescription('Server id')
               .setRequired(true)
-              .addChoices(...safeServerChoices({ steamOnly: true }))
+              .setAutocomplete(true)
           )
       )
 
