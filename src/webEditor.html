@@ -14,6 +14,11 @@
       <button class="menu-btn" data-menu="file">File</button>
       <div class="menu-items" id="menu-file">
         <button class="menu-item" id="newWindow">New Window</button>
+        <button class="menu-item" id="newFile">New File</button>
+        <button class="menu-item" id="newFolder">New Folder</button>
+        <button class="menu-item" id="duplicateFile">Duplicate File</button>
+        <button class="menu-item" id="renamePath">Rename File/Folder</button>
+        <button class="menu-item" id="deletePath">Delete File/Folder</button>
         <button class="menu-item" id="save">Save</button>
         <button class="menu-item" id="revert">Revert File</button>
         <button class="menu-item" id="exit">Exit</button>
@@ -67,6 +72,7 @@
   </div>
   <div id="savePopup" class="popup">✅ File saved successfully</div>
   <div id="loadPopup" class="popup">📁 Files loaded</div>
+  <div id="errorPopup" class="popup popup-error">❌ Request failed</div>
 
   <script>
     const status = document.getElementById('status');
@@ -78,8 +84,10 @@
     const fileSearchInput = document.getElementById('fileSearch');
     const savePopup = document.getElementById('savePopup');
     const loadPopup = document.getElementById('loadPopup');
+    const errorPopup = document.getElementById('errorPopup');
     const tab = document.getElementById('tab');
     const lineNumbers = document.getElementById('lineNumbers');
+    const editorGrid = document.querySelector('.editor-grid');
 
     const KEY_STORAGE_NAME = 'web_editor_api_key';
     const UI_STATE_STORAGE_NAME = 'web_editor_ui_state_v1';
@@ -91,6 +99,7 @@
     let originalContent = '';
     let popupTimer;
     let loadPopupTimer;
+    let errorPopupTimer;
     let openMenu = null;
     let activeFilesRequestId = 0;
     const expandedFolders = new Set();
@@ -133,11 +142,36 @@
       loadPopupTimer = setTimeout(() => loadPopup.classList.remove('show'), 2200);
     }
 
+
+    function showErrorPopup(message) {
+      errorPopup.textContent = '❌ ' + message;
+      errorPopup.classList.add('show');
+      clearTimeout(errorPopupTimer);
+      errorPopupTimer = setTimeout(() => errorPopup.classList.remove('show'), 3600);
+    }
+
+    function showApiError(message) {
+      const apiError = document.getElementById('apiError');
+      apiError.textContent = message;
+      apiError.classList.add('show');
+      showErrorPopup(message);
+    }
+
+    function clearApiError() {
+      const apiError = document.getElementById('apiError');
+      apiError.textContent = '';
+      apiError.classList.remove('show');
+    }
+
     function updateLineNumbers() {
       const lines = Math.max(1, content.value.split('\\n').length);
       const nums = [];
       for (let i = 1; i <= lines; i++) nums.push(i);
       lineNumbers.textContent = nums.join('\\n');
+
+      const digits = String(lines).length;
+      const gutterWidth = Math.max(44, 20 + digits * 10);
+      editorGrid.style.gridTemplateColumns = gutterWidth + 'px 1fr';
     }
 
     function escapeHtml(text) {
@@ -227,7 +261,20 @@
     }
 
     function renderHighlightedContent() {
-      return;
+      const lang = languageForFile(currentFile);
+      const lines = content.value.split('\n');
+      const errorLine = lang === 'json' ? getJsonErrorLine(content.value) : (lang === 'yaml' ? getYamlErrorLine(content.value) : null);
+      const html = lines.map((line, idx) => {
+        let rendered = escapeHtml(line);
+        if (lang === 'json') rendered = highlightJson(line);
+        else if (lang === 'yaml') rendered = highlightYaml(line);
+        else if (lang === 'ini') rendered = highlightIni(line);
+        else if (lang === 'script') rendered = highlightScript(line);
+        else if (lang === 'xml') rendered = highlightXml(line);
+        const err = errorLine === idx + 1 ? ' error-line' : '';
+        return '<span class="code-line' + err + '">' + (rendered || '&nbsp;') + '</span>';
+      }).join('');
+      highlight.innerHTML = html || '<span class="code-line">&nbsp;</span>';
     }
 
     function markActiveFile() {
@@ -291,7 +338,7 @@
         const sortedFiles = node.files.slice().sort((a, b) => a.path.localeCompare(b.path));
         for (const fileEntry of sortedFiles) {
           const filePath = fileEntry.path;
-          const ext = filePath.toLowerCase().endsWith('.yml') || filePath.toLowerCase().endsWith('.yaml') ? ' yaml' : '';
+          const ext = ' ext-' + ((filePath.split('.').pop() || 'plain').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
           const lockedClass = fileEntry.editable ? '' : ' locked';
           const title = fileEntry.editable ? filePath : (fileEntry.reason || (pathBase(filePath) + ' cannot be edited'));
           parts.push('<div class="tree-row file' + ext + lockedClass + '" data-path="' + filePath + '" data-editable="' + fileEntry.editable + '" title="' + title.replace(/"/g, '&quot;') + '" style="padding-left:' + (depth * 12 + 18) + 'px">' + pathBase(filePath) + '</div>');
@@ -307,6 +354,13 @@
       markActiveFile();
     }
 
+
+    function syncEditorScroll() {
+      lineNumbers.scrollTop = content.scrollTop;
+      highlight.scrollTop = content.scrollTop;
+      highlight.scrollLeft = content.scrollLeft;
+    }
+
     function withKey(url) {
       const key = keyInput.value.trim();
       if (!key) return url;
@@ -320,7 +374,7 @@
       try {
         res = await fetch(requestUrl, opts);
       } catch (err) {
-        const netMessage = method + ' ' + url + ' → network error: ' + (err.message || 'request failed');
+        const netMessage = 'Failed to load resource: ' + method + ' ' + requestUrl + ' network error: ' + (err.message || 'request failed');
         console.error('[WebEditor] API network error', { method, url, err });
         showApiError(netMessage);
         throw err;
@@ -334,8 +388,8 @@
       }
 
       if (!res.ok) {
-        const apiMessage = (data && data.error) ? data.error : (res.status + ' ' + (res.statusText || 'Request failed'));
-        const fullMessage = method + ' ' + url + ' → ' + res.status + ' ' + apiMessage;
+        const apiMessage = (data && data.error) ? data.error : (res.statusText || 'Request failed');
+        const fullMessage = 'Failed to load resource: the server responded with a status of ' + res.status + ' (' + (res.statusText || 'Error') + ') | ' + method + ' ' + requestUrl + ' | ' + apiMessage;
         console.error('[WebEditor] API error', {
           method,
           url,
@@ -349,6 +403,14 @@
 
       clearApiError();
       return data || {};
+    }
+
+    async function postJson(url, payload) {
+      return fetchJson(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload || {})
+      });
     }
 
     async function loadServers() {
@@ -475,11 +537,7 @@
       updateLineNumbers();
       renderHighlightedContent();
     };
-    content.onscroll = () => {
-      lineNumbers.scrollTop = content.scrollTop;
-      highlight.scrollTop = content.scrollTop;
-      highlight.scrollLeft = content.scrollLeft;
-    };
+    content.onscroll = () => syncEditorScroll();
 
     document.getElementById('save').onclick = saveCurrentFile;
     document.getElementById('revert').onclick = () => {
@@ -517,6 +575,81 @@
         status.textContent = '✅ JSON formatted';
       } catch (err) {
         status.textContent = '❌ Cannot format JSON: ' + err.message;
+      }
+    };
+
+
+    document.getElementById('newFile').onclick = async () => {
+      const folder = currentFile.includes('/') ? currentFile.slice(0, currentFile.lastIndexOf('/')) : '';
+      const suggested = (folder ? folder + '/' : '') + 'new-file.txt';
+      const relPath = prompt('Create file path', suggested);
+      if (!relPath) return;
+      try {
+        await postJson('/api/file/create', { serverId: serverSel.value, path: relPath, content: '' });
+        await loadFiles();
+        await loadFile(relPath);
+        status.textContent = '✅ Created ' + relPath;
+      } catch (err) {
+        status.textContent = '❌ ' + err.message;
+      }
+    };
+
+    document.getElementById('newFolder').onclick = async () => {
+      const relPath = prompt('Create folder path', 'new-folder');
+      if (!relPath) return;
+      try {
+        await postJson('/api/folder/create', { serverId: serverSel.value, path: relPath });
+        await loadFiles();
+        status.textContent = '✅ Created folder ' + relPath;
+      } catch (err) {
+        status.textContent = '❌ ' + err.message;
+      }
+    };
+
+    document.getElementById('duplicateFile').onclick = async () => {
+      if (!currentFile) return status.textContent = '⚠️ Open a file to duplicate';
+      const ext = currentFile.includes('.') ? currentFile.slice(currentFile.lastIndexOf('.')) : '';
+      const targetPath = prompt('Duplicate to path', currentFile.replace(ext, '.copy' + ext));
+      if (!targetPath) return;
+      try {
+        await postJson('/api/file/duplicate', { serverId: serverSel.value, sourcePath: currentFile, targetPath });
+        await loadFiles();
+        status.textContent = '✅ Duplicated to ' + targetPath;
+      } catch (err) {
+        status.textContent = '❌ ' + err.message;
+      }
+    };
+
+    document.getElementById('renamePath').onclick = async () => {
+      const fromPath = prompt('Rename from path', currentFile || '');
+      if (!fromPath) return;
+      const toPath = prompt('Rename to path', fromPath);
+      if (!toPath || toPath === fromPath) return;
+      try {
+        await postJson('/api/path/rename', { serverId: serverSel.value, oldPath: fromPath, newPath: toPath });
+        if (currentFile === fromPath) currentFile = toPath;
+        await loadFiles();
+        status.textContent = '✅ Renamed to ' + toPath;
+      } catch (err) {
+        status.textContent = '❌ ' + err.message;
+      }
+    };
+
+    document.getElementById('deletePath').onclick = async () => {
+      const targetPath = prompt('Delete file/folder path', currentFile || '');
+      if (!targetPath) return;
+      if (!confirm('Delete "' + targetPath + '"? This cannot be undone.')) return;
+      try {
+        await postJson('/api/path/delete', { serverId: serverSel.value, path: targetPath });
+        if (currentFile === targetPath || currentFile.startsWith(targetPath + '/')) {
+          currentFile = '';
+          content.value = '';
+          originalContent = '';
+        }
+        await loadFiles();
+        status.textContent = '✅ Deleted ' + targetPath;
+      } catch (err) {
+        status.textContent = '❌ ' + err.message;
       }
     };
 
@@ -568,6 +701,7 @@
     loadServers().catch(err => status.textContent = '❌ ' + err.message);
     updateLineNumbers();
     renderHighlightedContent();
+    syncEditorScroll();
   </script>
 </body>
 </html>
