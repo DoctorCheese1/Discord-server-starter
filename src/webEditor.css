@@ -56,9 +56,35 @@
     .tab { background: #2d2d2d; color: #bbbbbb; border: 1px solid #3a3a3a; border-bottom: none; border-radius: 6px 6px 0 0; padding: 9px 14px; font-style: italic; min-width: 120px; }
     .tab.active { background: #1e1e1e; color: #ffffff; }
     .editor-grid { flex: 1; display: grid; grid-template-columns: 44px 1fr; min-height: 0; overflow: hidden; }
-    .line-numbers { background: var(--panel-2); border-right: 1px solid var(--line); color: #7f8ca4; font-family: Consolas, monospace; padding: 8px 6px; line-height: 20px; font-size: 14px; text-align: right; overflow: hidden; user-select: none; }
-    .editor-stack { min-height: 0; height: 100%; display: flex; }
-    .highlight-layer { display: none; }
+    .line-numbers {
+      display: block;
+      background: #181818;
+      border-right: 1px solid var(--line);
+      color: #9fb3d1;
+      font-family: Consolas, monospace;
+      padding: 8px 10px 8px 4px;
+      line-height: 20px;
+      font-size: 14px;
+      text-align: right;
+      white-space: pre;
+      overflow: hidden;
+      user-select: none;
+      min-width: 44px;
+    }
+    .editor-stack { min-height: 0; height: 100%; display: flex; position: relative; flex: 1; }
+    .highlight-layer {
+      position: absolute;
+      inset: 0;
+      margin: 0;
+      pointer-events: none;
+      overflow: hidden;
+      white-space: pre;
+      font-family: Consolas, monospace;
+      line-height: 20px;
+      font-size: 14px;
+      padding: 8px 16px;
+      color: #d4d4d4;
+    }
     textarea {
       width: 100%;
       height: 100%;
@@ -66,13 +92,15 @@
       border: none;
       outline: none;
       resize: none;
-      background: #1e1e1e;
-      color: #d4d4d4;
+      background: transparent;
+      color: transparent;
       caret-color: #d4d4d4;
+      position: relative;
+      z-index: 2;
       font-family: Consolas, monospace;
       line-height: 20px;
       font-size: 14px;
-      padding: 8px 12px;
+      padding: 8px 16px;
       tab-size: 2;
       overflow: auto;
       white-space: pre;
@@ -91,10 +119,20 @@
     .tok-attr { color: #9cdcfe; }
     .tok-tag { color: #569cd6; }
     .tok-command { color: #dcdcaa; }
+    .tree-row.file.ext-json { color: #9cdcfe; }
+    .tree-row.file.ext-yaml, .tree-row.file.ext-yml { color: #c586c0; }
+    .tree-row.file.ext-ini, .tree-row.file.ext-cfg, .tree-row.file.ext-conf, .tree-row.file.ext-properties { color: #4ec9b0; }
+    .tree-row.file.ext-xml { color: #d7ba7d; }
+    .tree-row.file.ext-toml { color: #ce9178; }
+    .tree-row.file.ext-sh, .tree-row.file.ext-bat { color: #dcdcaa; }
+    .tree-row.file.ext-log, .tree-row.file.ext-txt { color: #b5cea8; }
+    .tree-row.file.ext-js, .tree-row.file.ext-mjs, .tree-row.file.ext-cjs { color: #ffd700; }
+
     .footer { height: 28px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #2d2d30; background: #007acc; padding: 0 10px; color: #ffffff; font-size: 12px; }
     .api-error { display: none; border-top: 1px solid #4b2222; background: #3a1212; color: #ffbcbc; padding: 6px 10px; font-size: 12px; font-family: Consolas, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .api-error.show { display: block; }
     .popup { position: fixed; top: 12px; right: 12px; background: #1f6f43; color: #fff; border: 1px solid #2ecc71; border-radius: .5rem; padding: .8rem 1rem; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity .2s, transform .2s; z-index: 50; }
     .popup.show { opacity: 1; transform: translateY(0); }
     #loadPopup { top: 62px; background: #1f4f6f; border-color: #4ab3ff; }
+    .popup-error { top: 112px; background: #6f1f1f; border-color: #ff7f7f; }
   

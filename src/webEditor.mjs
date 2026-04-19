@@ -132,6 +132,7 @@ function listFiles(cwd, maxDepth = 12) {
   };
 }
 
+
 function editorPage(prefilledApiKey = '') {
   const template = fs.readFileSync(WEB_EDITOR_TEMPLATE_FILE, 'utf8');
   return template.replace('__SERVER_PROVIDED_KEY__', JSON.stringify(prefilledApiKey));
@@ -232,6 +233,103 @@ export function startWebEditor() {
         fs.mkdirSync(path.dirname(fullPath), { recursive: true });
         fs.writeFileSync(fullPath, content, 'utf8');
 
+        return sendJson(res, 200, { ok: true });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/file/create') {
+        const raw = await readBody(req);
+        const body = JSON.parse(raw || '{}');
+        const serverConfig = findServer(body.serverId);
+        const relPath = String(body.path || '').trim();
+        const content = String(body.content || '');
+        if (!relPath) return sendJson(res, 400, { error: 'Path is required' });
+        if (Buffer.byteLength(content, 'utf8') > MAX_FILE_BYTES) return sendJson(res, 400, { error: 'Content too large' });
+
+        if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
+        if (!isSafePath(serverConfig.cwd, relPath)) return sendJson(res, 400, { error: 'Invalid path' });
+        const fullPath = path.resolve(serverConfig.cwd, relPath);
+        const ext = path.extname(fullPath).toLowerCase();
+        if (!TEXT_EXTENSIONS.has(ext)) return sendJson(res, 400, { error: `Unsupported extension: ${ext || 'none'}` });
+        if (fs.existsSync(fullPath)) return sendJson(res, 400, { error: 'Path already exists' });
+
+        fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+        fs.writeFileSync(fullPath, content, 'utf8');
+        return sendJson(res, 200, { ok: true });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/folder/create') {
+        const raw = await readBody(req);
+        const body = JSON.parse(raw || '{}');
+        const serverConfig = findServer(body.serverId);
+        const relPath = String(body.path || '').trim();
+        if (!relPath) return sendJson(res, 400, { error: 'Path is required' });
+
+        if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
+        if (!isSafePath(serverConfig.cwd, relPath)) return sendJson(res, 400, { error: 'Invalid path' });
+        const fullPath = path.resolve(serverConfig.cwd, relPath);
+        if (fs.existsSync(fullPath)) return sendJson(res, 400, { error: 'Path already exists' });
+        fs.mkdirSync(fullPath, { recursive: true });
+        return sendJson(res, 200, { ok: true });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/file/duplicate') {
+        const raw = await readBody(req);
+        const body = JSON.parse(raw || '{}');
+        const serverConfig = findServer(body.serverId);
+        const sourcePath = String(body.sourcePath || '').trim();
+        const targetPath = String(body.targetPath || '').trim();
+        if (!sourcePath || !targetPath) return sendJson(res, 400, { error: 'sourcePath and targetPath are required' });
+
+        if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
+        if (!isSafePath(serverConfig.cwd, sourcePath) || !isSafePath(serverConfig.cwd, targetPath)) return sendJson(res, 400, { error: 'Invalid path' });
+        const sourceFull = path.resolve(serverConfig.cwd, sourcePath);
+        const targetFull = path.resolve(serverConfig.cwd, targetPath);
+        if (!fs.existsSync(sourceFull)) return sendJson(res, 404, { error: 'Source not found' });
+        if (fs.existsSync(targetFull)) return sendJson(res, 400, { error: 'Target already exists' });
+        if (fs.statSync(sourceFull).isDirectory()) return sendJson(res, 400, { error: 'Cannot duplicate directory with file duplicate endpoint' });
+
+        const editability = getFileEditability(sourceFull);
+        if (!editability.editable) return sendJson(res, 400, { error: editability.reason });
+        const targetExt = path.extname(targetFull).toLowerCase();
+        if (!TEXT_EXTENSIONS.has(targetExt)) return sendJson(res, 400, { error: `Unsupported target extension: ${targetExt || 'none'}` });
+
+        fs.mkdirSync(path.dirname(targetFull), { recursive: true });
+        fs.copyFileSync(sourceFull, targetFull);
+        return sendJson(res, 200, { ok: true });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/path/rename') {
+        const raw = await readBody(req);
+        const body = JSON.parse(raw || '{}');
+        const serverConfig = findServer(body.serverId);
+        const oldPath = String(body.oldPath || '').trim();
+        const newPath = String(body.newPath || '').trim();
+        if (!oldPath || !newPath) return sendJson(res, 400, { error: 'oldPath and newPath are required' });
+
+        if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
+        if (!isSafePath(serverConfig.cwd, oldPath) || !isSafePath(serverConfig.cwd, newPath)) return sendJson(res, 400, { error: 'Invalid path' });
+        const oldFull = path.resolve(serverConfig.cwd, oldPath);
+        const newFull = path.resolve(serverConfig.cwd, newPath);
+        if (!fs.existsSync(oldFull)) return sendJson(res, 404, { error: 'Path not found' });
+        if (fs.existsSync(newFull)) return sendJson(res, 400, { error: 'Destination already exists' });
+
+        fs.mkdirSync(path.dirname(newFull), { recursive: true });
+        fs.renameSync(oldFull, newFull);
+        return sendJson(res, 200, { ok: true });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/path/delete') {
+        const raw = await readBody(req);
+        const body = JSON.parse(raw || '{}');
+        const serverConfig = findServer(body.serverId);
+        const relPath = String(body.path || '').trim();
+        if (!relPath) return sendJson(res, 400, { error: 'Path is required' });
+
+        if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
+        if (!isSafePath(serverConfig.cwd, relPath)) return sendJson(res, 400, { error: 'Invalid path' });
+        const fullPath = path.resolve(serverConfig.cwd, relPath);
+        if (!fs.existsSync(fullPath)) return sendJson(res, 404, { error: 'Path not found' });
+        fs.rmSync(fullPath, { recursive: true, force: false });
         return sendJson(res, 200, { ok: true });
       }
 
