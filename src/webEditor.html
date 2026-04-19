@@ -262,7 +262,7 @@
 
     function highlightPlain(line) {
       let html = escapeHtml(line);
-      html = html.replace(/^\s*(?:#|\/\/|;).*$/g, '<span class="tok-comment">$&</span>');
+      html = html.replace(/(^\s*(?:#|\/\/|;).*$)/g, '<span class="tok-comment">$1</span>');
       html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
       html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
       html = html.replace(/\\b(true|false|null|yes|no|on|off)\\b/gi, '<span class="tok-bool">$1</span>');
