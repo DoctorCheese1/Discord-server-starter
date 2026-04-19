@@ -91,7 +91,9 @@
       padding: 8px 12px 72px;
       tab-size: 2;
       overflow: auto;
-      white-space: pre;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
     textarea::selection { background: rgba(38, 79, 120, 0.65); }
     .code-line { display: block; height: 20px; }
