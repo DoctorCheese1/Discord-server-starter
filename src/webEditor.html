@@ -73,6 +73,13 @@
   <div id="savePopup" class="popup">✅ File saved successfully</div>
   <div id="loadPopup" class="popup">📁 Files loaded</div>
   <div id="errorPopup" class="popup popup-error">❌ Request failed</div>
+  <div id="treeContextMenu" class="context-menu">
+    <button type="button" class="context-menu-item" data-action="new-file">New File</button>
+    <button type="button" class="context-menu-item" data-action="new-folder">New Folder</button>
+    <button type="button" class="context-menu-item" data-action="duplicate">Duplicate</button>
+    <button type="button" class="context-menu-item" data-action="rename">Rename</button>
+    <button type="button" class="context-menu-item danger" data-action="delete">Delete</button>
+  </div>
 
   <script>
     const status = document.getElementById('status');
@@ -88,6 +95,7 @@
     const tab = document.getElementById('tab');
     const lineNumbers = document.getElementById('lineNumbers');
     const editorGrid = document.querySelector('.editor-grid');
+    const treeContextMenu = document.getElementById('treeContextMenu');
 
     const KEY_STORAGE_NAME = 'web_editor_api_key';
     const UI_STATE_STORAGE_NAME = 'web_editor_ui_state_v1';
@@ -102,6 +110,7 @@
     let errorPopupTimer;
     let openMenu = null;
     let activeFilesRequestId = 0;
+    let contextTarget = { type: 'root', path: '' };
     const expandedFolders = new Set();
 
     function loadUiState() {
@@ -287,6 +296,81 @@
     function pathBase(p) {
       const parts = p.split('/');
       return parts[parts.length - 1];
+    }
+
+    function pathDirname(p) {
+      if (!p || !p.includes('/')) return '';
+      return p.slice(0, p.lastIndexOf('/'));
+    }
+
+    function deriveDuplicatePath(filePath) {
+      const ext = filePath.includes('.') ? filePath.slice(filePath.lastIndexOf('.')) : '';
+      const stem = ext ? filePath.slice(0, -ext.length) : filePath;
+      return stem + '.copy' + ext;
+    }
+
+    function closeContextMenu() {
+      treeContextMenu.classList.remove('show');
+    }
+
+    function openContextMenu(clientX, clientY, target) {
+      contextTarget = target;
+      treeContextMenu.querySelector('[data-action="duplicate"]').disabled = target.type !== 'file';
+      treeContextMenu.classList.add('show');
+
+      const menuRect = treeContextMenu.getBoundingClientRect();
+      const left = Math.min(clientX, window.innerWidth - menuRect.width - 8);
+      const top = Math.min(clientY, window.innerHeight - menuRect.height - 8);
+      treeContextMenu.style.left = Math.max(8, left) + 'px';
+      treeContextMenu.style.top = Math.max(8, top) + 'px';
+    }
+
+    async function createFileAtPath(basePath = '') {
+      const suggested = (basePath ? basePath + '/' : '') + 'new-file.txt';
+      const relPath = prompt('Create file path', suggested);
+      if (!relPath) return;
+      await postJson('/api/file/create', { serverId: serverSel.value, path: relPath, content: '' });
+      await loadFiles();
+      await loadFile(relPath);
+      status.textContent = '✅ Created ' + relPath;
+    }
+
+    async function createFolderAtPath(basePath = '') {
+      const suggested = (basePath ? basePath + '/' : '') + 'new-folder';
+      const relPath = prompt('Create folder path', suggested);
+      if (!relPath) return;
+      await postJson('/api/folder/create', { serverId: serverSel.value, path: relPath });
+      await loadFiles();
+      status.textContent = '✅ Created folder ' + relPath;
+    }
+
+    async function duplicateFilePath(sourcePath) {
+      const targetPath = prompt('Duplicate to path', deriveDuplicatePath(sourcePath));
+      if (!targetPath) return;
+      await postJson('/api/file/duplicate', { serverId: serverSel.value, sourcePath, targetPath });
+      await loadFiles();
+      status.textContent = '✅ Duplicated to ' + targetPath;
+    }
+
+    async function renameAnyPath(fromPath) {
+      const toPath = prompt('Rename to path', fromPath);
+      if (!toPath || toPath === fromPath) return;
+      await postJson('/api/path/rename', { serverId: serverSel.value, oldPath: fromPath, newPath: toPath });
+      if (currentFile === fromPath) currentFile = toPath;
+      await loadFiles();
+      status.textContent = '✅ Renamed to ' + toPath;
+    }
+
+    async function deleteAnyPath(targetPath) {
+      if (!confirm('Delete "' + targetPath + '"? This cannot be undone.')) return;
+      await postJson('/api/path/delete', { serverId: serverSel.value, path: targetPath });
+      if (currentFile === targetPath || currentFile.startsWith(targetPath + '/')) {
+        currentFile = '';
+        content.value = '';
+        originalContent = '';
+      }
+      await loadFiles();
+      status.textContent = '✅ Deleted ' + targetPath;
     }
 
     function renderFiles(filter = '') {
@@ -523,6 +607,30 @@
       }
       loadFile(row.dataset.path);
     };
+    tree.addEventListener('contextmenu', e => {
+      const fileRow = e.target.closest('.tree-row.file');
+      if (fileRow) {
+        e.preventDefault();
+        const filePath = fileRow.dataset.path || '';
+        currentFile = filePath || currentFile;
+        markActiveFile();
+        openContextMenu(e.clientX, e.clientY, { type: 'file', path: filePath });
+        return;
+      }
+
+      const folderSummary = e.target.closest('details[data-folder] > summary');
+      if (folderSummary) {
+        e.preventDefault();
+        const folderPath = folderSummary.parentElement?.dataset.folder || '';
+        openContextMenu(e.clientX, e.clientY, { type: 'folder', path: folderPath });
+        return;
+      }
+
+      if (e.target.closest('#tree')) {
+        e.preventDefault();
+        openContextMenu(e.clientX, e.clientY, { type: 'root', path: '' });
+      }
+    });
 
     serverSel.onchange = () => {
       localStorage.setItem(SERVER_STORAGE_NAME, serverSel.value);
@@ -580,27 +688,16 @@
 
 
     document.getElementById('newFile').onclick = async () => {
-      const folder = currentFile.includes('/') ? currentFile.slice(0, currentFile.lastIndexOf('/')) : '';
-      const suggested = (folder ? folder + '/' : '') + 'new-file.txt';
-      const relPath = prompt('Create file path', suggested);
-      if (!relPath) return;
       try {
-        await postJson('/api/file/create', { serverId: serverSel.value, path: relPath, content: '' });
-        await loadFiles();
-        await loadFile(relPath);
-        status.textContent = '✅ Created ' + relPath;
+        await createFileAtPath(pathDirname(currentFile));
       } catch (err) {
         status.textContent = '❌ ' + err.message;
       }
     };
 
     document.getElementById('newFolder').onclick = async () => {
-      const relPath = prompt('Create folder path', 'new-folder');
-      if (!relPath) return;
       try {
-        await postJson('/api/folder/create', { serverId: serverSel.value, path: relPath });
-        await loadFiles();
-        status.textContent = '✅ Created folder ' + relPath;
+        await createFolderAtPath('');
       } catch (err) {
         status.textContent = '❌ ' + err.message;
       }
@@ -608,13 +705,8 @@
 
     document.getElementById('duplicateFile').onclick = async () => {
       if (!currentFile) return status.textContent = '⚠️ Open a file to duplicate';
-      const ext = currentFile.includes('.') ? currentFile.slice(currentFile.lastIndexOf('.')) : '';
-      const targetPath = prompt('Duplicate to path', currentFile.replace(ext, '.copy' + ext));
-      if (!targetPath) return;
       try {
-        await postJson('/api/file/duplicate', { serverId: serverSel.value, sourcePath: currentFile, targetPath });
-        await loadFiles();
-        status.textContent = '✅ Duplicated to ' + targetPath;
+        await duplicateFilePath(currentFile);
       } catch (err) {
         status.textContent = '❌ ' + err.message;
       }
@@ -623,13 +715,8 @@
     document.getElementById('renamePath').onclick = async () => {
       const fromPath = prompt('Rename from path', currentFile || '');
       if (!fromPath) return;
-      const toPath = prompt('Rename to path', fromPath);
-      if (!toPath || toPath === fromPath) return;
       try {
-        await postJson('/api/path/rename', { serverId: serverSel.value, oldPath: fromPath, newPath: toPath });
-        if (currentFile === fromPath) currentFile = toPath;
-        await loadFiles();
-        status.textContent = '✅ Renamed to ' + toPath;
+        await renameAnyPath(fromPath);
       } catch (err) {
         status.textContent = '❌ ' + err.message;
       }
@@ -638,16 +725,8 @@
     document.getElementById('deletePath').onclick = async () => {
       const targetPath = prompt('Delete file/folder path', currentFile || '');
       if (!targetPath) return;
-      if (!confirm('Delete "' + targetPath + '"? This cannot be undone.')) return;
       try {
-        await postJson('/api/path/delete', { serverId: serverSel.value, path: targetPath });
-        if (currentFile === targetPath || currentFile.startsWith(targetPath + '/')) {
-          currentFile = '';
-          content.value = '';
-          originalContent = '';
-        }
-        await loadFiles();
-        status.textContent = '✅ Deleted ' + targetPath;
+        await deleteAnyPath(targetPath);
       } catch (err) {
         status.textContent = '❌ ' + err.message;
       }
@@ -657,6 +736,33 @@
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         saveCurrentFile();
+      }
+    });
+    treeContextMenu.addEventListener('click', async e => {
+      const button = e.target.closest('.context-menu-item');
+      if (!button || button.disabled) return;
+      closeContextMenu();
+      const action = button.dataset.action;
+      const target = contextTarget;
+      try {
+        if (action === 'new-file') {
+          const base = target.type === 'file' ? pathDirname(target.path) : target.path;
+          await createFileAtPath(base);
+        } else if (action === 'new-folder') {
+          const base = target.type === 'file' ? pathDirname(target.path) : target.path;
+          await createFolderAtPath(base);
+        } else if (action === 'duplicate') {
+          if (target.type !== 'file') throw new Error('Select a file to duplicate');
+          await duplicateFilePath(target.path);
+        } else if (action === 'rename') {
+          if (!target.path) throw new Error('Select a file or folder to rename');
+          await renameAnyPath(target.path);
+        } else if (action === 'delete') {
+          if (!target.path) throw new Error('Select a file or folder to delete');
+          await deleteAnyPath(target.path);
+        }
+      } catch (err) {
+        status.textContent = '❌ ' + err.message;
       }
     });
 
@@ -677,8 +783,12 @@
     });
     document.addEventListener('click', () => {
       openMenu = null;
+      closeContextMenu();
       document.querySelectorAll('.menu-items').forEach(m => m.classList.remove('open'));
       document.querySelectorAll('.menu-btn').forEach(b => b.classList.remove('open'));
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeContextMenu();
     });
 
     const params = new URLSearchParams(window.location.search);
