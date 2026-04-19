@@ -313,6 +313,11 @@ export function startWebEditor() {
         if (!fs.existsSync(oldFull)) return sendJson(res, 404, { error: 'Path not found' });
         if (fs.existsSync(newFull)) return sendJson(res, 400, { error: 'Destination already exists' });
 
+        if (fs.statSync(oldFull).isFile()) {
+          const newExt = path.extname(newFull).toLowerCase();
+          if (!TEXT_EXTENSIONS.has(newExt)) return sendJson(res, 400, { error: `Unsupported extension: ${newExt || 'none'}` });
+        }
+
         fs.mkdirSync(path.dirname(newFull), { recursive: true });
         fs.renameSync(oldFull, newFull);
         return sendJson(res, 200, { ok: true });
