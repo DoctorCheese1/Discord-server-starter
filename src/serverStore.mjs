@@ -18,7 +18,9 @@ const DEFAULT_SERVERS_DIR = 'C:/Servers';
 ================================ */
 
 function readRawConfig() {
-  const raw = readConfigFileSafe();
+  const raw = fs.existsSync(FILE)
+    ? JSON.parse(fs.readFileSync(FILE, 'utf8'))
+    : { servers: [] };
 
   if (!Array.isArray(raw.servers)) {
     raw.servers = [];
@@ -30,32 +32,6 @@ function readRawConfig() {
   }
 
   return raw;
-}
-
-function readConfigFileSafe() {
-  if (!fs.existsSync(FILE)) {
-    return { servers: [] };
-  }
-
-  try {
-    return JSON.parse(fs.readFileSync(FILE, 'utf8'));
-  } catch (error) {
-    const backupPath = `${FILE}.invalid-${Date.now()}.bak`;
-    try {
-      fs.copyFileSync(FILE, backupPath);
-    } catch {
-      // Ignore backup write failures and continue with default config.
-    }
-
-    console.warn(
-      `[serverStore] Failed to parse ${FILE}. ` +
-      `A backup was written to ${backupPath}. ` +
-      'Using an empty config for this run.',
-      error
-    );
-
-    return { servers: [] };
-  }
 }
 
 export const loadRawConfig = readRawConfig;
