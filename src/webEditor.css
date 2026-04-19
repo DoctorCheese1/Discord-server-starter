@@ -69,7 +69,7 @@
       font-family: var(--editor-font);
       line-height: 20px;
       font-size: 14px;
-      padding: 8px 12px;
+      padding: 8px 12px 72px;
       color: #d4d4d4;
       tab-size: 2;
     }
@@ -94,7 +94,7 @@
       white-space: pre;
     }
     textarea::selection { background: rgba(38, 79, 120, 0.65); }
-    .code-line { display: block; min-height: 20px; }
+    .code-line { display: block; height: 20px; }
     .code-line.error-line { background: rgba(244, 135, 113, 0.2); }
     .tok-key { color: #9cdcfe; }
     .tok-string { color: #ce9178; }
