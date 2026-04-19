@@ -65,12 +65,12 @@
       pointer-events: none;
       overflow: hidden;
       white-space: pre-wrap;
-      overflow-wrap: break-word;
-      word-break: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
       font-family: Consolas, monospace;
       line-height: 20px;
       font-size: 14px;
-      padding: 8px 12px 72px;
+      padding: 8px 12px;
       tab-size: 2;
       color: #d4d4d4;
     }
@@ -93,8 +93,8 @@
       tab-size: 2;
       overflow: auto;
       white-space: pre-wrap;
-      overflow-wrap: break-word;
-      word-break: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
     textarea::selection { background: rgba(38, 79, 120, 0.65); }
     .code-line { display: block; min-height: 20px; }
