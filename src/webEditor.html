@@ -365,10 +365,7 @@
         if (!plugin) continue;
         plugins.push(plugin);
       }
-      return plugins.sort((a, b) => {
-        if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
-        return a.name.localeCompare(b.name);
-      });
+      return plugins.sort((a, b) => a.name.localeCompare(b.name));
     }
 
     function renderPluginsPanel() {
