@@ -56,7 +56,23 @@
       <div id="tree" class="tree"></div>
     </aside>
     <section class="editor-wrap">
-      <div class="tabs"><div id="tab" class="tab active">No file open</div></div>
+      <div class="tabs">
+        <button id="fileTab" class="tab active" type="button">No file open</button>
+        <button id="pluginsTab" class="tab" type="button">Plugins</button>
+      </div>
+      <section id="pluginsPanel" class="plugins-panel" hidden>
+        <div class="plugins-panel-header">Plugin Manager</div>
+        <div id="pluginsStatus" class="plugins-status">Load a server to view plugins.</div>
+        <div id="pluginsList" class="plugins-list"></div>
+      </section>
+      <form id="pathActionBar" class="path-action-bar" hidden>
+        <div id="pathActionTitle" class="path-action-title">Path action</div>
+        <input id="pathActionInput" type="text" autocomplete="off" />
+        <div class="path-action-buttons">
+          <button id="pathActionCancel" type="button">Cancel</button>
+          <button id="pathActionSubmit" type="submit">OK</button>
+        </div>
+      </form>
       <div class="editor-grid">
         <pre id="lineNumbers" class="line-numbers">1</pre>
         <div class="editor-stack">
@@ -94,10 +110,20 @@
     const savePopup = document.getElementById('savePopup');
     const loadPopup = document.getElementById('loadPopup');
     const errorPopup = document.getElementById('errorPopup');
-    const tab = document.getElementById('tab');
+    const fileTab = document.getElementById('fileTab');
+    const pluginsTab = document.getElementById('pluginsTab');
+    const pluginsPanel = document.getElementById('pluginsPanel');
+    const pluginsList = document.getElementById('pluginsList');
+    const pluginsStatus = document.getElementById('pluginsStatus');
     const lineNumbers = document.getElementById('lineNumbers');
     const editorGrid = document.querySelector('.editor-grid');
+    const editorWrap = document.querySelector('.editor-wrap');
     const treeContextMenu = document.getElementById('treeContextMenu');
+    const pathActionBar = document.getElementById('pathActionBar');
+    const pathActionTitle = document.getElementById('pathActionTitle');
+    const pathActionInput = document.getElementById('pathActionInput');
+    const pathActionSubmit = document.getElementById('pathActionSubmit');
+    const pathActionCancel = document.getElementById('pathActionCancel');
 
     const KEY_STORAGE_NAME = 'web_editor_api_key';
     const UI_STATE_STORAGE_NAME = 'web_editor_ui_state_v1';
@@ -113,6 +139,8 @@
     let openMenu = null;
     let activeFilesRequestId = 0;
     let contextTarget = { type: 'root', path: '' };
+    let pendingPathActionResolver = null;
+    let activeTopTab = 'file';
     const expandedFolders = new Set();
 
     function loadUiState() {
@@ -314,7 +342,80 @@
       for (const row of tree.querySelectorAll('.tree-row.file')) {
         row.classList.toggle('active', row.dataset.path === currentFile);
       }
-      tab.textContent = currentFile ? pathBase(currentFile) : 'No file open';
+      fileTab.textContent = currentFile ? pathBase(currentFile) : 'No file open';
+    }
+
+    function parsePluginFromPath(filePath) {
+      const match = String(filePath || '').match(/^plugins\/(.+)\.jar(\.disabled)?$/i);
+      if (!match) return null;
+      const pluginPath = match[1];
+      const name = pathBase(pluginPath);
+      return {
+        name,
+        relativePath: pluginPath,
+        path: filePath,
+        enabled: !match[2]
+      };
+    }
+
+    function listPlugins() {
+      const seen = new Set();
+      const plugins = [];
+      for (const file of allFiles) {
+        const plugin = parsePluginFromPath(file.path);
+        if (!plugin) continue;
+        const key = plugin.path.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        plugins.push(plugin);
+      }
+      return plugins.sort((a, b) => {
+        const byName = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+        if (byName !== 0) return byName;
+        if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+        return a.path.localeCompare(b.path);
+      });
+    }
+
+    function renderPluginsPanel() {
+      const plugins = listPlugins();
+      if (!serverSel.value) {
+        pluginsStatus.textContent = 'Select a server to view plugins.';
+      } else if (!plugins.length) {
+        pluginsStatus.textContent = 'No plugin jars found under /plugins.';
+      } else {
+        pluginsStatus.textContent = plugins.length + ' plugin' + (plugins.length === 1 ? '' : 's') + ' found.';
+      }
+
+      pluginsList.innerHTML = plugins.map(plugin => {
+        const actionLabel = plugin.enabled ? 'Disable' : 'Enable';
+        const stateLabel = plugin.enabled ? 'Enabled' : 'Disabled';
+        const stateClass = plugin.enabled ? 'enabled' : 'disabled';
+        return (
+          '<div class="plugin-row" data-path="' + plugin.path + '" data-enabled="' + plugin.enabled + '">' +
+            '<div class="plugin-meta">' +
+              '<div class="plugin-name">' + plugin.name + '</div>' +
+              '<div class="plugin-path">plugins/' + plugin.relativePath + '</div>' +
+              '<div class="plugin-state ' + stateClass + '">' + stateLabel + '</div>' +
+            '</div>' +
+            '<button type="button" class="plugin-toggle">' + actionLabel + '</button>' +
+          '</div>'
+        );
+      }).join('');
+    }
+
+    function setActiveTopTab(tabName) {
+      activeTopTab = tabName === 'plugins' ? 'plugins' : 'file';
+      const showPlugins = activeTopTab === 'plugins';
+      fileTab.classList.toggle('active', !showPlugins);
+      pluginsTab.classList.toggle('active', showPlugins);
+      editorWrap.classList.toggle('plugins-mode', showPlugins);
+      pluginsPanel.hidden = !showPlugins;
+      pathActionBar.hidden = showPlugins || pathActionBar.hidden;
+      if (showPlugins) {
+        pathActionBar.classList.remove('show');
+        if (pendingPathActionResolver) closePathActionBar(null);
+      }
     }
 
     function pathBase(p) {
@@ -349,6 +450,34 @@
       treeContextMenu.classList.remove('show');
     }
 
+    function closePathActionBar(result = null) {
+      pathActionBar.hidden = true;
+      pathActionBar.classList.remove('show');
+      if (pendingPathActionResolver) {
+        const resolve = pendingPathActionResolver;
+        pendingPathActionResolver = null;
+        resolve(result);
+      }
+    }
+
+    function requestPathInput(title, initialValue, submitLabel = 'OK') {
+      if (pendingPathActionResolver) {
+        closePathActionBar(null);
+      }
+      pathActionTitle.textContent = title;
+      pathActionInput.value = initialValue || '';
+      pathActionSubmit.textContent = submitLabel;
+      pathActionBar.hidden = false;
+      pathActionBar.classList.add('show');
+      requestAnimationFrame(() => {
+        pathActionInput.focus();
+        pathActionInput.select();
+      });
+      return new Promise(resolve => {
+        pendingPathActionResolver = resolve;
+      });
+    }
+
     function openContextMenu(clientX, clientY, target) {
       contextTarget = target;
       treeContextMenu.querySelector('[data-action="duplicate"]').disabled = !target.path;
@@ -363,7 +492,7 @@
 
     async function createFileAtPath(basePath = '') {
       const suggested = (basePath ? basePath + '/' : '') + 'new-file.txt';
-      const relPath = prompt('Create file path', suggested);
+      const relPath = await requestPathInput('Create file path', suggested, 'Create');
       if (!relPath) return;
       await postJson('/api/file/create', { serverId: serverSel.value, path: relPath, content: '' });
       await loadFiles();
@@ -373,7 +502,7 @@
 
     async function createFolderAtPath(basePath = '') {
       const suggested = (basePath ? basePath + '/' : '') + 'new-folder';
-      const relPath = prompt('Create folder path', suggested);
+      const relPath = await requestPathInput('Create folder path', suggested, 'Create');
       if (!relPath) return;
       await postJson('/api/folder/create', { serverId: serverSel.value, path: relPath });
       await loadFiles();
@@ -384,7 +513,7 @@
       const defaultTarget = typeHint === 'folder'
         ? deriveDuplicateFolderPath(sourcePath)
         : deriveDuplicatePath(sourcePath);
-      const targetPath = prompt('Duplicate to path', defaultTarget);
+      const targetPath = await requestPathInput('Duplicate to path', defaultTarget, 'Duplicate');
       if (!targetPath) return;
       await postJson('/api/path/duplicate', { serverId: serverSel.value, sourcePath, targetPath });
       await loadFiles();
@@ -392,7 +521,7 @@
     }
 
     async function renameAnyPath(fromPath) {
-      const toPath = prompt('Rename to path', fromPath);
+      const toPath = await requestPathInput('Rename to path', fromPath, 'Rename');
       if (!toPath || toPath === fromPath) return;
       await postJson('/api/path/rename', { serverId: serverSel.value, oldPath: fromPath, newPath: toPath });
       remapCurrentFilePath(fromPath, toPath);
@@ -404,7 +533,7 @@
     }
 
     async function moveAnyPath(fromPath) {
-      const toPath = prompt('Move to path', fromPath);
+      const toPath = await requestPathInput('Move to path', fromPath, 'Move');
       if (!toPath || toPath === fromPath) return;
       await postJson('/api/path/rename', { serverId: serverSel.value, oldPath: fromPath, newPath: toPath });
       remapCurrentFilePath(fromPath, toPath);
@@ -591,6 +720,7 @@
           expandedFolders.add(folder);
         }
         renderFiles(fileSearchInput.value);
+        renderPluginsPanel();
         status.textContent = '✅ Loaded ' + allFiles.length + ' files for ' + serverLabel;
         const elapsedMs = Math.round(performance.now() - started);
         showLoadPopup('📁 ' + serverLabel + ': ' + allFiles.length + ' files loaded in ' + elapsedMs + 'ms');
@@ -600,6 +730,7 @@
         }
       } catch (err) {
         if (requestId !== activeFilesRequestId) return;
+        renderPluginsPanel();
         status.textContent = '❌ ' + err.message;
       } finally {
         if (requestId === activeFilesRequestId) {
@@ -664,6 +795,7 @@
         status.textContent = '⚠️ ' + filename + ' cannot be edited';
         return;
       }
+      setActiveTopTab('file');
       loadFile(row.dataset.path);
     };
     tree.addEventListener('contextmenu', e => {
@@ -763,7 +895,7 @@
     };
 
     document.getElementById('duplicatePath').onclick = async () => {
-      const fromPath = prompt('Duplicate file/folder path', currentFile || '');
+      const fromPath = await requestPathInput('Duplicate file/folder path', currentFile || '', 'Next');
       if (!fromPath) return;
       try {
         await duplicateAnyPath(fromPath);
@@ -773,7 +905,7 @@
     };
 
     document.getElementById('renamePath').onclick = async () => {
-      const fromPath = prompt('Rename from path', currentFile || '');
+      const fromPath = await requestPathInput('Rename from path', currentFile || '', 'Next');
       if (!fromPath) return;
       try {
         await renameAnyPath(fromPath);
@@ -783,7 +915,7 @@
     };
 
     document.getElementById('movePath').onclick = async () => {
-      const fromPath = prompt('Move file/folder path', currentFile || '');
+      const fromPath = await requestPathInput('Move file/folder path', currentFile || '', 'Next');
       if (!fromPath) return;
       try {
         await moveAnyPath(fromPath);
@@ -793,7 +925,7 @@
     };
 
     document.getElementById('deletePath').onclick = async () => {
-      const targetPath = prompt('Delete file/folder path', currentFile || '');
+      const targetPath = await requestPathInput('Delete file/folder path', currentFile || '', 'Delete');
       if (!targetPath) return;
       try {
         await deleteAnyPath(targetPath);
@@ -802,12 +934,50 @@
       }
     };
 
+    fileTab.addEventListener('click', () => setActiveTopTab('file'));
+    pluginsTab.addEventListener('click', () => {
+      renderPluginsPanel();
+      setActiveTopTab('plugins');
+    });
+    pluginsList.addEventListener('click', async e => {
+      const button = e.target.closest('.plugin-toggle');
+      if (!button) return;
+      const row = button.closest('.plugin-row');
+      if (!row) return;
+      const sourcePath = row.dataset.path;
+      const enabled = row.dataset.enabled === 'true';
+      const targetPath = enabled ? (sourcePath + '.disabled') : sourcePath.replace(/\.disabled$/i, '');
+      try {
+        button.disabled = true;
+        await postJson('/api/path/rename', { serverId: serverSel.value, oldPath: sourcePath, newPath: targetPath });
+        await loadFiles();
+        renderPluginsPanel();
+        setActiveTopTab('plugins');
+        status.textContent = '✅ Plugin ' + (enabled ? 'disabled' : 'enabled') + ': ' + pathBase(targetPath).replace(/\.jar(?:\.disabled)?$/i, '');
+      } catch (err) {
+        status.textContent = '❌ ' + err.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
     document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && !pathActionBar.hidden) {
+        e.preventDefault();
+        closePathActionBar(null);
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         saveCurrentFile();
       }
     });
+    pathActionBar.addEventListener('submit', e => {
+      e.preventDefault();
+      const value = pathActionInput.value.trim();
+      closePathActionBar(value || null);
+    });
+    pathActionCancel.addEventListener('click', () => closePathActionBar(null));
     treeContextMenu.addEventListener('click', async e => {
       const button = e.target.closest('.context-menu-item');
       if (!button || button.disabled) return;
@@ -882,6 +1052,7 @@
     }
 
     loadServers().catch(err => status.textContent = '❌ ' + err.message);
+    renderPluginsPanel();
     updateLineNumbers();
     renderHighlightedContent();
     syncEditorScroll();
