@@ -180,7 +180,7 @@
       const lines = Math.max(1, splitEditorLines(content.value).length);
       const nums = [];
       for (let i = 1; i <= lines; i++) nums.push(i);
-      lineNumbers.textContent = nums.join('\\n');
+      lineNumbers.textContent = nums.join('\n');
 
       const digits = String(lines).length;
       const gutterWidth = Math.max(44, 20 + digits * 10);
