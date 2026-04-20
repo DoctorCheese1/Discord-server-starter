@@ -16,8 +16,9 @@
         <button class="menu-item" id="newWindow">New Window</button>
         <button class="menu-item" id="newFile">New File</button>
         <button class="menu-item" id="newFolder">New Folder</button>
-        <button class="menu-item" id="duplicateFile">Duplicate File</button>
+        <button class="menu-item" id="duplicatePath">Duplicate File/Folder</button>
         <button class="menu-item" id="renamePath">Rename File/Folder</button>
+        <button class="menu-item" id="movePath">Move File/Folder</button>
         <button class="menu-item" id="deletePath">Delete File/Folder</button>
         <button class="menu-item" id="save">Save</button>
         <button class="menu-item" id="revert">Revert File</button>
@@ -55,7 +56,23 @@
       <div id="tree" class="tree"></div>
     </aside>
     <section class="editor-wrap">
-      <div class="tabs"><div id="tab" class="tab active">No file open</div></div>
+      <div class="tabs">
+        <button id="fileTab" class="tab active" type="button">No file open</button>
+        <button id="pluginsTab" class="tab" type="button">Plugins</button>
+      </div>
+      <section id="pluginsPanel" class="plugins-panel" hidden>
+        <div class="plugins-panel-header">Plugin Manager</div>
+        <div id="pluginsStatus" class="plugins-status">Load a server to view plugins.</div>
+        <div id="pluginsList" class="plugins-list"></div>
+      </section>
+      <form id="pathActionBar" class="path-action-bar" hidden>
+        <div id="pathActionTitle" class="path-action-title">Path action</div>
+        <input id="pathActionInput" type="text" autocomplete="off" />
+        <div class="path-action-buttons">
+          <button id="pathActionCancel" type="button">Cancel</button>
+          <button id="pathActionSubmit" type="submit">OK</button>
+        </div>
+      </form>
       <div class="editor-grid">
         <pre id="lineNumbers" class="line-numbers">1</pre>
         <div class="editor-stack">
@@ -76,8 +93,9 @@
   <div id="treeContextMenu" class="context-menu">
     <button type="button" class="context-menu-item" data-action="new-file">New File</button>
     <button type="button" class="context-menu-item" data-action="new-folder">New Folder</button>
-    <button type="button" class="context-menu-item" data-action="duplicate">Duplicate</button>
+    <button type="button" class="context-menu-item" data-action="duplicate">Duplicate File/Folder</button>
     <button type="button" class="context-menu-item" data-action="rename">Rename</button>
+    <button type="button" class="context-menu-item" data-action="move">Move</button>
     <button type="button" class="context-menu-item danger" data-action="delete">Delete</button>
   </div>
 
@@ -92,10 +110,20 @@
     const savePopup = document.getElementById('savePopup');
     const loadPopup = document.getElementById('loadPopup');
     const errorPopup = document.getElementById('errorPopup');
-    const tab = document.getElementById('tab');
+    const fileTab = document.getElementById('fileTab');
+    const pluginsTab = document.getElementById('pluginsTab');
+    const pluginsPanel = document.getElementById('pluginsPanel');
+    const pluginsList = document.getElementById('pluginsList');
+    const pluginsStatus = document.getElementById('pluginsStatus');
     const lineNumbers = document.getElementById('lineNumbers');
     const editorGrid = document.querySelector('.editor-grid');
+    const editorWrap = document.querySelector('.editor-wrap');
     const treeContextMenu = document.getElementById('treeContextMenu');
+    const pathActionBar = document.getElementById('pathActionBar');
+    const pathActionTitle = document.getElementById('pathActionTitle');
+    const pathActionInput = document.getElementById('pathActionInput');
+    const pathActionSubmit = document.getElementById('pathActionSubmit');
+    const pathActionCancel = document.getElementById('pathActionCancel');
 
     const KEY_STORAGE_NAME = 'web_editor_api_key';
     const UI_STATE_STORAGE_NAME = 'web_editor_ui_state_v1';
@@ -111,6 +139,8 @@
     let openMenu = null;
     let activeFilesRequestId = 0;
     let contextTarget = { type: 'root', path: '' };
+    let pendingPathActionResolver = null;
+    let activeTopTab = 'file';
     const expandedFolders = new Set();
 
     function loadUiState() {
@@ -135,6 +165,14 @@
       if (!serverId) return { expanded: [], currentFile: '' };
       const state = loadUiState();
       return state[serverId] || { expanded: [], currentFile: '' };
+    }
+
+    function captureExpandedFoldersFromDom() {
+      const expanded = [];
+      for (const details of tree.querySelectorAll('details[data-folder][open]')) {
+        if (details.dataset.folder) expanded.push(details.dataset.folder);
+      }
+      return expanded;
     }
 
     function showSavePopup(file) {
@@ -172,11 +210,15 @@
       apiError.classList.remove('show');
     }
 
+    function splitEditorLines(text) {
+      return String(text || '').split(/\r\n|\r|\n/);
+    }
+
     function updateLineNumbers() {
-      const lines = Math.max(1, content.value.split('\\n').length);
+      const lines = Math.max(1, splitEditorLines(content.value).length);
       const nums = [];
       for (let i = 1; i <= lines; i++) nums.push(i);
-      lineNumbers.textContent = nums.join('\\n');
+      lineNumbers.textContent = nums.join('\n');
 
       const digits = String(lines).length;
       const gutterWidth = Math.max(44, 20 + digits * 10);
@@ -208,12 +250,12 @@
         const match = String(err.message || '').match(/position\\s+(\\d+)/i);
         if (!match) return null;
         const pos = Number(match[1]);
-        return text.slice(0, pos).split('\\n').length;
+        return splitEditorLines(text.slice(0, pos)).length;
       }
     }
 
     function getYamlErrorLine(text) {
-      const lines = text.split('\\n');
+      const lines = splitEditorLines(text);
       const bad = lines.findIndex(l => /^\\s*[^#\\-][^:]*$/.test(l) && l.trim() !== '');
       return bad >= 0 ? bad + 1 : null;
     }
@@ -280,7 +322,7 @@
 
     function renderHighlightedContent() {
       const lang = languageForFile(currentFile);
-      const lines = content.value.split('\n');
+      const lines = splitEditorLines(content.value);
       const errorLine = lang === 'json' ? getJsonErrorLine(content.value) : (lang === 'yaml' ? getYamlErrorLine(content.value) : null);
       const html = lines.map((line, idx) => {
         let rendered = escapeHtml(line);
@@ -300,7 +342,74 @@
       for (const row of tree.querySelectorAll('.tree-row.file')) {
         row.classList.toggle('active', row.dataset.path === currentFile);
       }
-      tab.textContent = currentFile ? pathBase(currentFile) : 'No file open';
+      fileTab.textContent = currentFile ? pathBase(currentFile) : 'No file open';
+    }
+
+    function parsePluginFromPath(filePath) {
+      const match = String(filePath || '').match(/^plugins\/([^/]+)\.jar(\.disabled)?$/i);
+      if (!match) return null;
+      return {
+        name: match[1],
+        path: filePath,
+        enabled: !match[2]
+      };
+    }
+
+    function listPlugins() {
+      const seen = new Set();
+      const plugins = [];
+      for (const file of allFiles) {
+        const plugin = parsePluginFromPath(file.path);
+        if (!plugin) continue;
+        const key = plugin.name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        plugins.push(plugin);
+      }
+      return plugins.sort((a, b) => {
+        if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+    }
+
+    function renderPluginsPanel() {
+      const plugins = listPlugins();
+      if (!serverSel.value) {
+        pluginsStatus.textContent = 'Select a server to view plugins.';
+      } else if (!plugins.length) {
+        pluginsStatus.textContent = 'No top-level plugin jars found in /plugins.';
+      } else {
+        pluginsStatus.textContent = plugins.length + ' plugin' + (plugins.length === 1 ? '' : 's') + ' found.';
+      }
+
+      pluginsList.innerHTML = plugins.map(plugin => {
+        const actionLabel = plugin.enabled ? 'Disable' : 'Enable';
+        const stateLabel = plugin.enabled ? 'Enabled' : 'Disabled';
+        const stateClass = plugin.enabled ? 'enabled' : 'disabled';
+        return (
+          '<div class="plugin-row" data-path="' + plugin.path + '" data-enabled="' + plugin.enabled + '">' +
+            '<div class="plugin-meta">' +
+              '<div class="plugin-name">' + plugin.name + '</div>' +
+              '<div class="plugin-state ' + stateClass + '">' + stateLabel + '</div>' +
+            '</div>' +
+            '<button type="button" class="plugin-toggle">' + actionLabel + '</button>' +
+          '</div>'
+        );
+      }).join('');
+    }
+
+    function setActiveTopTab(tabName) {
+      activeTopTab = tabName === 'plugins' ? 'plugins' : 'file';
+      const showPlugins = activeTopTab === 'plugins';
+      fileTab.classList.toggle('active', !showPlugins);
+      pluginsTab.classList.toggle('active', showPlugins);
+      editorWrap.classList.toggle('plugins-mode', showPlugins);
+      pluginsPanel.hidden = !showPlugins;
+      pathActionBar.hidden = showPlugins || pathActionBar.hidden;
+      if (showPlugins) {
+        pathActionBar.classList.remove('show');
+        if (pendingPathActionResolver) closePathActionBar(null);
+      }
     }
 
     function pathBase(p) {
@@ -319,13 +428,53 @@
       return stem + '.copy' + ext;
     }
 
+    function remapCurrentFilePath(fromPath, toPath) {
+      if (!currentFile) return;
+      if (currentFile === fromPath) {
+        currentFile = toPath;
+        return;
+      }
+      const fromPrefix = fromPath + '/';
+      if (currentFile.startsWith(fromPrefix)) {
+        currentFile = toPath + currentFile.slice(fromPath.length);
+      }
+    }
+
     function closeContextMenu() {
       treeContextMenu.classList.remove('show');
     }
 
+    function closePathActionBar(result = null) {
+      pathActionBar.hidden = true;
+      pathActionBar.classList.remove('show');
+      if (pendingPathActionResolver) {
+        const resolve = pendingPathActionResolver;
+        pendingPathActionResolver = null;
+        resolve(result);
+      }
+    }
+
+    function requestPathInput(title, initialValue, submitLabel = 'OK') {
+      if (pendingPathActionResolver) {
+        closePathActionBar(null);
+      }
+      pathActionTitle.textContent = title;
+      pathActionInput.value = initialValue || '';
+      pathActionSubmit.textContent = submitLabel;
+      pathActionBar.hidden = false;
+      pathActionBar.classList.add('show');
+      requestAnimationFrame(() => {
+        pathActionInput.focus();
+        pathActionInput.select();
+      });
+      return new Promise(resolve => {
+        pendingPathActionResolver = resolve;
+      });
+    }
+
     function openContextMenu(clientX, clientY, target) {
       contextTarget = target;
-      treeContextMenu.querySelector('[data-action="duplicate"]').disabled = target.type !== 'file';
+      treeContextMenu.querySelector('[data-action="duplicate"]').disabled = !target.path;
       treeContextMenu.classList.add('show');
 
       const menuRect = treeContextMenu.getBoundingClientRect();
@@ -337,7 +486,7 @@
 
     async function createFileAtPath(basePath = '') {
       const suggested = (basePath ? basePath + '/' : '') + 'new-file.txt';
-      const relPath = prompt('Create file path', suggested);
+      const relPath = await requestPathInput('Create file path', suggested, 'Create');
       if (!relPath) return;
       await postJson('/api/file/create', { serverId: serverSel.value, path: relPath, content: '' });
       await loadFiles();
@@ -347,28 +496,46 @@
 
     async function createFolderAtPath(basePath = '') {
       const suggested = (basePath ? basePath + '/' : '') + 'new-folder';
-      const relPath = prompt('Create folder path', suggested);
+      const relPath = await requestPathInput('Create folder path', suggested, 'Create');
       if (!relPath) return;
       await postJson('/api/folder/create', { serverId: serverSel.value, path: relPath });
       await loadFiles();
       status.textContent = '✅ Created folder ' + relPath;
     }
 
-    async function duplicateFilePath(sourcePath) {
-      const targetPath = prompt('Duplicate to path', deriveDuplicatePath(sourcePath));
+    async function duplicateAnyPath(sourcePath, typeHint = 'file') {
+      const defaultTarget = typeHint === 'folder'
+        ? deriveDuplicateFolderPath(sourcePath)
+        : deriveDuplicatePath(sourcePath);
+      const targetPath = await requestPathInput('Duplicate to path', defaultTarget, 'Duplicate');
       if (!targetPath) return;
-      await postJson('/api/file/duplicate', { serverId: serverSel.value, sourcePath, targetPath });
+      await postJson('/api/path/duplicate', { serverId: serverSel.value, sourcePath, targetPath });
       await loadFiles();
       status.textContent = '✅ Duplicated to ' + targetPath;
     }
 
     async function renameAnyPath(fromPath) {
-      const toPath = prompt('Rename to path', fromPath);
+      const toPath = await requestPathInput('Rename to path', fromPath, 'Rename');
       if (!toPath || toPath === fromPath) return;
       await postJson('/api/path/rename', { serverId: serverSel.value, oldPath: fromPath, newPath: toPath });
-      if (currentFile === fromPath) currentFile = toPath;
+      remapCurrentFilePath(fromPath, toPath);
+      saveUiState({
+        currentFile
+      });
       await loadFiles();
       status.textContent = '✅ Renamed to ' + toPath;
+    }
+
+    async function moveAnyPath(fromPath) {
+      const toPath = await requestPathInput('Move to path', fromPath, 'Move');
+      if (!toPath || toPath === fromPath) return;
+      await postJson('/api/path/rename', { serverId: serverSel.value, oldPath: fromPath, newPath: toPath });
+      remapCurrentFilePath(fromPath, toPath);
+      saveUiState({
+        currentFile
+      });
+      await loadFiles();
+      status.textContent = '✅ Moved to ' + toPath;
     }
 
     async function deleteAnyPath(targetPath) {
@@ -525,6 +692,11 @@
       if (!id) return;
       const requestId = ++activeFilesRequestId;
       localStorage.setItem(SERVER_STORAGE_NAME, id);
+      const currentExpandedFolders = captureExpandedFoldersFromDom();
+      if (currentExpandedFolders.length || expandedFolders.size) {
+        const latestExpanded = currentExpandedFolders.length ? currentExpandedFolders : Array.from(expandedFolders);
+        saveUiState({ expanded: latestExpanded.sort() });
+      }
       const serverLabel = serverSel.options[serverSel.selectedIndex]?.text || id;
       const started = performance.now();
       status.textContent = '⏳ Loading files for ' + serverLabel + '...';
@@ -542,6 +714,7 @@
           expandedFolders.add(folder);
         }
         renderFiles(fileSearchInput.value);
+        renderPluginsPanel();
         status.textContent = '✅ Loaded ' + allFiles.length + ' files for ' + serverLabel;
         const elapsedMs = Math.round(performance.now() - started);
         showLoadPopup('📁 ' + serverLabel + ': ' + allFiles.length + ' files loaded in ' + elapsedMs + 'ms');
@@ -551,6 +724,7 @@
         }
       } catch (err) {
         if (requestId !== activeFilesRequestId) return;
+        renderPluginsPanel();
         status.textContent = '❌ ' + err.message;
       } finally {
         if (requestId === activeFilesRequestId) {
@@ -615,6 +789,7 @@
         status.textContent = '⚠️ ' + filename + ' cannot be edited';
         return;
       }
+      setActiveTopTab('file');
       loadFile(row.dataset.path);
     };
     tree.addEventListener('contextmenu', e => {
@@ -681,7 +856,7 @@
       }
     };
     document.getElementById('validateYaml').onclick = () => {
-      const lines = content.value.split('\\n');
+      const lines = splitEditorLines(content.value);
       const bad = lines.findIndex(l => /^\\s*[^#\\-][^:]*$/.test(l) && l.trim() !== '');
       status.textContent = bad >= 0 ? '⚠️ YAML likely invalid near line ' + (bad + 1) : '✅ YAML looks valid';
     };
@@ -713,17 +888,18 @@
       }
     };
 
-    document.getElementById('duplicateFile').onclick = async () => {
-      if (!currentFile) return status.textContent = '⚠️ Open a file to duplicate';
+    document.getElementById('duplicatePath').onclick = async () => {
+      const fromPath = await requestPathInput('Duplicate file/folder path', currentFile || '', 'Next');
+      if (!fromPath) return;
       try {
-        await duplicateFilePath(currentFile);
+        await duplicateAnyPath(fromPath);
       } catch (err) {
         status.textContent = '❌ ' + err.message;
       }
     };
 
     document.getElementById('renamePath').onclick = async () => {
-      const fromPath = prompt('Rename from path', currentFile || '');
+      const fromPath = await requestPathInput('Rename from path', currentFile || '', 'Next');
       if (!fromPath) return;
       try {
         await renameAnyPath(fromPath);
@@ -732,8 +908,18 @@
       }
     };
 
+    document.getElementById('movePath').onclick = async () => {
+      const fromPath = await requestPathInput('Move file/folder path', currentFile || '', 'Next');
+      if (!fromPath) return;
+      try {
+        await moveAnyPath(fromPath);
+      } catch (err) {
+        status.textContent = '❌ ' + err.message;
+      }
+    };
+
     document.getElementById('deletePath').onclick = async () => {
-      const targetPath = prompt('Delete file/folder path', currentFile || '');
+      const targetPath = await requestPathInput('Delete file/folder path', currentFile || '', 'Delete');
       if (!targetPath) return;
       try {
         await deleteAnyPath(targetPath);
@@ -742,12 +928,50 @@
       }
     };
 
+    fileTab.addEventListener('click', () => setActiveTopTab('file'));
+    pluginsTab.addEventListener('click', () => {
+      renderPluginsPanel();
+      setActiveTopTab('plugins');
+    });
+    pluginsList.addEventListener('click', async e => {
+      const button = e.target.closest('.plugin-toggle');
+      if (!button) return;
+      const row = button.closest('.plugin-row');
+      if (!row) return;
+      const sourcePath = row.dataset.path;
+      const enabled = row.dataset.enabled === 'true';
+      const targetPath = enabled ? (sourcePath + '.disabled') : sourcePath.replace(/\.disabled$/i, '');
+      try {
+        button.disabled = true;
+        await postJson('/api/path/rename', { serverId: serverSel.value, oldPath: sourcePath, newPath: targetPath });
+        await loadFiles();
+        renderPluginsPanel();
+        setActiveTopTab('plugins');
+        status.textContent = '✅ Plugin ' + (enabled ? 'disabled' : 'enabled') + ': ' + pathBase(targetPath).replace(/\.jar(?:\.disabled)?$/i, '');
+      } catch (err) {
+        status.textContent = '❌ ' + err.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
     document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && !pathActionBar.hidden) {
+        e.preventDefault();
+        closePathActionBar(null);
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         saveCurrentFile();
       }
     });
+    pathActionBar.addEventListener('submit', e => {
+      e.preventDefault();
+      const value = pathActionInput.value.trim();
+      closePathActionBar(value || null);
+    });
+    pathActionCancel.addEventListener('click', () => closePathActionBar(null));
     treeContextMenu.addEventListener('click', async e => {
       const button = e.target.closest('.context-menu-item');
       if (!button || button.disabled) return;
@@ -762,11 +986,14 @@
           const base = target.type === 'file' ? pathDirname(target.path) : target.path;
           await createFolderAtPath(base);
         } else if (action === 'duplicate') {
-          if (target.type !== 'file') throw new Error('Select a file to duplicate');
-          await duplicateFilePath(target.path);
+          if (!target.path) throw new Error('Select a file or folder to duplicate');
+          await duplicateAnyPath(target.path, target.type);
         } else if (action === 'rename') {
           if (!target.path) throw new Error('Select a file or folder to rename');
           await renameAnyPath(target.path);
+        } else if (action === 'move') {
+          if (!target.path) throw new Error('Select a file or folder to move');
+          await moveAnyPath(target.path);
         } else if (action === 'delete') {
           if (!target.path) throw new Error('Select a file or folder to delete');
           await deleteAnyPath(target.path);
@@ -819,6 +1046,7 @@
     }
 
     loadServers().catch(err => status.textContent = '❌ ' + err.message);
+    renderPluginsPanel();
     updateLineNumbers();
     renderHighlightedContent();
     syncEditorScroll();
