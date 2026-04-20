@@ -64,7 +64,7 @@
     .editor-wrap.plugins-mode .path-action-bar { display: none !important; }
     .plugins-panel-header { font-size: 18px; margin-bottom: 6px; color: #e6e6e6; }
     .plugins-status { color: #9da0a6; margin-bottom: 12px; font-size: 13px; }
-    .plugins-list { display: flex; flex-direction: column; gap: 8px; flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 0 0 28px; overscroll-behavior: contain; }
+    .plugins-list { display: grid; gap: 8px; flex: 1; min-height: 0; overflow: auto; padding-bottom: 12px; }
     .plugin-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid #2d2d30; border-radius: 6px; padding: 10px 12px; background: #252526; }
     .plugin-meta { min-width: 0; }
     .plugin-name { font-size: 14px; color: #d4d4d4; word-break: break-word; }
