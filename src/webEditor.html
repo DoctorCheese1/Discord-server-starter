@@ -16,7 +16,7 @@
         <button class="menu-item" id="newWindow">New Window</button>
         <button class="menu-item" id="newFile">New File</button>
         <button class="menu-item" id="newFolder">New Folder</button>
-        <button class="menu-item" id="duplicateFile">Duplicate File</button>
+        <button class="menu-item" id="duplicatePath">Duplicate File/Folder</button>
         <button class="menu-item" id="renamePath">Rename File/Folder</button>
         <button class="menu-item" id="movePath">Move File/Folder</button>
         <button class="menu-item" id="deletePath">Delete File/Folder</button>
@@ -77,7 +77,7 @@
   <div id="treeContextMenu" class="context-menu">
     <button type="button" class="context-menu-item" data-action="new-file">New File</button>
     <button type="button" class="context-menu-item" data-action="new-folder">New Folder</button>
-    <button type="button" class="context-menu-item" data-action="duplicate">Duplicate</button>
+    <button type="button" class="context-menu-item" data-action="duplicate">Duplicate File/Folder</button>
     <button type="button" class="context-menu-item" data-action="rename">Rename</button>
     <button type="button" class="context-menu-item" data-action="move">Move</button>
     <button type="button" class="context-menu-item danger" data-action="delete">Delete</button>
@@ -351,7 +351,7 @@
 
     function openContextMenu(clientX, clientY, target) {
       contextTarget = target;
-      treeContextMenu.querySelector('[data-action="duplicate"]').disabled = target.type !== 'file';
+      treeContextMenu.querySelector('[data-action="duplicate"]').disabled = !target.path;
       treeContextMenu.classList.add('show');
 
       const menuRect = treeContextMenu.getBoundingClientRect();
@@ -380,10 +380,13 @@
       status.textContent = '✅ Created folder ' + relPath;
     }
 
-    async function duplicateFilePath(sourcePath) {
-      const targetPath = prompt('Duplicate to path', deriveDuplicatePath(sourcePath));
+    async function duplicateAnyPath(sourcePath, typeHint = 'file') {
+      const defaultTarget = typeHint === 'folder'
+        ? deriveDuplicateFolderPath(sourcePath)
+        : deriveDuplicatePath(sourcePath);
+      const targetPath = prompt('Duplicate to path', defaultTarget);
       if (!targetPath) return;
-      await postJson('/api/file/duplicate', { serverId: serverSel.value, sourcePath, targetPath });
+      await postJson('/api/path/duplicate', { serverId: serverSel.value, sourcePath, targetPath });
       await loadFiles();
       status.textContent = '✅ Duplicated to ' + targetPath;
     }
@@ -759,10 +762,11 @@
       }
     };
 
-    document.getElementById('duplicateFile').onclick = async () => {
-      if (!currentFile) return status.textContent = '⚠️ Open a file to duplicate';
+    document.getElementById('duplicatePath').onclick = async () => {
+      const fromPath = prompt('Duplicate file/folder path', currentFile || '');
+      if (!fromPath) return;
       try {
-        await duplicateFilePath(currentFile);
+        await duplicateAnyPath(fromPath);
       } catch (err) {
         status.textContent = '❌ ' + err.message;
       }
@@ -818,8 +822,8 @@
           const base = target.type === 'file' ? pathDirname(target.path) : target.path;
           await createFolderAtPath(base);
         } else if (action === 'duplicate') {
-          if (target.type !== 'file') throw new Error('Select a file to duplicate');
-          await duplicateFilePath(target.path);
+          if (!target.path) throw new Error('Select a file or folder to duplicate');
+          await duplicateAnyPath(target.path, target.type);
         } else if (action === 'rename') {
           if (!target.path) throw new Error('Select a file or folder to rename');
           await renameAnyPath(target.path);

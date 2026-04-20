@@ -94,6 +94,29 @@ function getFileEditability(fullPath) {
   return { editable: true, reason: '' };
 }
 
+function isPathInside(candidatePath, containerPath) {
+  const resolvedCandidate = path.resolve(candidatePath);
+  const resolvedContainer = path.resolve(containerPath);
+  return resolvedCandidate === resolvedContainer || resolvedCandidate.startsWith(`${resolvedContainer}${path.sep}`);
+}
+
+function copyRecursiveSync(sourceFull, targetFull) {
+  const sourceStat = fs.statSync(sourceFull);
+  if (sourceStat.isDirectory()) {
+    fs.mkdirSync(targetFull, { recursive: true });
+    const entries = fs.readdirSync(sourceFull, { withFileTypes: true });
+    for (const entry of entries) {
+      const nextSource = path.join(sourceFull, entry.name);
+      const nextTarget = path.join(targetFull, entry.name);
+      copyRecursiveSync(nextSource, nextTarget);
+    }
+    return;
+  }
+
+  fs.mkdirSync(path.dirname(targetFull), { recursive: true });
+  fs.copyFileSync(sourceFull, targetFull);
+}
+
 function listFiles(cwd, maxDepth = 12) {
   const results = [];
   const emptyFolders = [];
@@ -295,6 +318,26 @@ export function startWebEditor() {
 
         fs.mkdirSync(path.dirname(targetFull), { recursive: true });
         fs.copyFileSync(sourceFull, targetFull);
+        return sendJson(res, 200, { ok: true });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/path/duplicate') {
+        const raw = await readBody(req);
+        const body = JSON.parse(raw || '{}');
+        const serverConfig = findServer(body.serverId);
+        const sourcePath = String(body.sourcePath || '').trim();
+        const targetPath = String(body.targetPath || '').trim();
+        if (!sourcePath || !targetPath) return sendJson(res, 400, { error: 'sourcePath and targetPath are required' });
+
+        if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
+        if (!isSafePath(serverConfig.cwd, sourcePath) || !isSafePath(serverConfig.cwd, targetPath)) return sendJson(res, 400, { error: 'Invalid path' });
+        const sourceFull = path.resolve(serverConfig.cwd, sourcePath);
+        const targetFull = path.resolve(serverConfig.cwd, targetPath);
+        if (!fs.existsSync(sourceFull)) return sendJson(res, 404, { error: 'Source not found' });
+        if (fs.existsSync(targetFull)) return sendJson(res, 400, { error: 'Target already exists' });
+        if (isPathInside(targetFull, sourceFull)) return sendJson(res, 400, { error: 'Cannot duplicate a path into itself' });
+
+        copyRecursiveSync(sourceFull, targetFull);
         return sendJson(res, 200, { ok: true });
       }
 
