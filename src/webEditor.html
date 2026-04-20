@@ -172,8 +172,12 @@
       apiError.classList.remove('show');
     }
 
+    function splitEditorLines(text) {
+      return String(text || '').split(/\r\n|\r|\n/);
+    }
+
     function updateLineNumbers() {
-      const lines = Math.max(1, content.value.split('\\n').length);
+      const lines = Math.max(1, splitEditorLines(content.value).length);
       const nums = [];
       for (let i = 1; i <= lines; i++) nums.push(i);
       lineNumbers.textContent = nums.join('\\n');
@@ -208,12 +212,12 @@
         const match = String(err.message || '').match(/position\\s+(\\d+)/i);
         if (!match) return null;
         const pos = Number(match[1]);
-        return text.slice(0, pos).split('\\n').length;
+        return splitEditorLines(text.slice(0, pos)).length;
       }
     }
 
     function getYamlErrorLine(text) {
-      const lines = text.split('\\n');
+      const lines = splitEditorLines(text);
       const bad = lines.findIndex(l => /^\\s*[^#\\-][^:]*$/.test(l) && l.trim() !== '');
       return bad >= 0 ? bad + 1 : null;
     }
@@ -280,7 +284,7 @@
 
     function renderHighlightedContent() {
       const lang = languageForFile(currentFile);
-      const lines = content.value.split('\n');
+      const lines = splitEditorLines(content.value);
       const errorLine = lang === 'json' ? getJsonErrorLine(content.value) : (lang === 'yaml' ? getYamlErrorLine(content.value) : null);
       const html = lines.map((line, idx) => {
         let rendered = escapeHtml(line);
@@ -681,7 +685,7 @@
       }
     };
     document.getElementById('validateYaml').onclick = () => {
-      const lines = content.value.split('\\n');
+      const lines = splitEditorLines(content.value);
       const bad = lines.findIndex(l => /^\\s*[^#\\-][^:]*$/.test(l) && l.trim() !== '');
       status.textContent = bad >= 0 ? '⚠️ YAML likely invalid near line ' + (bad + 1) : '✅ YAML looks valid';
     };
