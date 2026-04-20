@@ -346,7 +346,7 @@
     }
 
     function parsePluginFromPath(filePath) {
-      const match = String(filePath || '').match(/^plugins\/(.+?\.jar)(\.disabled)?$/i);
+      const match = String(filePath || '').match(/^plugins\/([^/]+?\.jar)(\.disabled)?$/i);
       if (!match) return null;
       const relativeJarPath = match[1];
       const filename = pathBase(relativeJarPath);
