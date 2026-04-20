@@ -234,7 +234,15 @@ client.on('interactionCreate', async interaction => {
     }
 
     try {
-      if (interaction.commandName !== 'start') {
+      const commandName = interaction.commandName;
+      const supportsServerIdAutocomplete = new Set([
+        'start',
+        'stop',
+        'restart',
+        'info'
+      ]);
+
+      if (!supportsServerIdAutocomplete.has(commandName)) {
         return interaction.respond([]);
       }
 
