@@ -367,9 +367,7 @@
       }
       return plugins.sort((a, b) => {
         if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
-        const byName = a.name.localeCompare(b.name);
-        if (byName !== 0) return byName;
-        return a.relativePath.localeCompare(b.relativePath);
+        return a.name.localeCompare(b.name);
       });
     }
 
@@ -591,7 +589,7 @@
           const isExpanded = expandedFolders.has(folderPath);
           parts.push(
             '<details data-folder="' + folderPath + '" ' + (isExpanded ? 'open' : '') + ' style="margin-left:' + (depth * 12 + 6) + 'px">' +
-              '<summary><span class="folder-caret">▸</span>' + folderName + '</summary>' +
+              '<summary title="' + folderPath.replace(/"/g, '&quot;') + '"><span class="folder-caret">▸</span><span class="folder-label">' + folderName + '</span></summary>' +
               '<div class="folder-children"><div class="folder-children-inner">' +
                 walk(node.folders.get(folderName), depth + 1, folderPath) +
               '</div></div>' +
