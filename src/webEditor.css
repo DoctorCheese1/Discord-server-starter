@@ -43,7 +43,8 @@
     .tree-row.file.locked::before { content: "🔒"; margin-right: 6px; }
     .tree-row.file.locked:hover { background: #332222; }
     .tree details { margin: 1px 0; }
-    .tree summary { list-style: none; cursor: pointer; color: #cccccc; font-weight: 600; padding: 3px 6px; border-radius: 3px; }
+    .tree summary { list-style: none; display: flex; align-items: center; max-width: 100%; overflow: hidden; cursor: pointer; color: #cccccc; font-weight: 600; padding: 3px 6px; border-radius: 3px; }
+    .folder-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .tree summary::-webkit-details-marker { display: none; }
     .tree summary:hover { background: #1f2531; }
     .folder-caret { display: inline-block; width: 14px; color: #7fa0bf; margin-right: 4px; transform-origin: 45% 50%; transition: transform .18s ease, color .18s ease; }
