@@ -333,10 +333,6 @@
       return stem + '.copy' + ext;
     }
 
-    function deriveDuplicateFolderPath(folderPath) {
-      return folderPath + '.copy';
-    }
-
     function remapCurrentFilePath(fromPath, toPath) {
       if (!currentFile) return;
       if (currentFile === fromPath) {
