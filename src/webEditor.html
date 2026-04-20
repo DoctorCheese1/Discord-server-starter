@@ -56,7 +56,15 @@
       <div id="tree" class="tree"></div>
     </aside>
     <section class="editor-wrap">
-      <div class="tabs"><div id="tab" class="tab active">No file open</div></div>
+      <div class="tabs">
+        <button id="fileTab" class="tab active" type="button">No file open</button>
+        <button id="pluginsTab" class="tab" type="button">Plugins</button>
+      </div>
+      <section id="pluginsPanel" class="plugins-panel" hidden>
+        <div class="plugins-panel-header">Plugin Manager</div>
+        <div id="pluginsStatus" class="plugins-status">Load a server to view plugins.</div>
+        <div id="pluginsList" class="plugins-list"></div>
+      </section>
       <form id="pathActionBar" class="path-action-bar" hidden>
         <div id="pathActionTitle" class="path-action-title">Path action</div>
         <input id="pathActionInput" type="text" autocomplete="off" />
@@ -102,9 +110,14 @@
     const savePopup = document.getElementById('savePopup');
     const loadPopup = document.getElementById('loadPopup');
     const errorPopup = document.getElementById('errorPopup');
-    const tab = document.getElementById('tab');
+    const fileTab = document.getElementById('fileTab');
+    const pluginsTab = document.getElementById('pluginsTab');
+    const pluginsPanel = document.getElementById('pluginsPanel');
+    const pluginsList = document.getElementById('pluginsList');
+    const pluginsStatus = document.getElementById('pluginsStatus');
     const lineNumbers = document.getElementById('lineNumbers');
     const editorGrid = document.querySelector('.editor-grid');
+    const editorWrap = document.querySelector('.editor-wrap');
     const treeContextMenu = document.getElementById('treeContextMenu');
     const pathActionBar = document.getElementById('pathActionBar');
     const pathActionTitle = document.getElementById('pathActionTitle');
@@ -127,6 +140,7 @@
     let activeFilesRequestId = 0;
     let contextTarget = { type: 'root', path: '' };
     let pendingPathActionResolver = null;
+    let activeTopTab = 'file';
     const expandedFolders = new Set();
 
     function loadUiState() {
@@ -328,7 +342,71 @@
       for (const row of tree.querySelectorAll('.tree-row.file')) {
         row.classList.toggle('active', row.dataset.path === currentFile);
       }
-      tab.textContent = currentFile ? pathBase(currentFile) : 'No file open';
+      fileTab.textContent = currentFile ? pathBase(currentFile) : 'No file open';
+    }
+
+    function parsePluginFromPath(filePath) {
+      const match = String(filePath || '').match(/^plugins\/([^/]+)\.jar(\.disabled)?$/i);
+      if (!match) return null;
+      return {
+        name: match[1],
+        path: filePath,
+        enabled: !match[2]
+      };
+    }
+
+    function listPlugins() {
+      const seen = new Set();
+      const plugins = [];
+      for (const file of allFiles) {
+        const plugin = parsePluginFromPath(file.path);
+        if (!plugin) continue;
+        const key = plugin.name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        plugins.push(plugin);
+      }
+      return plugins.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    function renderPluginsPanel() {
+      const plugins = listPlugins();
+      if (!serverSel.value) {
+        pluginsStatus.textContent = 'Select a server to view plugins.';
+      } else if (!plugins.length) {
+        pluginsStatus.textContent = 'No top-level plugin jars found in /plugins.';
+      } else {
+        pluginsStatus.textContent = plugins.length + ' plugin' + (plugins.length === 1 ? '' : 's') + ' found.';
+      }
+
+      pluginsList.innerHTML = plugins.map(plugin => {
+        const actionLabel = plugin.enabled ? 'Disable' : 'Enable';
+        const stateLabel = plugin.enabled ? 'Enabled' : 'Disabled';
+        const stateClass = plugin.enabled ? 'enabled' : 'disabled';
+        return (
+          '<div class="plugin-row" data-path="' + plugin.path + '" data-enabled="' + plugin.enabled + '">' +
+            '<div class="plugin-meta">' +
+              '<div class="plugin-name">' + plugin.name + '</div>' +
+              '<div class="plugin-state ' + stateClass + '">' + stateLabel + '</div>' +
+            '</div>' +
+            '<button type="button" class="plugin-toggle">' + actionLabel + '</button>' +
+          '</div>'
+        );
+      }).join('');
+    }
+
+    function setActiveTopTab(tabName) {
+      activeTopTab = tabName === 'plugins' ? 'plugins' : 'file';
+      const showPlugins = activeTopTab === 'plugins';
+      fileTab.classList.toggle('active', !showPlugins);
+      pluginsTab.classList.toggle('active', showPlugins);
+      editorWrap.classList.toggle('plugins-mode', showPlugins);
+      pluginsPanel.hidden = !showPlugins;
+      pathActionBar.hidden = showPlugins || pathActionBar.hidden;
+      if (showPlugins) {
+        pathActionBar.classList.remove('show');
+        if (pendingPathActionResolver) closePathActionBar(null);
+      }
     }
 
     function pathBase(p) {
@@ -633,6 +711,7 @@
           expandedFolders.add(folder);
         }
         renderFiles(fileSearchInput.value);
+        renderPluginsPanel();
         status.textContent = '✅ Loaded ' + allFiles.length + ' files for ' + serverLabel;
         const elapsedMs = Math.round(performance.now() - started);
         showLoadPopup('📁 ' + serverLabel + ': ' + allFiles.length + ' files loaded in ' + elapsedMs + 'ms');
@@ -642,6 +721,7 @@
         }
       } catch (err) {
         if (requestId !== activeFilesRequestId) return;
+        renderPluginsPanel();
         status.textContent = '❌ ' + err.message;
       } finally {
         if (requestId === activeFilesRequestId) {
@@ -706,6 +786,7 @@
         status.textContent = '⚠️ ' + filename + ' cannot be edited';
         return;
       }
+      setActiveTopTab('file');
       loadFile(row.dataset.path);
     };
     tree.addEventListener('contextmenu', e => {
@@ -844,6 +925,33 @@
       }
     };
 
+    fileTab.addEventListener('click', () => setActiveTopTab('file'));
+    pluginsTab.addEventListener('click', () => {
+      renderPluginsPanel();
+      setActiveTopTab('plugins');
+    });
+    pluginsList.addEventListener('click', async e => {
+      const button = e.target.closest('.plugin-toggle');
+      if (!button) return;
+      const row = button.closest('.plugin-row');
+      if (!row) return;
+      const sourcePath = row.dataset.path;
+      const enabled = row.dataset.enabled === 'true';
+      const targetPath = enabled ? (sourcePath + '.disabled') : sourcePath.replace(/\.disabled$/i, '');
+      try {
+        button.disabled = true;
+        await postJson('/api/path/rename', { serverId: serverSel.value, oldPath: sourcePath, newPath: targetPath });
+        await loadFiles();
+        renderPluginsPanel();
+        setActiveTopTab('plugins');
+        status.textContent = '✅ Plugin ' + (enabled ? 'disabled' : 'enabled') + ': ' + pathBase(targetPath).replace(/\.jar(?:\.disabled)?$/i, '');
+      } catch (err) {
+        status.textContent = '❌ ' + err.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape' && !pathActionBar.hidden) {
         e.preventDefault();
@@ -935,6 +1043,7 @@
     }
 
     loadServers().catch(err => status.textContent = '❌ ' + err.message);
+    renderPluginsPanel();
     updateLineNumbers();
     renderHighlightedContent();
     syncEditorScroll();
