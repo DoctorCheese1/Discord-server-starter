@@ -262,7 +262,7 @@
 
     function highlightPlain(line) {
       let html = escapeHtml(line);
-      html = html.replace(/(^\\s*(?:#|\\/\\/|;).*$)/g, '<span class="tok-comment">$1</span>');
+      html = html.replace(/(^\s*(?:#|\/\/|;).*$)/g, '<span class="tok-comment">$1</span>');
       html = html.replace(/"(.*?)"/g, '<span class="tok-string">"$1"</span>');
       html = html.replace(/\\b(-?\\d+(?:\\.\\d+)?)\\b/g, '<span class="tok-number">$1</span>');
       html = html.replace(/\\b(true|false|null|yes|no|on|off)\\b/gi, '<span class="tok-bool">$1</span>');
@@ -422,7 +422,7 @@
           const isExpanded = expandedFolders.has(folderPath);
           parts.push(
             '<details data-folder="' + folderPath + '" ' + (isExpanded ? 'open' : '') + ' style="margin-left:' + (depth * 12 + 6) + 'px">' +
-              '<summary><span class="folder-caret">▸</span>' + folderName + '</summary>' +
+              '<summary title="' + folderPath.replace(/"/g, '&quot;') + '"><span class="folder-caret">▸</span><span class="folder-label">' + folderName + '</span></summary>' +
               '<div class="folder-children"><div class="folder-children-inner">' +
                 walk(node.folders.get(folderName), depth + 1, folderPath) +
               '</div></div>' +
