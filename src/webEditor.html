@@ -356,17 +356,16 @@
     }
 
     function listPlugins() {
-      const seen = new Set();
       const plugins = [];
       for (const file of allFiles) {
         const plugin = parsePluginFromPath(file.path);
         if (!plugin) continue;
-        const key = plugin.name.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
         plugins.push(plugin);
       }
-      return plugins.sort((a, b) => a.name.localeCompare(b.name));
+      return plugins.sort((a, b) => {
+        if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
     }
 
     function renderPluginsPanel() {

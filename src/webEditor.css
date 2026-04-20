@@ -56,15 +56,15 @@
     .tabs { height: 40px; background: #252526; display: flex; align-items: end; gap: 4px; padding: 0 8px; border-bottom: 1px solid #2d2d30; }
     .tab { background: #2d2d2d; color: #bbbbbb; border: 1px solid #3a3a3a; border-bottom: none; border-radius: 6px 6px 0 0; padding: 9px 14px; font-style: italic; min-width: 120px; cursor: pointer; }
     .tab.active { background: #1e1e1e; color: #ffffff; }
-    .plugins-panel { display: none; flex: 1; min-height: 0; overflow: auto; padding: 12px; background: #1e1e1e; }
-    .editor-wrap.plugins-mode .plugins-panel { display: block; }
+    .plugins-panel { display: none; flex: 1; min-height: 0; overflow: hidden; padding: 12px; background: #1e1e1e; }
+    .editor-wrap.plugins-mode .plugins-panel { display: flex; flex-direction: column; }
     .editor-wrap.plugins-mode .editor-grid,
     .editor-wrap.plugins-mode .footer,
     .editor-wrap.plugins-mode #apiError,
     .editor-wrap.plugins-mode .path-action-bar { display: none !important; }
     .plugins-panel-header { font-size: 18px; margin-bottom: 6px; color: #e6e6e6; }
     .plugins-status { color: #9da0a6; margin-bottom: 12px; font-size: 13px; }
-    .plugins-list { display: grid; gap: 8px; }
+    .plugins-list { display: grid; gap: 8px; max-height: calc(100% - 56px); overflow: auto; padding-bottom: 18px; }
     .plugin-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid #2d2d30; border-radius: 6px; padding: 10px 12px; background: #252526; }
     .plugin-meta { min-width: 0; }
     .plugin-name { font-size: 14px; color: #d4d4d4; word-break: break-word; }
