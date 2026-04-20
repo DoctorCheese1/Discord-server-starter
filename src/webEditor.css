@@ -56,6 +56,13 @@
     .tabs { height: 40px; background: #252526; display: flex; align-items: end; padding: 0 8px; border-bottom: 1px solid #2d2d30; }
     .tab { background: #2d2d2d; color: #bbbbbb; border: 1px solid #3a3a3a; border-bottom: none; border-radius: 6px 6px 0 0; padding: 9px 14px; font-style: italic; min-width: 120px; }
     .tab.active { background: #1e1e1e; color: #ffffff; }
+    .path-action-bar { display: none; grid-template-columns: minmax(140px, 220px) 1fr auto; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid #2d2d30; background: #252526; }
+    .path-action-bar.show { display: grid; }
+    .path-action-title { color: #d4d4d4; font-size: 13px; }
+    .path-action-bar input { width: 100%; min-width: 0; background: #171d27; border: 1px solid #2e3645; color: #d4d4d4; border-radius: 4px; padding: 7px 9px; font-family: var(--editor-font); font-size: 13px; }
+    .path-action-buttons { display: flex; gap: 8px; }
+    .path-action-buttons button { border: 1px solid #3f4656; border-radius: 4px; background: #2d2d30; color: #d4d4d4; padding: 7px 12px; cursor: pointer; font-size: 12px; }
+    .path-action-buttons button:hover { background: #094771; border-color: #0f5f92; color: #fff; }
     .editor-grid { flex: 1; display: grid; grid-template-columns: 44px 1fr; min-height: 0; overflow: hidden; }
     .line-numbers { margin: 0; background: #1a1a1a; border-right: 1px solid #3a3f4b; color: #b9c8e2; font-family: var(--editor-font); padding: 8px 10px 72px 8px; line-height: 20px; font-size: 14px; text-align: right; overflow: hidden; user-select: none; }
     .editor-stack { min-height: 0; height: 100%; display: flex; position: relative; flex: 1; }
