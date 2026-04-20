@@ -68,6 +68,7 @@
     .plugin-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid #2d2d30; border-radius: 6px; padding: 10px 12px; background: #252526; }
     .plugin-meta { min-width: 0; }
     .plugin-name { font-size: 14px; color: #d4d4d4; word-break: break-word; }
+    .plugin-path { font-size: 11px; color: #8b8f99; margin-top: 2px; word-break: break-all; }
     .plugin-state { font-size: 12px; margin-top: 3px; }
     .plugin-state.enabled { color: #6a9955; }
     .plugin-state.disabled { color: #f48771; }

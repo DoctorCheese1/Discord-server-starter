@@ -346,27 +346,31 @@
     }
 
     function parsePluginFromPath(filePath) {
-      const match = String(filePath || '').match(/^plugins\/([^/]+)\.jar(\.disabled)?$/i);
+      const match = String(filePath || '').match(/^plugins\/(.+?\.jar)(\.disabled)?$/i);
       if (!match) return null;
+      const relativeJarPath = match[1];
+      const filename = pathBase(relativeJarPath);
       return {
-        name: match[1],
+        name: filename.replace(/\.jar$/i, ''),
+        relativePath: relativeJarPath,
         path: filePath,
         enabled: !match[2]
       };
     }
 
     function listPlugins() {
-      const seen = new Set();
       const plugins = [];
       for (const file of allFiles) {
         const plugin = parsePluginFromPath(file.path);
         if (!plugin) continue;
-        const key = plugin.name.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
         plugins.push(plugin);
       }
-      return plugins.sort((a, b) => a.name.localeCompare(b.name));
+      return plugins.sort((a, b) => {
+        if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
+        const byName = a.name.localeCompare(b.name);
+        if (byName !== 0) return byName;
+        return a.relativePath.localeCompare(b.relativePath);
+      });
     }
 
     function renderPluginsPanel() {
@@ -374,7 +378,7 @@
       if (!serverSel.value) {
         pluginsStatus.textContent = 'Select a server to view plugins.';
       } else if (!plugins.length) {
-        pluginsStatus.textContent = 'No top-level plugin jars found in /plugins.';
+        pluginsStatus.textContent = 'No plugin jars found under /plugins.';
       } else {
         pluginsStatus.textContent = plugins.length + ' plugin' + (plugins.length === 1 ? '' : 's') + ' found.';
       }
@@ -387,6 +391,7 @@
           '<div class="plugin-row" data-path="' + plugin.path + '" data-enabled="' + plugin.enabled + '">' +
             '<div class="plugin-meta">' +
               '<div class="plugin-name">' + plugin.name + '</div>' +
+              '<div class="plugin-path">plugins/' + plugin.relativePath + '</div>' +
               '<div class="plugin-state ' + stateClass + '">' + stateLabel + '</div>' +
             '</div>' +
             '<button type="button" class="plugin-toggle">' + actionLabel + '</button>' +
