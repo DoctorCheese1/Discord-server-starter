@@ -144,6 +144,51 @@
     .tree-row.file.ext-log, .tree-row.file.ext-txt { color: #b5cea8; }
     .tree-row.file.ext-js, .tree-row.file.ext-mjs, .tree-row.file.ext-cjs { color: #ffd700; }
 
+    /* Keep folder/plugin scrollbars visibly reserved and high-contrast */
+    .sidebar,
+    .plugins-panel,
+    .plugins-list {
+      scrollbar-gutter: stable;
+      scrollbar-width: auto;
+      scrollbar-color: #c7c7c7 #232323;
+    }
+
+    .sidebar::-webkit-scrollbar,
+    .plugins-panel::-webkit-scrollbar,
+    .plugins-list::-webkit-scrollbar {
+      width: 16px;
+      height: 16px;
+      background: #232323;
+    }
+
+    .sidebar::-webkit-scrollbar-track,
+    .plugins-panel::-webkit-scrollbar-track,
+    .plugins-list::-webkit-scrollbar-track {
+      background: #232323;
+      border-left: 1px solid #151515;
+    }
+
+    .sidebar::-webkit-scrollbar-thumb,
+    .plugins-panel::-webkit-scrollbar-thumb,
+    .plugins-list::-webkit-scrollbar-thumb {
+      background: #c7c7c7;
+      border: 3px solid #232323;
+      border-radius: 10px;
+      min-height: 34px;
+    }
+
+    .sidebar::-webkit-scrollbar-thumb:hover,
+    .plugins-panel::-webkit-scrollbar-thumb:hover,
+    .plugins-list::-webkit-scrollbar-thumb:hover {
+      background: #d8d8d8;
+    }
+
+    .sidebar::-webkit-scrollbar-corner,
+    .plugins-panel::-webkit-scrollbar-corner,
+    .plugins-list::-webkit-scrollbar-corner {
+      background: #232323;
+    }
+
     .footer { height: 28px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #2d2d30; background: #007acc; padding: 0 10px; color: #ffffff; font-size: 12px; }
     .api-error { display: none; border-top: 1px solid #4b2222; background: #3a1212; color: #ffbcbc; padding: 6px 10px; font-size: 12px; font-family: Consolas, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .api-error.show { display: block; }
