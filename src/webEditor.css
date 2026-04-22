@@ -144,49 +144,46 @@
     .tree-row.file.ext-log, .tree-row.file.ext-txt { color: #b5cea8; }
     .tree-row.file.ext-js, .tree-row.file.ext-mjs, .tree-row.file.ext-cjs { color: #ffd700; }
 
-    /* Keep folder/plugin scrollbars visibly reserved and high-contrast */
+    /* Force visible, high-contrast scrollbars in app webviews */
     .sidebar,
-    .plugins-panel,
-    .plugins-list {
-      scrollbar-gutter: stable;
-      scrollbar-width: auto;
-      scrollbar-color: #c7c7c7 #232323;
+    .plugins-list,
+    .line-numbers,
+    textarea {
+      scrollbar-width: thin;
+      scrollbar-color: #b7b7b7 #2a2a2a;
     }
 
     .sidebar::-webkit-scrollbar,
-    .plugins-panel::-webkit-scrollbar,
-    .plugins-list::-webkit-scrollbar {
-      width: 16px;
-      height: 16px;
-      background: #232323;
+    .plugins-list::-webkit-scrollbar,
+    .line-numbers::-webkit-scrollbar,
+    textarea::-webkit-scrollbar {
+      width: 14px;
+      height: 14px;
     }
 
     .sidebar::-webkit-scrollbar-track,
-    .plugins-panel::-webkit-scrollbar-track,
-    .plugins-list::-webkit-scrollbar-track {
-      background: #232323;
-      border-left: 1px solid #151515;
+    .plugins-list::-webkit-scrollbar-track,
+    .line-numbers::-webkit-scrollbar-track,
+    textarea::-webkit-scrollbar-track {
+      background: #2a2a2a;
+      border-left: 1px solid #1f1f1f;
     }
 
     .sidebar::-webkit-scrollbar-thumb,
-    .plugins-panel::-webkit-scrollbar-thumb,
-    .plugins-list::-webkit-scrollbar-thumb {
-      background: #c7c7c7;
-      border: 3px solid #232323;
+    .plugins-list::-webkit-scrollbar-thumb,
+    .line-numbers::-webkit-scrollbar-thumb,
+    textarea::-webkit-scrollbar-thumb {
+      background: #b7b7b7;
+      border: 3px solid #2a2a2a;
       border-radius: 10px;
-      min-height: 34px;
+      min-height: 28px;
     }
 
     .sidebar::-webkit-scrollbar-thumb:hover,
-    .plugins-panel::-webkit-scrollbar-thumb:hover,
-    .plugins-list::-webkit-scrollbar-thumb:hover {
-      background: #d8d8d8;
-    }
-
-    .sidebar::-webkit-scrollbar-corner,
-    .plugins-panel::-webkit-scrollbar-corner,
-    .plugins-list::-webkit-scrollbar-corner {
-      background: #232323;
+    .plugins-list::-webkit-scrollbar-thumb:hover,
+    .line-numbers::-webkit-scrollbar-thumb:hover,
+    textarea::-webkit-scrollbar-thumb:hover {
+      background: #d0d0d0;
     }
 
     .footer { height: 28px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #2d2d30; background: #007acc; padding: 0 10px; color: #ffffff; font-size: 12px; }
