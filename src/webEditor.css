@@ -117,6 +117,9 @@
       font-family: var(--editor-font);
       line-height: 20px;
       font-size: 14px;
+      letter-spacing: 0;
+      font-kerning: none;
+      font-variant-ligatures: none;
       padding: 8px 12px 72px;
       color: #d4d4d4;
       tab-size: 2;
@@ -136,6 +139,9 @@
       font-family: var(--editor-font);
       line-height: 20px;
       font-size: 14px;
+      letter-spacing: 0;
+      font-kerning: none;
+      font-variant-ligatures: none;
       padding: 8px 12px 72px;
       tab-size: 2;
       overflow: auto;
