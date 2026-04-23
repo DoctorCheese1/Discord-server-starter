@@ -14,16 +14,6 @@ const __dirname = path.dirname(__filename);
 const WEB_EDITOR_TEMPLATE_FILE = path.join(__dirname, 'webEditor.html');
 const WEB_EDITOR_CSS_FILE = path.join(__dirname, 'webEditor.css');
 
-function parseDirNameSet(rawValue) {
-  return new Set(
-    String(rawValue || '')
-      .split(',')
-      .map(v => v.trim())
-      .filter(Boolean)
-      .map(v => v.toLowerCase())
-  );
-}
-
 function sendJson(res, status, payload) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(payload));
@@ -127,7 +117,7 @@ function copyRecursiveSync(sourceFull, targetFull) {
   fs.copyFileSync(sourceFull, targetFull);
 }
 
-function listFiles(cwd, maxDepth = 12, excludedDirs = new Set(), includedDirs = new Set()) {
+function listFiles(cwd, maxDepth = 12) {
   const results = [];
   const emptyFolders = [];
 
@@ -141,30 +131,14 @@ function listFiles(cwd, maxDepth = 12, excludedDirs = new Set(), includedDirs = 
       const full = path.join(currentDir, entry.name);
 
       if (entry.isDirectory()) {
-        const dirName = entry.name.toLowerCase();
-        if (excludedDirs.has(dirName) && !includedDirs.has(dirName)) {
-          continue;
-        }
         if (walk(full, depth + 1, rel)) {
           subtreeHasVisibleEntries = true;
         }
         continue;
       }
 
-      if (!entry.isFile()) {
-        continue;
-      }
-
-      const ext = path.extname(entry.name).toLowerCase();
-      if (!TEXT_EXTENSIONS.has(ext)) {
-        continue;
-      }
-
       const editability = getFileEditability(full);
-      if (!editability.editable) {
-        continue;
-      }
-      results.push({ path: rel, editable: true, reason: '' });
+      results.push({ path: rel, editable: editability.editable, reason: editability.reason });
       subtreeHasVisibleEntries = true;
     }
 
@@ -239,14 +213,7 @@ export function startWebEditor() {
         }
 
         const maxDepth = Number(process.env.WEB_EDITOR_MAX_DEPTH || 12);
-        const excludedDirs = parseDirNameSet(process.env.WEB_EDITOR_EXCLUDE_DIRS || '');
-        const includedDirs = parseDirNameSet(process.env.WEB_EDITOR_INCLUDE_DIRS || '');
-        const { files, emptyFolders } = listFiles(
-          serverConfig.cwd,
-          Number.isFinite(maxDepth) ? maxDepth : 12,
-          excludedDirs,
-          includedDirs
-        );
+        const { files, emptyFolders } = listFiles(serverConfig.cwd, Number.isFinite(maxDepth) ? maxDepth : 12);
         return sendJson(res, 200, { files, emptyFolders });
       }
 
