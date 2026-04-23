@@ -171,6 +171,12 @@
     .tree-row.file.ext-sh, .tree-row.file.ext-bat { color: #dcdcaa; }
     .tree-row.file.ext-log, .tree-row.file.ext-txt { color: #b5cea8; }
     .tree-row.file.ext-js, .tree-row.file.ext-mjs, .tree-row.file.ext-cjs { color: #ffd700; }
+    .search-hit {
+      background: rgba(255, 215, 0, 0.28);
+      color: #fff3b0;
+      border-radius: 2px;
+      padding: 0 1px;
+    }
 
     /* Force visible, high-contrast scrollbars in app webviews */
     .sidebar,

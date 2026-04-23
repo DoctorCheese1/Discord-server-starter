@@ -411,10 +411,10 @@ export function startWebEditor() {
         if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
         if (folder && !isSafePath(serverConfig.cwd, folder)) return sendJson(res, 400, { error: 'Invalid folder path' });
         if (!query) return sendJson(res, 200, { results: [] });
+        const queryTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
 
         const searchableFiles = listSearchableFiles(serverConfig.cwd, folder);
         if (mode === 'content') {
-          const queryLower = query.toLowerCase();
           const results = [];
           for (const file of searchableFiles) {
             if (results.length >= MAX_SEARCH_RESULTS) break;
@@ -428,16 +428,23 @@ export function startWebEditor() {
             }
             const lines = text.split(/\r\n|\r|\n/);
             const matches = [];
+            const lineHits = new Set();
             for (let i = 0; i < lines.length; i++) {
-              if (lines[i].toLowerCase().includes(queryLower)) {
+              const lineLower = lines[i].toLowerCase();
+              const termMatchCount = queryTerms.reduce((count, term) => count + (lineLower.includes(term) ? 1 : 0), 0);
+              if (termMatchCount > 0) {
+                queryTerms.forEach(term => {
+                  if (lineLower.includes(term)) lineHits.add(term);
+                });
                 matches.push({ line: i + 1, preview: lines[i].slice(0, 240) });
                 if (matches.length >= 3) break;
               }
             }
-            if (matches.length) {
+            const matchedAllTerms = queryTerms.every(term => lineHits.has(term));
+            if (matches.length && matchedAllTerms) {
               results.push({
                 path: file.path,
-                score: matches.length,
+                score: matches.length * 2 + lineHits.size,
                 matches
               });
             }
@@ -446,7 +453,6 @@ export function startWebEditor() {
           return sendJson(res, 200, { results });
         }
 
-        const queryTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
         const results = searchableFiles
           .map(file => {
             const lowerPath = file.path.toLowerCase();
@@ -458,9 +464,11 @@ export function startWebEditor() {
               else if (lowerPath.includes('/' + term)) score += 70;
               else if (lowerPath.includes(term)) score += 25;
             }
-            return { path: file.path, score };
+            const matchedAllTerms = queryTerms.every(term => lowerPath.includes(term));
+            return { path: file.path, score, matchedAllTerms };
           })
-          .filter(item => item.score > 0)
+          .filter(item => item.score > 0 && item.matchedAllTerms)
+          .map(({ path: resultPath, score }) => ({ path: resultPath, score }))
           .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
           .slice(0, MAX_SEARCH_RESULTS);
         return sendJson(res, 200, { results });

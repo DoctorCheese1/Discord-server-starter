@@ -252,6 +252,26 @@
         .replace(/>/g, '&gt;');
     }
 
+    function escapeRegExp(text) {
+      return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function getSearchTerms(filter = '') {
+      return String(filter || '')
+        .trim()
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(Boolean);
+    }
+
+    function highlightMatches(text, terms) {
+      const safeText = escapeHtml(String(text || ''));
+      if (!terms || !terms.length) return safeText;
+      const pattern = terms.map(term => escapeRegExp(term)).join('|');
+      if (!pattern) return safeText;
+      return safeText.replace(new RegExp('(' + pattern + ')', 'gi'), '<mark class="search-hit">$1</mark>');
+    }
+
     function languageForFile(filePath) {
       const lower = (filePath || '').toLowerCase();
       if (lower.endsWith('.json')) return 'json';
@@ -589,6 +609,7 @@
 
     function renderFiles(filter = '') {
       const query = filter.trim().toLowerCase();
+      const queryTerms = getSearchTerms(query);
       const folderBarFiles = allFiles.filter(f => !isPluginArtifactPath(f.path));
       const hasRemoteSearch = Array.isArray(searchResults);
       const searchPaths = hasRemoteSearch ? new Set(searchResults.map(item => item.path)) : null;
@@ -646,7 +667,8 @@
             ? ' • line ' + matchMeta.matches[0].line + ': ' + matchMeta.matches[0].preview
             : '';
           const title = fileEntry.editable ? (filePath + preview) : (fileEntry.reason || (pathBase(filePath) + ' cannot be edited'));
-          parts.push('<div class="tree-row file' + ext + lockedClass + '" data-path="' + filePath + '" data-editable="' + fileEntry.editable + '" title="' + title.replace(/"/g, '&quot;') + '" style="padding-left:' + (depth * 8 + 18) + 'px">' + pathBase(filePath) + '</div>');
+          const highlightedName = highlightMatches(pathBase(filePath), queryTerms);
+          parts.push('<div class="tree-row file' + ext + lockedClass + '" data-path="' + filePath + '" data-editable="' + fileEntry.editable + '" title="' + title.replace(/"/g, '&quot;') + '" style="padding-left:' + (depth * 8 + 18) + 'px">' + highlightedName + '</div>');
         }
         if (node.explicitEmpty && node.folders.size === 0 && node.files.length === 0) {
           parts.push('<div class="tree-row empty" style="padding-left:' + (depth * 8 + 18) + 'px">(folder empty)</div>');
