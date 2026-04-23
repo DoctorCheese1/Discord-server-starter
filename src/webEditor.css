@@ -117,6 +117,9 @@
       font-family: var(--editor-font);
       line-height: 20px;
       font-size: 14px;
+      letter-spacing: 0;
+      font-kerning: none;
+      font-variant-ligatures: none;
       padding: 8px 12px 72px;
       color: #d4d4d4;
       tab-size: 2;
@@ -136,15 +139,18 @@
       font-family: var(--editor-font);
       line-height: 20px;
       font-size: 14px;
+      letter-spacing: 0;
+      font-kerning: none;
+      font-variant-ligatures: none;
       padding: 8px 12px 72px;
       tab-size: 2;
       overflow: auto;
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-      word-break: break-word;
+      white-space: pre;
+      overflow-wrap: normal;
+      word-break: normal;
     }
     textarea::selection { background: rgba(38, 79, 120, 0.65); }
-    .code-line { display: block; height: 20px; }
+    .code-line { display: block; height: 20px; line-height: 20px; }
     .code-line.error-line { background: rgba(244, 135, 113, 0.2); }
     .tok-key { color: #9cdcfe; }
     .tok-string { color: #ce9178; }

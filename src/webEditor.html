@@ -20,6 +20,10 @@
         <button class="menu-item" id="renamePath">Rename File/Folder</button>
         <button class="menu-item" id="movePath">Move File/Folder</button>
         <button class="menu-item" id="deletePath">Delete File/Folder</button>
+        <button class="menu-item" id="uploadFileBtn">Upload File</button>
+        <button class="menu-item" id="uploadFolderBtn">Upload Folder</button>
+        <button class="menu-item" id="downloadFileBtn">Download File</button>
+        <button class="menu-item" id="downloadFolderBtn">Download Folder</button>
         <button class="menu-item" id="save">Save</button>
         <button class="menu-item" id="revert">Revert File</button>
         <button class="menu-item" id="exit">Exit</button>
@@ -48,7 +52,12 @@
   <div class="toolbar">
     <select id="server"></select>
     <input id="key" placeholder="WEB_EDITOR_API_KEY" autocomplete="off" />
-    <input id="fileSearch" placeholder="Filter files..." />
+    <select id="searchMode">
+      <option value="path">Path search</option>
+      <option value="content">Content search</option>
+    </select>
+    <input id="searchScope" placeholder="Folder scope (optional, e.g. plugins)" />
+    <input id="fileSearch" placeholder="Smart search files/folders..." />
   </div>
   <div class="layout">
     <aside class="sidebar">
@@ -98,6 +107,8 @@
     <button type="button" class="context-menu-item" data-action="move">Move</button>
     <button type="button" class="context-menu-item danger" data-action="delete">Delete</button>
   </div>
+  <input id="uploadSingleInput" type="file" hidden />
+  <input id="uploadFolderInput" type="file" webkitdirectory directory multiple hidden />
 
   <script>
     const status = document.getElementById('status');
@@ -107,6 +118,10 @@
     const highlight = document.getElementById('highlight');
     const keyInput = document.getElementById('key');
     const fileSearchInput = document.getElementById('fileSearch');
+    const searchModeInput = document.getElementById('searchMode');
+    const searchScopeInput = document.getElementById('searchScope');
+    const uploadSingleInput = document.getElementById('uploadSingleInput');
+    const uploadFolderInput = document.getElementById('uploadFolderInput');
     const savePopup = document.getElementById('savePopup');
     const loadPopup = document.getElementById('loadPopup');
     const errorPopup = document.getElementById('errorPopup');
@@ -141,6 +156,8 @@
     let contextTarget = { type: 'root', path: '' };
     let pendingPathActionResolver = null;
     let activeTopTab = 'file';
+    let lastSearchTimer = null;
+    let searchResults = null;
     const expandedFolders = new Set();
 
     function loadUiState() {
@@ -433,6 +450,18 @@
       return stem + '.copy' + ext;
     }
 
+    function deriveDuplicateFolderPath(folderPath) {
+      return folderPath + '-copy';
+    }
+
+    function toDownloadUrl(pathValue, type) {
+      const serverId = encodeURIComponent(serverSel.value);
+      const rel = encodeURIComponent(pathValue);
+      return type === 'folder'
+        ? '/api/download/folder?serverId=' + serverId + '&path=' + rel
+        : '/api/download/file?serverId=' + serverId + '&path=' + rel;
+    }
+
     function remapCurrentFilePath(fromPath, toPath) {
       if (!currentFile) return;
       if (currentFile === fromPath) {
@@ -558,9 +587,11 @@
     function renderFiles(filter = '') {
       const query = filter.trim().toLowerCase();
       const folderBarFiles = allFiles.filter(f => !isPluginArtifactPath(f.path));
-      const files = query
-        ? folderBarFiles.filter(f => f.path.toLowerCase().includes(query))
-        : folderBarFiles;
+      const hasRemoteSearch = Array.isArray(searchResults);
+      const searchPaths = hasRemoteSearch ? new Set(searchResults.map(item => item.path)) : null;
+      const files = hasRemoteSearch
+        ? folderBarFiles.filter(f => searchPaths.has(f.path))
+        : (query ? folderBarFiles.filter(f => f.path.toLowerCase().includes(query)) : folderBarFiles);
 
       const root = { folders: new Map(), files: [], explicitEmpty: false };
       function ensureFolderNode(folderPath) {
@@ -607,7 +638,11 @@
           const filePath = fileEntry.path;
           const ext = ' ext-' + ((filePath.split('.').pop() || 'plain').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
           const lockedClass = fileEntry.editable ? '' : ' locked';
-          const title = fileEntry.editable ? filePath : (fileEntry.reason || (pathBase(filePath) + ' cannot be edited'));
+          const matchMeta = hasRemoteSearch ? searchResults.find(item => item.path === filePath) : null;
+          const preview = matchMeta && Array.isArray(matchMeta.matches) && matchMeta.matches.length
+            ? ' • line ' + matchMeta.matches[0].line + ': ' + matchMeta.matches[0].preview
+            : '';
+          const title = fileEntry.editable ? (filePath + preview) : (fileEntry.reason || (pathBase(filePath) + ' cannot be edited'));
           parts.push('<div class="tree-row file' + ext + lockedClass + '" data-path="' + filePath + '" data-editable="' + fileEntry.editable + '" title="' + title.replace(/"/g, '&quot;') + '" style="padding-left:' + (depth * 8 + 18) + 'px">' + pathBase(filePath) + '</div>');
         }
         if (node.explicitEmpty && node.folders.size === 0 && node.files.length === 0) {
@@ -619,6 +654,79 @@
       const treeHtml = walk(root, 0);
       tree.innerHTML = treeHtml || '<div class="tree-row empty" style="padding-left:12px; color:#9da0a6;">No files found (clear filter or increase folder depth).</div>';
       markActiveFile();
+    }
+
+    async function runSmartSearch() {
+      const query = fileSearchInput.value.trim();
+      if (!query) {
+        searchResults = null;
+        renderFiles('');
+        status.textContent = 'Ready';
+        return;
+      }
+      const mode = searchModeInput.value;
+      const scope = searchScopeInput.value.trim();
+      status.textContent = '⏳ Searching (' + mode + ')...';
+      const data = await fetchJson(
+        '/api/search?serverId=' + encodeURIComponent(serverSel.value) +
+        '&q=' + encodeURIComponent(query) +
+        '&mode=' + encodeURIComponent(mode) +
+        '&folder=' + encodeURIComponent(scope)
+      );
+      searchResults = data.results || [];
+      renderFiles(query);
+      status.textContent = '🔎 Search found ' + searchResults.length + ' result(s)';
+    }
+
+    function scheduleSearch() {
+      clearTimeout(lastSearchTimer);
+      lastSearchTimer = setTimeout(() => {
+        runSmartSearch().catch(err => status.textContent = '❌ ' + err.message);
+      }, 220);
+    }
+
+    async function fileToUploadItem(file, overridePath = '') {
+      const buf = await file.arrayBuffer();
+      let binary = '';
+      const bytes = new Uint8Array(buf);
+      const chunkSize = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        const chunk = bytes.subarray(i, i + chunkSize);
+        binary += String.fromCharCode(...chunk);
+      }
+      return {
+        path: overridePath || file.name,
+        contentBase64: btoa(binary)
+      };
+    }
+
+    async function uploadFromInput(input, isFolder = false) {
+      const files = Array.from(input.files || []);
+      if (!files.length) return;
+      const targetDir = await requestPathInput('Upload target folder (optional)', pathDirname(currentFile), 'Upload');
+      if (targetDir === null) return;
+      const items = [];
+      for (const file of files) {
+        const rel = isFolder ? (file.webkitRelativePath || file.name) : file.name;
+        items.push(await fileToUploadItem(file, rel));
+      }
+      await postJson('/api/upload', { serverId: serverSel.value, targetDir: targetDir || '', items });
+      await loadFiles();
+      status.textContent = '✅ Uploaded ' + items.length + ' file(s)';
+      input.value = '';
+    }
+
+    async function downloadCurrentFile() {
+      if (!currentFile) throw new Error('No active file selected');
+      window.open(withKey(toDownloadUrl(currentFile, 'file')), '_blank');
+      status.textContent = '⬇️ Download started for ' + currentFile;
+    }
+
+    async function downloadFolderByPath() {
+      const folderPath = await requestPathInput('Folder path to download', pathDirname(currentFile), 'Download');
+      if (!folderPath) return;
+      window.open(withKey(toDownloadUrl(folderPath, 'folder')), '_blank');
+      status.textContent = '⬇️ Folder bundle download started: ' + folderPath;
     }
 
 
@@ -714,13 +822,18 @@
 
         allFiles = data.files;
         emptyFolders = data.emptyFolders || [];
+        searchResults = null;
         expandedFolders.clear();
         const restored = restoreUiState();
         setActiveTopTab(restored.activeTopTab || 'file');
         for (const folder of restored.expanded || []) {
           expandedFolders.add(folder);
         }
-        renderFiles(fileSearchInput.value);
+        if (fileSearchInput.value.trim()) {
+          await runSmartSearch();
+        } else {
+          renderFiles('');
+        }
         renderPluginsPanel();
         status.textContent = '✅ Loaded ' + allFiles.length + ' files for ' + serverLabel;
         const elapsedMs = Math.round(performance.now() - started);
@@ -831,7 +944,9 @@
       localStorage.setItem(SERVER_STORAGE_NAME, serverSel.value);
       loadFiles();
     };
-    fileSearchInput.oninput = () => renderFiles(fileSearchInput.value);
+    fileSearchInput.oninput = () => scheduleSearch();
+    searchModeInput.onchange = () => scheduleSearch();
+    searchScopeInput.oninput = () => scheduleSearch();
     keyInput.onchange = () => {
       localStorage.setItem(KEY_STORAGE_NAME, keyInput.value.trim());
       loadServers().catch(err => status.textContent = '❌ ' + err.message);
@@ -841,6 +956,12 @@
       renderHighlightedContent();
     };
     content.onscroll = () => syncEditorScroll();
+    uploadSingleInput.addEventListener('change', () => {
+      uploadFromInput(uploadSingleInput, false).catch(err => status.textContent = '❌ ' + err.message);
+    });
+    uploadFolderInput.addEventListener('change', () => {
+      uploadFromInput(uploadFolderInput, true).catch(err => status.textContent = '❌ ' + err.message);
+    });
 
     document.getElementById('save').onclick = saveCurrentFile;
     document.getElementById('revert').onclick = () => {
@@ -936,6 +1057,14 @@
       } catch (err) {
         status.textContent = '❌ ' + err.message;
       }
+    };
+    document.getElementById('uploadFileBtn').onclick = () => uploadSingleInput.click();
+    document.getElementById('uploadFolderBtn').onclick = () => uploadFolderInput.click();
+    document.getElementById('downloadFileBtn').onclick = () => {
+      downloadCurrentFile().catch(err => status.textContent = '❌ ' + err.message);
+    };
+    document.getElementById('downloadFolderBtn').onclick = () => {
+      downloadFolderByPath().catch(err => status.textContent = '❌ ' + err.message);
     };
 
     fileTab.addEventListener('click', () => setActiveTopTab('file'));
