@@ -414,6 +414,7 @@
         pathActionBar.classList.remove('show');
         if (pendingPathActionResolver) closePathActionBar(null);
       }
+      saveUiState({ activeTopTab });
     }
 
     function pathBase(p) {
@@ -593,7 +594,7 @@
           const folderPath = prefix ? prefix + '/' + folderName : folderName;
           const isExpanded = expandedFolders.has(folderPath);
           parts.push(
-            '<details data-folder="' + folderPath + '" ' + (isExpanded ? 'open' : '') + ' style="margin-left:' + (depth * 12 + 6) + 'px">' +
+            '<details class="folder-node" data-folder="' + folderPath + '" ' + (isExpanded ? 'open' : '') + ' style="--folder-indent:' + (depth * 6 + 4) + 'px">' +
               '<summary><span class="folder-caret">▸</span>' + folderName + '</summary>' +
               '<div class="folder-children"><div class="folder-children-inner">' +
                 walk(node.folders.get(folderName), depth + 1, folderPath) +
@@ -607,10 +608,10 @@
           const ext = ' ext-' + ((filePath.split('.').pop() || 'plain').toLowerCase().replace(/[^a-z0-9]+/g, '-'));
           const lockedClass = fileEntry.editable ? '' : ' locked';
           const title = fileEntry.editable ? filePath : (fileEntry.reason || (pathBase(filePath) + ' cannot be edited'));
-          parts.push('<div class="tree-row file' + ext + lockedClass + '" data-path="' + filePath + '" data-editable="' + fileEntry.editable + '" title="' + title.replace(/"/g, '&quot;') + '" style="padding-left:' + (depth * 12 + 18) + 'px">' + pathBase(filePath) + '</div>');
+          parts.push('<div class="tree-row file' + ext + lockedClass + '" data-path="' + filePath + '" data-editable="' + fileEntry.editable + '" title="' + title.replace(/"/g, '&quot;') + '" style="padding-left:' + (depth * 6 + 14) + 'px">' + pathBase(filePath) + '</div>');
         }
         if (node.explicitEmpty && node.folders.size === 0 && node.files.length === 0) {
-          parts.push('<div class="tree-row empty" style="padding-left:' + (depth * 12 + 18) + 'px">(folder empty)</div>');
+          parts.push('<div class="tree-row empty" style="padding-left:' + (depth * 6 + 14) + 'px">(folder empty)</div>');
         }
         return parts.join('');
       }
@@ -715,6 +716,7 @@
         emptyFolders = data.emptyFolders || [];
         expandedFolders.clear();
         const restored = restoreUiState();
+        setActiveTopTab(restored.activeTopTab || 'file');
         for (const folder of restored.expanded || []) {
           expandedFolders.add(folder);
         }
@@ -752,6 +754,9 @@
         markActiveFile();
         updateLineNumbers();
         renderHighlightedContent();
+        content.scrollTop = 0;
+        content.scrollLeft = 0;
+        syncEditorScroll();
       } catch (err) {
         status.textContent = '❌ ' + err.message;
       }

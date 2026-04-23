@@ -56,6 +56,15 @@
     .tree-row.file.locked::before { content: "🔒"; margin-right: 6px; }
     .tree-row.file.locked:hover { background: #332222; }
     .tree details { margin: 1px 0; }
+    .tree details.folder-node {
+      margin-left: var(--folder-indent, 6px);
+      border-left: 1px solid rgba(125, 145, 170, 0.28);
+      padding-left: 4px;
+    }
+    .tree details.folder-node > summary {
+      border-bottom: 1px solid rgba(125, 145, 170, 0.18);
+      margin-bottom: 1px;
+    }
     .tree summary { list-style: none; cursor: pointer; color: #cccccc; font-weight: 600; padding: 3px 6px; border-radius: 3px; }
     .tree summary::-webkit-details-marker { display: none; }
     .tree summary:hover { background: #1f2531; }
