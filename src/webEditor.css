@@ -108,7 +108,21 @@
     .line-numbers { margin: 0; background: #1a1a1a; border-right: 1px solid #3a3f4b; color: #b9c8e2; font-family: var(--editor-font); padding: 8px 10px 72px 8px; line-height: 20px; font-size: 14px; text-align: right; overflow: hidden; user-select: none; }
     .editor-stack { min-height: 0; height: 100%; display: flex; position: relative; flex: 1; }
     .highlight-layer {
-      display: none;
+      position: absolute;
+      inset: 0;
+      margin: 0;
+      pointer-events: none;
+      overflow: hidden;
+      white-space: pre;
+      font-family: var(--editor-font);
+      line-height: 20px;
+      font-size: 14px;
+      letter-spacing: 0;
+      font-kerning: none;
+      font-variant-ligatures: none;
+      padding: 8px 12px 72px;
+      color: #d4d4d4;
+      tab-size: 2;
     }
     textarea {
       width: 100%;
@@ -136,7 +150,7 @@
       word-break: normal;
     }
     textarea::selection { background: rgba(38, 79, 120, 0.65); }
-    .code-line { display: block; height: 20px; line-height: 20px; }
+    .code-line { display: block; line-height: 20px; min-height: 20px; }
     .code-line.error-line { background: rgba(244, 135, 113, 0.2); }
     .tok-key { color: #9cdcfe; }
     .tok-string { color: #ce9178; }
