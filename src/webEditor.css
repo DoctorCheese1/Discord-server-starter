@@ -59,7 +59,7 @@
     .tree details.folder-node {
       margin-left: var(--folder-indent, 6px);
       border-left: 1px solid rgba(125, 145, 170, 0.28);
-      padding-left: 4px;
+      padding-left: 6px;
     }
     .tree details.folder-node > summary {
       border-bottom: 1px solid rgba(125, 145, 170, 0.18);
