@@ -13,15 +13,7 @@
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; overflow: hidden; }
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: "Segoe UI", Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Segoe UI", Arial, sans-serif; }
     .window-title { height: 30px; padding: 5px 10px; font-size: 14px; background: #3c3c3c; border-bottom: 1px solid #2d2d30; color: #cccccc; }
     .menu-bar { height: 30px; display: flex; align-items: center; gap: 2px; padding: 0 8px; background: #3c3c3c; border-bottom: 1px solid #2d2d30; position: relative; z-index: 20; }
     .menu { position: relative; }
@@ -37,13 +29,8 @@
     .toolbar input, .toolbar select { background: #3c3c3c; border: 1px solid #3c3c3c; color: var(--text); border-radius: 4px; padding: 7px 10px; }
     .toolbar input { min-width: 240px; }
     .toolbar select { min-width: 200px; }
-    .layout {
-      display: grid;
-      grid-template-columns: 300px 1fr;
-      flex: 1;
-      min-height: 0;
-    }
-    .sidebar { border-right: 1px solid #212734; background: var(--panel); overflow: auto; min-height: 0; }
+    .layout { display: grid; grid-template-columns: 300px 1fr; height: calc(100vh - 149px); }
+    .sidebar { border-right: 1px solid #212734; background: var(--panel); overflow: auto; }
     .tree-head { padding: 8px 12px; border-bottom: 1px solid #232a36; }
     .tree-head input { width: 100%; background: #171d27; border: 1px solid #2e3645; color: var(--text); border-radius: 4px; padding: 7px 9px; }
     .tree { padding: 8px 5px 88px; font-family: var(--editor-font); font-size: 14px; }
