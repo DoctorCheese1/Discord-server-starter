@@ -220,7 +220,31 @@
       background: #d0d0d0;
     }
 
-    .footer { height: 28px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #2d2d30; background: #007acc; padding: 0 10px; color: #ffffff; font-size: 12px; }
+    .footer { height: 32px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #2d2d30; background: #007acc; padding: 0 10px; color: #ffffff; font-size: 12px; gap: 8px; }
+    .editor-find { display: flex; align-items: center; gap: 6px; min-width: 0; }
+    .editor-find input {
+      width: 220px;
+      max-width: 38vw;
+      background: rgba(14, 46, 77, 0.95);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: #fff;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+    .editor-find input::placeholder { color: rgba(255,255,255,0.72); }
+    .editor-find button {
+      border: 1px solid rgba(255,255,255,0.25);
+      background: rgba(10, 70, 117, 0.85);
+      color: #fff;
+      border-radius: 4px;
+      width: 24px;
+      height: 22px;
+      padding: 0;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .editor-find button:hover { background: rgba(8, 90, 150, 0.9); }
     .api-error { display: none; border-top: 1px solid #4b2222; background: #3a1212; color: #ffbcbc; padding: 6px 10px; font-size: 12px; font-family: Consolas, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .api-error.show { display: block; }
     .popup { position: fixed; top: 12px; right: 12px; background: #1f6f43; color: #fff; border: 1px solid #2ecc71; border-radius: .5rem; padding: .8rem 1rem; opacity: 0; transform: translateY(-8px); pointer-events: none; transition: opacity .2s, transform .2s; z-index: 50; }

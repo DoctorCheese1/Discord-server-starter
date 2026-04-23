@@ -91,7 +91,11 @@
       </div>
       <div class="footer">
         <div id="status">Ready</div>
-        <div>Ctrl+S Save • Ctrl+F Find in browser</div>
+        <div class="editor-find">
+          <input id="editorFindInput" type="text" placeholder="Find in file..." autocomplete="off" />
+          <button id="editorFindPrev" type="button" title="Previous match (Shift+Enter)">↑</button>
+          <button id="editorFindNext" type="button" title="Next match (Enter)">↓</button>
+        </div>
       </div>
       <div id="apiError" class="api-error"></div>
     </section>
@@ -139,6 +143,9 @@
     const pathActionInput = document.getElementById('pathActionInput');
     const pathActionSubmit = document.getElementById('pathActionSubmit');
     const pathActionCancel = document.getElementById('pathActionCancel');
+    const editorFindInput = document.getElementById('editorFindInput');
+    const editorFindPrev = document.getElementById('editorFindPrev');
+    const editorFindNext = document.getElementById('editorFindNext');
 
     const KEY_STORAGE_NAME = 'web_editor_api_key';
     const UI_STATE_STORAGE_NAME = 'web_editor_ui_state_v1';
@@ -158,6 +165,8 @@
     let activeTopTab = 'file';
     let lastSearchTimer = null;
     let searchResults = null;
+    let lastEditorFindIndex = -1;
+    let lastEditorFindQuery = '';
     const expandedFolders = new Set();
 
     function loadUiState() {
@@ -767,6 +776,43 @@
       return url + (url.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(key);
     }
 
+    function findInEditor(direction = 1) {
+      const query = editorFindInput.value.trim();
+      if (!query) {
+        status.textContent = 'Type text in "Find in file"';
+        return;
+      }
+      const haystack = content.value;
+      if (!haystack) {
+        status.textContent = 'No file content to search';
+        return;
+      }
+      const text = haystack.toLowerCase();
+      const needle = query.toLowerCase();
+
+      if (lastEditorFindQuery !== needle) {
+        lastEditorFindIndex = -1;
+        lastEditorFindQuery = needle;
+      }
+
+      const startFrom = direction >= 0
+        ? (content.selectionEnd > 0 ? content.selectionEnd : lastEditorFindIndex + 1)
+        : (content.selectionStart > 0 ? content.selectionStart - 1 : text.length - 1);
+      const foundAt = direction >= 0
+        ? text.indexOf(needle, Math.max(0, startFrom))
+        : text.lastIndexOf(needle, Math.max(0, startFrom));
+      if (foundAt < 0) {
+        status.textContent = 'No more matches for "' + query + '"';
+        return;
+      }
+
+      lastEditorFindIndex = foundAt;
+      content.focus();
+      content.setSelectionRange(foundAt, foundAt + query.length);
+      const line = splitEditorLines(haystack.slice(0, foundAt)).length;
+      status.textContent = 'Found "' + query + '" at line ' + line;
+    }
+
     async function fetchJson(url, opts) {
       const method = (opts && opts.method) || 'GET';
       const requestUrl = withKey(url);
@@ -895,6 +941,8 @@
         content.scrollTop = 0;
         content.scrollLeft = 0;
         syncEditorScroll();
+        lastEditorFindIndex = -1;
+        lastEditorFindQuery = '';
       } catch (err) {
         status.textContent = '❌ ' + err.message;
       }
@@ -972,6 +1020,14 @@
     fileSearchInput.oninput = () => scheduleSearch();
     searchModeInput.onchange = () => scheduleSearch();
     searchScopeInput.oninput = () => scheduleSearch();
+    editorFindNext.onclick = () => findInEditor(1);
+    editorFindPrev.onclick = () => findInEditor(-1);
+    editorFindInput.onkeydown = e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        findInEditor(e.shiftKey ? -1 : 1);
+      }
+    };
     keyInput.onchange = () => {
       localStorage.setItem(KEY_STORAGE_NAME, keyInput.value.trim());
       loadServers().catch(err => status.textContent = '❌ ' + err.message);
@@ -979,6 +1035,8 @@
     content.oninput = () => {
       updateLineNumbers();
       renderHighlightedContent();
+      lastEditorFindIndex = -1;
+      lastEditorFindQuery = '';
     };
     content.onscroll = () => syncEditorScroll();
     uploadSingleInput.addEventListener('change', () => {
@@ -1128,6 +1186,10 @@
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         saveCurrentFile();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        editorFindInput.focus();
+        editorFindInput.select();
       }
     });
     pathActionBar.addEventListener('submit', e => {
