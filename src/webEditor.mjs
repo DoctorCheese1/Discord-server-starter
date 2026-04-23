@@ -9,6 +9,8 @@ const TEXT_EXTENSIONS = new Set([
 ]);
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024 * 1024; // 2GB
+const MAX_SEARCH_RESULTS = 200;
+const MAX_SEARCH_FILE_BYTES = 2 * 1024 * 1024; // 2MB
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const WEB_EDITOR_TEMPLATE_FILE = path.join(__dirname, 'webEditor.html');
@@ -153,6 +155,30 @@ function listFiles(cwd, maxDepth = 12) {
     files: results.sort((a, b) => a.path.localeCompare(b.path)),
     emptyFolders: emptyFolders.sort()
   };
+}
+
+function fileMatchesTerm(filePath, term) {
+  const pathLower = String(filePath || '').toLowerCase();
+  const termLower = String(term || '').toLowerCase().trim();
+  if (!termLower) return true;
+  return pathLower.includes(termLower);
+}
+
+function listSearchableFiles(cwd, baseFolder = '') {
+  const maxDepth = Number(process.env.WEB_EDITOR_MAX_DEPTH || 12);
+  const { files } = listFiles(cwd, Number.isFinite(maxDepth) ? maxDepth : 12);
+  return files
+    .map(file => ({ ...file, fullPath: path.resolve(cwd, file.path) }))
+    .filter(file => file.editable && fileMatchesTerm(file.path, baseFolder));
+}
+
+function toSafeAttachmentName(value, fallback) {
+  const clean = String(value || '')
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, '_')
+    .replace(/^-+/, '')
+    .slice(0, 120);
+  return clean || fallback;
 }
 
 
@@ -374,6 +400,159 @@ export function startWebEditor() {
         if (!fs.existsSync(fullPath)) return sendJson(res, 404, { error: 'Path not found' });
         fs.rmSync(fullPath, { recursive: true, force: false });
         return sendJson(res, 200, { ok: true });
+      }
+
+      if (req.method === 'GET' && url.pathname === '/api/search') {
+        const serverId = url.searchParams.get('serverId');
+        const query = String(url.searchParams.get('q') || '').trim();
+        const mode = String(url.searchParams.get('mode') || 'path').toLowerCase();
+        const folder = String(url.searchParams.get('folder') || '').trim();
+        const serverConfig = findServer(serverId);
+        if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
+        if (folder && !isSafePath(serverConfig.cwd, folder)) return sendJson(res, 400, { error: 'Invalid folder path' });
+        if (!query) return sendJson(res, 200, { results: [] });
+
+        const searchableFiles = listSearchableFiles(serverConfig.cwd, folder);
+        if (mode === 'content') {
+          const queryLower = query.toLowerCase();
+          const results = [];
+          for (const file of searchableFiles) {
+            if (results.length >= MAX_SEARCH_RESULTS) break;
+            const stat = fs.statSync(file.fullPath);
+            if (stat.size > MAX_SEARCH_FILE_BYTES) continue;
+            let text = '';
+            try {
+              text = fs.readFileSync(file.fullPath, 'utf8');
+            } catch {
+              continue;
+            }
+            const lines = text.split(/\r\n|\r|\n/);
+            const matches = [];
+            for (let i = 0; i < lines.length; i++) {
+              if (lines[i].toLowerCase().includes(queryLower)) {
+                matches.push({ line: i + 1, preview: lines[i].slice(0, 240) });
+                if (matches.length >= 3) break;
+              }
+            }
+            if (matches.length) {
+              results.push({
+                path: file.path,
+                score: matches.length,
+                matches
+              });
+            }
+          }
+          results.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
+          return sendJson(res, 200, { results });
+        }
+
+        const queryTerms = query.toLowerCase().split(/\s+/).filter(Boolean);
+        const results = searchableFiles
+          .map(file => {
+            const lowerPath = file.path.toLowerCase();
+            let score = 0;
+            for (const term of queryTerms) {
+              if (lowerPath === term) score += 1000;
+              else if (lowerPath.endsWith('/' + term)) score += 250;
+              else if (path.basename(lowerPath) === term) score += 180;
+              else if (lowerPath.includes('/' + term)) score += 70;
+              else if (lowerPath.includes(term)) score += 25;
+            }
+            return { path: file.path, score };
+          })
+          .filter(item => item.score > 0)
+          .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
+          .slice(0, MAX_SEARCH_RESULTS);
+        return sendJson(res, 200, { results });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/upload') {
+        const raw = await readBody(req);
+        const body = JSON.parse(raw || '{}');
+        const serverConfig = findServer(body.serverId);
+        if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
+
+        const targetDir = String(body.targetDir || '').trim();
+        const items = Array.isArray(body.items) ? body.items : [];
+        if (!items.length) return sendJson(res, 400, { error: 'No upload items provided' });
+        if (!isSafePath(serverConfig.cwd, targetDir)) return sendJson(res, 400, { error: 'Invalid target directory' });
+
+        let written = 0;
+        for (const item of items) {
+          const relPath = String(item.path || '').replace(/^\/+/, '').trim();
+          if (!relPath) continue;
+          const targetRelPath = path.posix.join(targetDir.replace(/\\/g, '/'), relPath);
+          if (!isSafePath(serverConfig.cwd, targetRelPath)) return sendJson(res, 400, { error: 'Invalid upload path: ' + relPath });
+          const targetFull = path.resolve(serverConfig.cwd, targetRelPath);
+          const bytes = Buffer.from(String(item.contentBase64 || ''), 'base64');
+          if (bytes.length > MAX_FILE_BYTES) return sendJson(res, 400, { error: 'File too large: ' + relPath });
+          fs.mkdirSync(path.dirname(targetFull), { recursive: true });
+          fs.writeFileSync(targetFull, bytes);
+          written += 1;
+        }
+        return sendJson(res, 200, { ok: true, written });
+      }
+
+      if (req.method === 'GET' && url.pathname === '/api/download/file') {
+        const serverId = url.searchParams.get('serverId');
+        const relPath = String(url.searchParams.get('path') || '');
+        const serverConfig = findServer(serverId);
+        if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
+        if (!isSafePath(serverConfig.cwd, relPath)) return sendJson(res, 400, { error: 'Invalid path' });
+        const fullPath = path.resolve(serverConfig.cwd, relPath);
+        if (!fs.existsSync(fullPath)) return sendJson(res, 404, { error: 'Path not found' });
+        if (!fs.statSync(fullPath).isFile()) return sendJson(res, 400, { error: 'Path is not a file' });
+
+        const filename = toSafeAttachmentName(path.basename(relPath), 'download.bin');
+        const data = fs.readFileSync(fullPath);
+        res.writeHead(200, {
+          'Content-Type': 'application/octet-stream',
+          'Content-Length': data.length,
+          'Content-Disposition': `attachment; filename="${filename}"`
+        });
+        return res.end(data);
+      }
+
+      if (req.method === 'GET' && url.pathname === '/api/download/folder') {
+        const serverId = url.searchParams.get('serverId');
+        const relPath = String(url.searchParams.get('path') || '').trim();
+        const serverConfig = findServer(serverId);
+        if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
+        if (!relPath) return sendJson(res, 400, { error: 'Path is required' });
+        if (!isSafePath(serverConfig.cwd, relPath)) return sendJson(res, 400, { error: 'Invalid path' });
+        const root = path.resolve(serverConfig.cwd, relPath);
+        if (!fs.existsSync(root)) return sendJson(res, 404, { error: 'Path not found' });
+        if (!fs.statSync(root).isDirectory()) return sendJson(res, 400, { error: 'Path is not a folder' });
+
+        const bundle = [];
+        function walkFolder(current, prefix = '') {
+          const entries = fs.readdirSync(current, { withFileTypes: true });
+          for (const entry of entries) {
+            const entryFull = path.join(current, entry.name);
+            const entryRel = prefix ? `${prefix}/${entry.name}` : entry.name;
+            if (entry.isDirectory()) {
+              walkFolder(entryFull, entryRel);
+            } else if (entry.isFile()) {
+              const bytes = fs.readFileSync(entryFull);
+              bundle.push({ path: entryRel, contentBase64: bytes.toString('base64') });
+            }
+          }
+        }
+        walkFolder(root, '');
+        const output = {
+          type: 'folder-bundle',
+          folder: relPath,
+          createdAt: new Date().toISOString(),
+          files: bundle
+        };
+        const payload = Buffer.from(JSON.stringify(output), 'utf8');
+        const filename = toSafeAttachmentName(path.basename(relPath), 'folder') + '.bundle.json';
+        res.writeHead(200, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Content-Length': payload.length,
+          'Content-Disposition': `attachment; filename="${filename}"`
+        });
+        return res.end(payload);
       }
 
       return sendJson(res, 404, { error: 'Not found' });
