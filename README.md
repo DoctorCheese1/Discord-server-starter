@@ -320,12 +320,6 @@ Set environment variables:
 WEB_EDITOR_ENABLED=true
 WEB_EDITOR_PORT=8787
 WEB_EDITOR_API_KEY=your-strong-key
-# Optional: max directory scan depth (default 12)
-WEB_EDITOR_MAX_DEPTH=6
-# Optional: comma-separated subfolders to skip while scanning
-WEB_EDITOR_EXCLUDE_DIRS=steamapps,Engine,Binaries,Saved,logs
-# Optional: comma-separated subfolders to always include (overrides exclude list)
-WEB_EDITOR_INCLUDE_DIRS=Saved,Config
 # Optional: auth state polling interval in ms (min 1000, default 3600000)
 AUTH_CHECK_INTERVAL_MS=1000
 ```
@@ -338,9 +332,6 @@ Access tips:
 * If `WEB_EDITOR_API_KEY` is set, paste it into the **API Key** field in the page before loading files
 * If API calls show `Unauthorized` / `access denied`, verify the key matches `WEB_EDITOR_API_KEY` and then click into another field to trigger reload
 * You can also run `/webeditor` in Discord to confirm the URL/port and whether API-key auth is enabled
-* If folder loading feels slow for large Steam installs, lower `WEB_EDITOR_MAX_DEPTH` and/or set `WEB_EDITOR_EXCLUDE_DIRS` to skip heavy folders
-* `WEB_EDITOR_EXCLUDE_DIRS` folders are skipped unless they are also listed in `WEB_EDITOR_INCLUDE_DIRS` (include list takes priority)
-* Scanner optimization: the editor now skips non-text and non-file entries while traversing, so only editable text files are indexed/shown
 
 Features:
 * lists registered servers
