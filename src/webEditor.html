@@ -358,6 +358,10 @@
       };
     }
 
+    function isPluginArtifactPath(filePath) {
+      return /^plugins\/[^/]+?\.jar(?:\.disabled)?$/i.test(String(filePath || ''));
+    }
+
     function listPlugins() {
       const plugins = [];
       for (const file of allFiles) {
@@ -552,9 +556,10 @@
 
     function renderFiles(filter = '') {
       const query = filter.trim().toLowerCase();
+      const folderBarFiles = allFiles.filter(f => !isPluginArtifactPath(f.path));
       const files = query
-        ? allFiles.filter(f => f.path.toLowerCase().includes(query))
-        : allFiles;
+        ? folderBarFiles.filter(f => f.path.toLowerCase().includes(query))
+        : folderBarFiles;
 
       const root = { folders: new Map(), files: [], explicitEmpty: false };
       function ensureFolderNode(folderPath) {
