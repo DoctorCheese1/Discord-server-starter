@@ -4,10 +4,11 @@ function fallbackGetSearch(userId) {
   return fallbackStore.get(userId) ?? null;
 }
 
-function fallbackSaveSearch(userId, results = [], page = 0) {
+function fallbackSaveSearch(userId, results = [], page = 0, query = '') {
   fallbackStore.set(userId, {
     results: Array.isArray(results) ? results : [],
     page: Number.isFinite(Number(page)) ? Number(page) : 0,
+    query: String(query || ''),
     ts: Date.now()
   });
 }
@@ -32,8 +33,8 @@ export function getSearch(userId) {
   return impl.getSearch(userId);
 }
 
-export function saveSearch(userId, results, page) {
-  return impl.saveSearch(userId, results, page);
+export function saveSearch(userId, results, page, query = '') {
+  return impl.saveSearch(userId, results, page, query);
 }
 
 export function clearSearch(userId) {

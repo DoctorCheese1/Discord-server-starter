@@ -2,14 +2,30 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 
 const PAGE_SIZE = 10;
 
-export function buildSearchPage(results, page = 0, existing = new Set()) {
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function highlightQuery(text, query) {
+  const trimmed = String(query || '').trim();
+  if (!trimmed) return text;
+
+  const pattern = new RegExp(`(${escapeRegExp(trimmed)})`, 'ig');
+  return String(text).replace(pattern, '`$1`');
+}
+
+export function buildSearchPage(results, page = 0, existing = new Set(), query = '') {
   const safePage = Math.max(0, Number(page) || 0);
   const start = safePage * PAGE_SIZE;
   const chunk = results.slice(start, start + PAGE_SIZE);
 
   const content = chunk.length
     ? chunk
-      .map(g => `${existing.has(g.appid) ? '✅' : '•'} **${g.name}** (${g.appid})`)
+      .map(g => {
+        const highlightedName = highlightQuery(g.name, query);
+        const highlightedAppId = highlightQuery(String(g.appid), query);
+        return `${existing.has(g.appid) ? '✅' : '•'} ${highlightedName} (${highlightedAppId})`;
+      })
       .join('\n')
     : '❌ No results on this page.';
 

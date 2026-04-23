@@ -228,7 +228,10 @@
     }
 
     function splitEditorLines(text) {
-      return String(text || '').split(/\r\n|\r|\n/);
+      const normalized = String(text || '');
+      const lines = normalized.split(/\r\n|\r|\n/);
+      if (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
+      return lines;
     }
 
     function updateLineNumbers() {
