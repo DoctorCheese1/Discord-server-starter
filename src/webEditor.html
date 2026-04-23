@@ -754,6 +754,9 @@
         markActiveFile();
         updateLineNumbers();
         renderHighlightedContent();
+        content.scrollTop = 0;
+        content.scrollLeft = 0;
+        syncEditorScroll();
       } catch (err) {
         status.textContent = '❌ ' + err.message;
       }
