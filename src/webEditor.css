@@ -131,8 +131,8 @@
       border: none;
       outline: none;
       resize: none;
-      background: transparent;
-      color: transparent;
+      background: #1e1e1e;
+      color: #d4d4d4;
       caret-color: #d4d4d4;
       position: relative;
       z-index: 2;
