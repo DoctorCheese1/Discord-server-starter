@@ -346,17 +346,17 @@ client.on('interactionCreate', async interaction => {
 
     if (id.startsWith('steam_search_prev:')) {
       const page = Math.max(0, state.page - 1);
-      saveSearch(userId, state.results, page);
+      saveSearch(userId, state.results, page, state.query);
       return interaction.editReply(
-        buildSearchPage(state.results, page, existing)
+        buildSearchPage(state.results, page, existing, state.query)
       );
     }
 
     if (id.startsWith('steam_search_next:')) {
       const page = state.page + 1;
-      saveSearch(userId, state.results, page);
+      saveSearch(userId, state.results, page, state.query);
       return interaction.editReply(
-        buildSearchPage(state.results, page, existing)
+        buildSearchPage(state.results, page, existing, state.query)
       );
     }
 

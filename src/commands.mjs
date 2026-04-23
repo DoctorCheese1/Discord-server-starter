@@ -106,6 +106,30 @@ function isMutatingConfigSubcommand(sub) {
 const DISCORD_MESSAGE_LIMIT = 2000;
 const SAFE_PAGE_LIMIT = 1800;
 
+function searchScore(game, query) {
+  const q = String(query || '').trim().toLowerCase();
+  if (!q) return 0;
+
+  const name = String(game.name || '').toLowerCase();
+  const appid = String(game.appid || '');
+
+  if (appid === q) return 1000;
+  if (name === q) return 950;
+  if (name.startsWith(q)) return 900;
+
+  const tokens = q.split(/\s+/).filter(Boolean);
+  const allTokensInName = tokens.length > 0 && tokens.every(token => name.includes(token));
+
+  if (allTokensInName) {
+    return 700 - Math.min(name.indexOf(tokens[0]), 200);
+  }
+
+  if (appid.includes(q)) return 500;
+  if (name.includes(q)) return 400;
+
+  return 0;
+}
+
 function toSafeLineChunks(line, maxLen = SAFE_PAGE_LIMIT) {
   const text = String(line ?? '');
   if (text.length <= maxLen) return [text];
@@ -677,25 +701,28 @@ export async function handleCommand(interaction) {
 
   /* ---------- SEARCH REGISTRY ---------- */
     if (sub === 'search') {
-      const query = interaction.options.getString('query').toLowerCase();
+      const query = interaction.options.getString('query', true).trim();
       const games = listSteamGames();
 
-      const results = games.filter(g =>
-        g.name.toLowerCase().includes(query) ||
-        String(g.appid).includes(query)
-      );
+      const scored = games
+        .map(game => ({ game, score: searchScore(game, query) }))
+        .filter(entry => entry.score > 0)
+        .sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          return a.game.name.localeCompare(b.game.name);
+        });
+
+      const results = scored.map(entry => entry.game);
 
       if (!results.length) {
-        return interaction.editReply(
-          '❌ No results found.'
-        );
+        return interaction.editReply('❌ No results found. Try a shorter or more specific term.');
       }
 
-      saveSearch(interaction.user.id, results, 0);
+      saveSearch(interaction.user.id, results, 0, query);
 
       const existing = new Set(games.map(g => g.appid));
       return interaction.editReply(
-        buildSearchPage(results, 0, existing)
+        buildSearchPage(results, 0, existing, query)
       );
     }
 
