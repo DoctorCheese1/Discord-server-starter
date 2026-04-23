@@ -414,6 +414,7 @@
         pathActionBar.classList.remove('show');
         if (pendingPathActionResolver) closePathActionBar(null);
       }
+      saveUiState({ activeTopTab });
     }
 
     function pathBase(p) {
@@ -715,6 +716,7 @@
         emptyFolders = data.emptyFolders || [];
         expandedFolders.clear();
         const restored = restoreUiState();
+        setActiveTopTab(restored.activeTopTab || 'file');
         for (const folder of restored.expanded || []) {
           expandedFolders.add(folder);
         }
