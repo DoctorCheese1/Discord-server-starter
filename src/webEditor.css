@@ -108,6 +108,10 @@
     .plugin-toggle { border: 1px solid #3f4656; border-radius: 4px; background: #2d2d30; color: #d4d4d4; padding: 6px 10px; cursor: pointer; font-size: 12px; }
     .plugin-toggle:hover:not(:disabled) { background: #094771; border-color: #0f5f92; color: #fff; }
     .plugin-toggle:disabled { opacity: .6; cursor: wait; }
+    .plugin-actions { display: flex; gap: 8px; align-items: center; }
+    .plugin-delete { border: 1px solid #744343; border-radius: 4px; background: #3b2424; color: #f2c5c5; padding: 6px 10px; cursor: pointer; font-size: 12px; }
+    .plugin-delete:hover:not(:disabled) { background: #7a2f2f; border-color: #a84d4d; color: #fff; }
+    .plugin-delete:disabled { opacity: .6; cursor: wait; }
     .path-action-bar { display: none; grid-template-columns: minmax(140px, 220px) 1fr auto; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid #2d2d30; background: #252526; }
     .path-action-bar.show { display: grid; }
     .path-action-title { color: #d4d4d4; font-size: 13px; }
