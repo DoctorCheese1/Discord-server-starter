@@ -81,8 +81,17 @@
             <select id="pluginPlatform">
               <option value="paper">paper</option>
               <option value="purpur">purpur</option>
+              <option value="folia">folia</option>
               <option value="spigot">spigot</option>
               <option value="bukkit">bukkit</option>
+              <option value="velocity">velocity</option>
+              <option value="waterfall">waterfall</option>
+              <option value="bungeecord">bungeecord</option>
+              <option value="sponge">sponge</option>
+              <option value="fabric">fabric</option>
+              <option value="quilt">quilt</option>
+              <option value="forge">forge</option>
+              <option value="neoforge">neoforge</option>
             </select>
             <input id="pluginMcVersion" placeholder="Minecraft version (e.g. 1.21.1)" />
             <input id="pluginQuery" placeholder="Plugin name/slug (Modrinth) or resource URL/ID (Spigot)" />
@@ -472,7 +481,10 @@
               '<div class="plugin-path">plugins/' + plugin.relativePath + '</div>' +
               '<div class="plugin-state ' + stateClass + '">' + stateLabel + '</div>' +
             '</div>' +
-            '<button type="button" class="plugin-toggle">' + actionLabel + '</button>' +
+            '<div class="plugin-actions">' +
+              '<button type="button" class="plugin-toggle">' + actionLabel + '</button>' +
+              '<button type="button" class="plugin-delete">Delete</button>' +
+            '</div>' +
           '</div>'
         );
       }).join('');
@@ -631,8 +643,8 @@
       status.textContent = '✅ Moved to ' + toPath;
     }
 
-    async function deleteAnyPath(targetPath) {
-      if (!confirm('Delete "' + targetPath + '"? This cannot be undone.')) return;
+    async function deleteAnyPath(targetPath, skipConfirm = false) {
+      if (!skipConfirm && !confirm('Delete "' + targetPath + '"? This cannot be undone.')) return;
       await postJson('/api/path/delete', { serverId: serverSel.value, path: targetPath });
       if (currentFile === targetPath || currentFile.startsWith(targetPath + '/')) {
         currentFile = '';
@@ -1183,15 +1195,32 @@
       setActiveTopTab('plugins');
     });
     pluginsList.addEventListener('click', async e => {
-      const button = e.target.closest('.plugin-toggle');
-      if (!button) return;
-      const row = button.closest('.plugin-row');
+      const actionButton = e.target.closest('.plugin-toggle, .plugin-delete');
+      if (!actionButton) return;
+      const row = actionButton.closest('.plugin-row');
       if (!row) return;
       const sourcePath = row.dataset.path;
+
+      if (actionButton.classList.contains('plugin-delete')) {
+        if (!confirm('Delete plugin "' + sourcePath + '"? This cannot be undone.')) return;
+        try {
+          actionButton.disabled = true;
+          await deleteAnyPath(sourcePath, true);
+          renderPluginsPanel();
+          setActiveTopTab('plugins');
+          status.textContent = '✅ Plugin deleted: ' + pathBase(sourcePath).replace(/\.jar(?:\.disabled)?$/i, '');
+        } catch (err) {
+          status.textContent = '❌ ' + err.message;
+        } finally {
+          actionButton.disabled = false;
+        }
+        return;
+      }
+
       const enabled = row.dataset.enabled === 'true';
       const targetPath = enabled ? (sourcePath + '.disabled') : sourcePath.replace(/\.disabled$/i, '');
       try {
-        button.disabled = true;
+        actionButton.disabled = true;
         await postJson('/api/path/rename', { serverId: serverSel.value, oldPath: sourcePath, newPath: targetPath });
         await loadFiles();
         renderPluginsPanel();
@@ -1200,7 +1229,7 @@
       } catch (err) {
         status.textContent = '❌ ' + err.message;
       } finally {
-        button.disabled = false;
+        actionButton.disabled = false;
       }
     });
 
@@ -1227,7 +1256,8 @@
         pluginDownloadStatus.innerHTML =
           '✅ <strong>' + escapeHtml(r.plugin || query) + '</strong> [' + escapeHtml(String(r.source || source).toUpperCase()) + '] ' +
           'MC ' + escapeHtml(r.minecraftVersion || (mcVersion || 'latest')) + ' • ' +
-          escapeHtml(r.loader || platform) + '<br>' +
+          'Loader: ' + escapeHtml(r.loader || platform) + '<br>' +
+          (Array.isArray(r.loaders) && r.loaders.length ? 'Loaders: ' + escapeHtml(r.loaders.join(', ')) + '<br>' : '') +
           '<a href="' + escapeHtml(r.url || '') + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(r.url || '') + '</a>' +
           (r.note ? '<br><span class="plugin-download-note">' + escapeHtml(r.note) + '</span>' : '');
       } catch (err) {

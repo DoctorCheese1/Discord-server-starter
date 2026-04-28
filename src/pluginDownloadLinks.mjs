@@ -32,11 +32,9 @@ function normalizePlatform(platform) {
 
 function modrinthLoaderCandidates(platform) {
   const selected = normalizePlatform(platform);
-  const base = [selected, 'paper', 'purpur', 'spigot', 'bukkit'];
-  if (selected === 'purpur') return ['purpur', 'paper', 'spigot', 'bukkit'];
-  if (selected === 'spigot') return ['spigot', 'paper', 'purpur', 'bukkit'];
-  if (selected === 'bukkit') return ['bukkit', 'spigot', 'paper', 'purpur'];
-  return [...new Set(base)];
+  const preferred = ['paper', 'purpur', 'folia', 'spigot', 'bukkit'];
+  const ecosystem = ['velocity', 'waterfall', 'bungeecord', 'sponge', 'fabric', 'quilt', 'forge', 'neoforge'];
+  return [...new Set([selected, ...preferred, ...ecosystem])];
 }
 
 function chooseModrinthVersion(versions, mcVersion, platform) {
@@ -99,6 +97,7 @@ async function resolveModrinthPlugin({ query, mcVersion, platform }) {
     versionNumber: selected.version_number || 'unknown',
     minecraftVersion: (selected.game_versions || [mcVersion]).find(Boolean) || 'unknown',
     loader: (selected.loaders || [platform]).find(Boolean) || platform,
+    loaders: Array.isArray(selected.loaders) ? selected.loaders : [],
     note: 'Result chosen from Modrinth plugin releases.'
   };
 }
