@@ -99,7 +99,6 @@ async function resolveModrinthPlugin({ query, mcVersion, platform }) {
     versionNumber: selected.version_number || 'unknown',
     minecraftVersion: (selected.game_versions || [mcVersion]).find(Boolean) || 'unknown',
     loader: (selected.loaders || [platform]).find(Boolean) || platform,
-    filenameHint: file.filename || '',
     note: 'Result chosen from Modrinth plugin releases.'
   };
 }
@@ -122,7 +121,6 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
     versionNumber: 'latest',
     minecraftVersion: mcVersion || 'latest supported',
     loader: 'spigot',
-    filenameHint: details.name ? `${details.name}.jar` : '',
     note: 'Spigot link always points to the latest resource file.'
   };
 }

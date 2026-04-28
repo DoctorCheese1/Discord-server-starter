@@ -72,7 +72,7 @@
       <section id="pluginsPanel" class="plugins-panel" hidden>
         <div class="plugins-panel-header">Plugin Manager</div>
         <div class="plugin-download-card">
-          <div class="plugin-download-title">Plugin Installer</div>
+          <div class="plugin-download-title">Plugin Download Link</div>
           <div class="plugin-download-controls">
             <select id="pluginSource">
               <option value="modrinth">Modrinth</option>
@@ -86,9 +86,9 @@
             </select>
             <input id="pluginMcVersion" placeholder="Minecraft version (e.g. 1.21.1)" />
             <input id="pluginQuery" placeholder="Plugin name/slug (Modrinth) or resource URL/ID (Spigot)" />
-            <button id="pluginResolveBtn" type="button">Install</button>
+            <button id="pluginResolveBtn" type="button">Get Link</button>
           </div>
-          <div id="pluginDownloadStatus" class="plugin-download-status">Ready to install into /plugins.</div>
+          <div id="pluginDownloadStatus" class="plugin-download-status">Ready.</div>
         </div>
         <div id="pluginsStatus" class="plugins-status">Load a server to view plugins.</div>
         <div id="pluginsList" class="plugins-list"></div>
@@ -1203,10 +1203,6 @@
     });
 
     pluginResolveBtn.addEventListener('click', async () => {
-      if (!serverSel.value) {
-        pluginDownloadStatus.textContent = '❌ Select a server first.';
-        return;
-      }
       const source = pluginSource.value;
       const platform = pluginPlatform.value;
       const mcVersion = pluginMcVersion.value.trim();
@@ -1217,23 +1213,21 @@
       }
 
       pluginResolveBtn.disabled = true;
-      pluginDownloadStatus.textContent = '⏳ Downloading and installing plugin...';
+      pluginDownloadStatus.textContent = '⏳ Resolving download link...';
       try {
-        const response = await postJson('/api/plugins/install', {
-          serverId: serverSel.value,
+        const response = await postJson('/api/plugins/download-link', {
           source,
           platform,
           mcVersion,
           query
         });
+        const r = response.result || {};
         pluginDownloadStatus.innerHTML =
-          '✅ Installed <strong>' + escapeHtml(response.plugin || query) + '</strong> [' + escapeHtml(String(response.source || source).toUpperCase()) + '] ' +
-          'for MC ' + escapeHtml(response.minecraftVersion || (mcVersion || 'latest')) + ' • ' +
-          escapeHtml(response.loader || platform) + '<br>' +
-          '<span class="plugin-download-note">Saved to: ' + escapeHtml(response.path || 'plugins') + '</span>';
-        await loadFiles();
-        renderPluginsPanel();
-        setActiveTopTab('plugins');
+          '✅ <strong>' + escapeHtml(r.plugin || query) + '</strong> [' + escapeHtml(String(r.source || source).toUpperCase()) + '] ' +
+          'MC ' + escapeHtml(r.minecraftVersion || (mcVersion || 'latest')) + ' • ' +
+          escapeHtml(r.loader || platform) + '<br>' +
+          '<a href="' + escapeHtml(r.url || '') + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(r.url || '') + '</a>' +
+          (r.note ? '<br><span class="plugin-download-note">' + escapeHtml(r.note) + '</span>' : '');
       } catch (err) {
         pluginDownloadStatus.textContent = '❌ ' + err.message;
       } finally {

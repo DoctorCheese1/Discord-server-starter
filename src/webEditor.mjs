@@ -281,50 +281,6 @@ export function startWebEditor() {
         }
       }
 
-      if (req.method === 'POST' && url.pathname === '/api/plugins/install') {
-        const raw = await readBody(req);
-        const body = JSON.parse(raw || '{}');
-        const serverConfig = findServer(body.serverId);
-        const source = String(body.source || '').trim().toLowerCase();
-        const query = String(body.query || '').trim();
-        const platform = String(body.platform || '').trim().toLowerCase();
-        const mcVersion = String(body.mcVersion || '').trim();
-
-        if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
-        if (!query) return sendJson(res, 400, { error: 'Plugin query is required' });
-
-        const pluginsDir = path.resolve(serverConfig.cwd, 'plugins');
-        if (!isSafePath(serverConfig.cwd, 'plugins')) return sendJson(res, 400, { error: 'Invalid plugins directory' });
-        fs.mkdirSync(pluginsDir, { recursive: true });
-
-        try {
-          const result = await getPluginDownloadLink({ source, query, platform, mcVersion });
-          const download = await fetchBinary(result.url);
-          const headerName = download.filenameFromHeader;
-          const hintName = result.filenameHint || '';
-          const fallbackName = `${result.plugin || query}.jar`;
-          const preferred = source === 'spigot'
-            ? (hintName || fallbackName)
-            : (headerName || hintName || fallbackName);
-          const filename = toSafePluginFilename(preferred, result.plugin || 'plugin');
-          const relativePath = path.posix.join('plugins', filename);
-          if (!isSafePath(serverConfig.cwd, relativePath)) return sendJson(res, 400, { error: 'Invalid plugin path' });
-
-          const targetFull = path.resolve(serverConfig.cwd, relativePath);
-          fs.writeFileSync(targetFull, download.bytes);
-          return sendJson(res, 200, {
-            ok: true,
-            plugin: result.plugin || query,
-            source: result.source || source,
-            minecraftVersion: result.minecraftVersion || (mcVersion || 'latest'),
-            loader: result.loader || platform,
-            path: relativePath
-          });
-        } catch (error) {
-          return sendJson(res, 400, { error: error?.message || 'Unable to install plugin' });
-        }
-      }
-
       if (req.method === 'GET' && url.pathname === '/api/files') {
         const serverId = url.searchParams.get('serverId');
         const serverConfig = findServer(serverId);
