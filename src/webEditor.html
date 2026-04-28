@@ -57,7 +57,8 @@
       <option value="content">Content search</option>
     </select>
     <input id="searchScope" placeholder="Folder scope (optional, e.g. plugins)" />
-    <input id="fileSearch" placeholder="Smart search files/folders..." />
+    <input id="fileSearch" placeholder="Web editor search files/folders..." />
+    <button id="runSearchBtn" type="button">Search</button>
   </div>
   <div class="layout">
     <aside class="sidebar">
@@ -152,6 +153,7 @@
     const highlight = document.getElementById('highlight');
     const keyInput = document.getElementById('key');
     const fileSearchInput = document.getElementById('fileSearch');
+    const runSearchBtn = document.getElementById('runSearchBtn');
     const searchModeInput = document.getElementById('searchMode');
     const searchScopeInput = document.getElementById('searchScope');
     const uploadSingleInput = document.getElementById('uploadSingleInput');
@@ -1069,6 +1071,15 @@
       loadFiles();
     };
     fileSearchInput.oninput = () => scheduleSearch();
+    fileSearchInput.onkeydown = e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        runSmartSearch().catch(err => status.textContent = '❌ ' + err.message);
+      }
+    };
+    runSearchBtn.onclick = () => {
+      runSmartSearch().catch(err => status.textContent = '❌ ' + err.message);
+    };
     searchModeInput.onchange = () => scheduleSearch();
     searchScopeInput.oninput = () => scheduleSearch();
     editorFindNext.onclick = () => findInEditor(1);
