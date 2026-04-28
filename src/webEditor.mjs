@@ -298,6 +298,12 @@ export function startWebEditor() {
 
         try {
           const result = await getPluginDownloadLink({ source, query, platform, mcVersion });
+          if (result?.source === 'spigot' && result?.paid) {
+            return sendJson(res, 400, {
+              error: 'This Spigot plugin is paid and cannot be auto-installed. Open the resource page and download it manually.',
+              result
+            });
+          }
           const downloaded = await fetchBinary(result.url);
           const preferredName = `${result.plugin || result.projectSlug || query}.jar`;
           const fallbackName = downloaded.filenameFromHeader || `${result.projectSlug || 'plugin'}.jar`;

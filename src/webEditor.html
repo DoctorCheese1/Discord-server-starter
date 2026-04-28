@@ -1283,12 +1283,21 @@
           query
         });
         const r = response.result || {};
+        const paidBadge = r.paid ? ' • 💰 Paid' : '';
+        const linkMarkup = r.url
+          ? '<a href="' + escapeHtml(r.url || '') + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(r.url || '') + '</a>'
+          : '<span class="plugin-download-note">No direct download URL available.</span>';
+        const resourceLinkMarkup = r.resourceUrl
+          ? '<br><a href="' + escapeHtml(r.resourceUrl) + '" target="_blank" rel="noopener noreferrer">Open Spigot Resource Page</a>'
+          : '';
         pluginDownloadStatus.innerHTML =
           '✅ <strong>' + escapeHtml(r.plugin || query) + '</strong> [' + escapeHtml(String(r.source || source).toUpperCase()) + '] ' +
+          paidBadge +
           'MC ' + escapeHtml(r.minecraftVersion || (mcVersion || 'latest')) + ' • ' +
           'Loader: ' + escapeHtml(r.loader || platform) + '<br>' +
           (Array.isArray(r.loaders) && r.loaders.length ? 'Loaders: ' + escapeHtml(r.loaders.join(', ')) + '<br>' : '') +
-          '<a href="' + escapeHtml(r.url || '') + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(r.url || '') + '</a>' +
+          linkMarkup +
+          resourceLinkMarkup +
           (r.note ? '<br><span class="plugin-download-note">' + escapeHtml(r.note) + '</span>' : '');
       } catch (err) {
         pluginDownloadStatus.textContent = '❌ ' + err.message;
