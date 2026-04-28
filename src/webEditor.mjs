@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { loadServers } from './serverStore.mjs';
+import { getPluginDownloadLink } from './pluginDownloadLinks.mjs';
 
 const TEXT_EXTENSIONS = new Set([
   '.txt', '.json', '.cfg', '.ini', '.properties', '.yaml', '.yml', '.xml', '.bat', '.sh', '.log', '.conf', '.toml'
@@ -181,6 +182,39 @@ function toSafeAttachmentName(value, fallback) {
   return clean || fallback;
 }
 
+function toSafePluginFilename(value, fallbackBase = 'plugin') {
+  const raw = String(value || '').trim();
+  const ext = path.extname(raw).toLowerCase();
+  const base = ext ? raw.slice(0, -ext.length) : raw;
+  const safeBase = toSafeAttachmentName(base, fallbackBase).replace(/_+/g, '-');
+  return `${safeBase}.jar`;
+}
+
+function inferFilenameFromHeaders(headers) {
+  const contentDisposition = headers.get('content-disposition') || '';
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) return decodeURIComponent(utf8Match[1]).replace(/["']/g, '');
+  const simpleMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+  return simpleMatch?.[1] || '';
+}
+
+async function fetchBinary(url) {
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'ServerControlBot/2.0 (plugin downloader)'
+    },
+    redirect: 'follow'
+  });
+  if (!response.ok) {
+    throw new Error(`Download failed (${response.status})`);
+  }
+  const arrayBuffer = await response.arrayBuffer();
+  return {
+    bytes: Buffer.from(arrayBuffer),
+    filenameFromHeader: inferFilenameFromHeaders(response.headers)
+  };
+}
+
 
 function editorPage(prefilledApiKey = '') {
   const template = fs.readFileSync(WEB_EDITOR_TEMPLATE_FILE, 'utf8');
@@ -225,6 +259,70 @@ export function startWebEditor() {
           cwd: s.cwd
         }));
         return sendJson(res, 200, { servers });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/plugins/download-link') {
+        const raw = await readBody(req);
+        const body = JSON.parse(raw || '{}');
+        const source = String(body.source || '').trim().toLowerCase();
+        const query = String(body.query || '').trim();
+        const platform = String(body.platform || '').trim().toLowerCase();
+        const mcVersion = String(body.mcVersion || '').trim();
+
+        if (!query) {
+          return sendJson(res, 400, { error: 'Plugin query is required' });
+        }
+
+        try {
+          const result = await getPluginDownloadLink({ source, query, platform, mcVersion });
+          return sendJson(res, 200, { result });
+        } catch (error) {
+          return sendJson(res, 400, { error: error?.message || 'Unable to resolve plugin download link' });
+        }
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/plugins/install') {
+        const raw = await readBody(req);
+        const body = JSON.parse(raw || '{}');
+        const serverConfig = findServer(body.serverId);
+        const source = String(body.source || '').trim().toLowerCase();
+        const query = String(body.query || '').trim();
+        const platform = String(body.platform || '').trim().toLowerCase();
+        const mcVersion = String(body.mcVersion || '').trim();
+
+        if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
+        if (!query) return sendJson(res, 400, { error: 'Plugin query is required' });
+
+        const pluginsDir = path.resolve(serverConfig.cwd, 'plugins');
+        if (!isSafePath(serverConfig.cwd, 'plugins')) return sendJson(res, 400, { error: 'Invalid plugins directory' });
+        fs.mkdirSync(pluginsDir, { recursive: true });
+
+        try {
+          const result = await getPluginDownloadLink({ source, query, platform, mcVersion });
+          const download = await fetchBinary(result.url);
+          const headerName = download.filenameFromHeader;
+          const hintName = result.filenameHint || '';
+          const fallbackName = `${result.plugin || query}.jar`;
+          const preferred = source === 'spigot'
+            ? (hintName || fallbackName)
+            : (headerName || hintName || fallbackName);
+          const filename = toSafePluginFilename(preferred, result.plugin || 'plugin');
+          const relativePath = path.posix.join('plugins', filename);
+          if (!isSafePath(serverConfig.cwd, relativePath)) return sendJson(res, 400, { error: 'Invalid plugin path' });
+
+          const targetFull = path.resolve(serverConfig.cwd, relativePath);
+          fs.writeFileSync(targetFull, download.bytes);
+          return sendJson(res, 200, {
+            ok: true,
+            plugin: result.plugin || query,
+            source: result.source || source,
+            minecraftVersion: result.minecraftVersion || (mcVersion || 'latest'),
+            loader: result.loader || platform,
+            path: relativePath
+          });
+        } catch (error) {
+          return sendJson(res, 400, { error: error?.message || 'Unable to install plugin' });
+        }
       }
 
       if (req.method === 'GET' && url.pathname === '/api/files') {

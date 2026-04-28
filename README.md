@@ -338,6 +338,7 @@ Features:
 * lists editable text files under each server folder
 * search files by name/path from inside the editor
 * load/save files directly from browser
+* Plugin Manager tab can download and install plugin `.jar` files directly into a server's `/plugins` folder from **Modrinth** (filtered by platform + MC version) or **Spigot** (latest resource file, saved using plugin name)
 * remembers API key in browser local storage for easier reconnects
 
 Safety limits:
