@@ -87,6 +87,7 @@
             <input id="pluginMcVersion" placeholder="Minecraft version (e.g. 1.21.1)" />
             <input id="pluginQuery" placeholder="Plugin name/slug (Modrinth) or resource URL/ID (Spigot)" />
             <button id="pluginResolveBtn" type="button">Get Link</button>
+            <button id="pluginInstallBtn" type="button">Install to /plugins</button>
           </div>
           <div id="pluginDownloadStatus" class="plugin-download-status">Ready.</div>
         </div>
@@ -158,6 +159,7 @@
     const pluginMcVersion = document.getElementById('pluginMcVersion');
     const pluginQuery = document.getElementById('pluginQuery');
     const pluginResolveBtn = document.getElementById('pluginResolveBtn');
+    const pluginInstallBtn = document.getElementById('pluginInstallBtn');
     const pluginDownloadStatus = document.getElementById('pluginDownloadStatus');
     const lineNumbers = document.getElementById('lineNumbers');
     const editorGrid = document.querySelector('.editor-grid');
@@ -1231,6 +1233,47 @@
       } catch (err) {
         pluginDownloadStatus.textContent = '❌ ' + err.message;
       } finally {
+        pluginResolveBtn.disabled = false;
+      }
+    });
+
+    pluginInstallBtn.addEventListener('click', async () => {
+      const serverId = serverSel.value;
+      if (!serverId) {
+        pluginDownloadStatus.textContent = '❌ Select a server first.';
+        return;
+      }
+
+      const source = pluginSource.value;
+      const platform = pluginPlatform.value;
+      const mcVersion = pluginMcVersion.value.trim();
+      const query = pluginQuery.value.trim();
+      if (!query) {
+        pluginDownloadStatus.textContent = '❌ Enter a plugin query first.';
+        return;
+      }
+
+      pluginInstallBtn.disabled = true;
+      pluginResolveBtn.disabled = true;
+      pluginDownloadStatus.textContent = '⏳ Downloading and installing plugin...';
+      try {
+        const response = await postJson('/api/plugins/install', {
+          serverId,
+          source,
+          platform,
+          mcVersion,
+          query
+        });
+        const pluginLabel = response.plugin || query;
+        const targetPath = response.path || 'plugins/plugin.jar';
+        pluginDownloadStatus.textContent = '✅ Installed ' + pluginLabel + ' to ' + targetPath;
+        await loadFiles();
+        renderPluginsPanel();
+        setActiveTopTab('plugins');
+      } catch (err) {
+        pluginDownloadStatus.textContent = '❌ ' + err.message;
+      } finally {
+        pluginInstallBtn.disabled = false;
         pluginResolveBtn.disabled = false;
       }
     });
