@@ -124,8 +124,12 @@
         <div id="status">Ready</div>
         <div class="editor-find">
           <input id="editorFindInput" type="text" placeholder="Find in file..." autocomplete="off" />
+          <input id="editorReplaceInput" type="text" placeholder="Replace..." autocomplete="off" />
+          <input id="editorLineJumpInput" type="number" min="1" step="1" placeholder="Ln" autocomplete="off" />
           <button id="editorFindPrev" type="button" title="Previous match (Shift+Enter)">↑</button>
           <button id="editorFindNext" type="button" title="Next match (Enter)">↓</button>
+          <button id="editorReplaceOne" type="button" title="Replace current match">R</button>
+          <button id="editorReplaceAll" type="button" title="Replace all matches">All</button>
         </div>
       </div>
       <div id="apiError" class="api-error"></div>
@@ -184,8 +188,12 @@
     const pathActionSubmit = document.getElementById('pathActionSubmit');
     const pathActionCancel = document.getElementById('pathActionCancel');
     const editorFindInput = document.getElementById('editorFindInput');
+    const editorReplaceInput = document.getElementById('editorReplaceInput');
+    const editorLineJumpInput = document.getElementById('editorLineJumpInput');
     const editorFindPrev = document.getElementById('editorFindPrev');
     const editorFindNext = document.getElementById('editorFindNext');
+    const editorReplaceOne = document.getElementById('editorReplaceOne');
+    const editorReplaceAll = document.getElementById('editorReplaceAll');
 
     const KEY_STORAGE_NAME = 'web_editor_api_key';
     const UI_STATE_STORAGE_NAME = 'web_editor_ui_state_v1';
@@ -869,6 +877,61 @@
       status.textContent = 'Found "' + query + '" at line ' + line;
     }
 
+    function getLineRange(lineNumber) {
+      const lines = splitEditorLines(content.value);
+      const safeLine = Math.min(Math.max(1, Number(lineNumber) || 1), Math.max(1, lines.length));
+      let start = 0;
+      for (let i = 0; i < safeLine - 1; i++) start += lines[i].length + 1;
+      const end = start + (lines[safeLine - 1] || '').length;
+      return { start, end, line: safeLine };
+    }
+
+    function jumpToLine(lineNumber, selectLine = false) {
+      if (!content.value) {
+        status.textContent = 'No file content to navigate';
+        return;
+      }
+      const { start, end, line } = getLineRange(lineNumber);
+      content.focus();
+      content.setSelectionRange(selectLine ? start : end, end);
+      content.scrollTop = Math.max(0, (line - 1) * 20 - 40);
+      syncEditorScroll();
+      status.textContent = (selectLine ? 'Selected' : 'Jumped to') + ' line ' + line;
+    }
+
+    function replaceInEditor(replaceAll = false) {
+      const query = editorFindInput.value.trim();
+      if (!query) return void (status.textContent = 'Type text in "Find in file"');
+      if (!content.value) return void (status.textContent = 'No file content to replace');
+      const replacement = editorReplaceInput.value;
+      const pattern = new RegExp(escapeRegExp(query), 'gi');
+
+      if (replaceAll) {
+        const matches = content.value.match(pattern);
+        if (!matches || !matches.length) return void (status.textContent = 'No matches for "' + query + '"');
+        content.value = content.value.replace(pattern, replacement);
+        updateLineNumbers();
+        renderHighlightedContent();
+        status.textContent = 'Replaced ' + matches.length + ' match(es)';
+        return;
+      }
+
+      const selected = content.value.slice(content.selectionStart, content.selectionEnd);
+      if (selected.toLowerCase() === query.toLowerCase()) {
+        const start = content.selectionStart;
+        content.setRangeText(replacement, start, content.selectionEnd, 'end');
+        const end = start + replacement.length;
+        content.setSelectionRange(start, end);
+        updateLineNumbers();
+        renderHighlightedContent();
+        status.textContent = 'Replaced current match';
+        findInEditor(1);
+        return;
+      }
+
+      findInEditor(1);
+    }
+
     async function fetchJson(url, opts) {
       const method = (opts && opts.method) || 'GET';
       const requestUrl = withKey(url);
@@ -1087,10 +1150,24 @@
     searchScopeInput.oninput = () => scheduleSearch();
     editorFindNext.onclick = () => findInEditor(1);
     editorFindPrev.onclick = () => findInEditor(-1);
+    editorReplaceOne.onclick = () => replaceInEditor(false);
+    editorReplaceAll.onclick = () => replaceInEditor(true);
     editorFindInput.onkeydown = e => {
       if (e.key === 'Enter') {
         e.preventDefault();
         findInEditor(e.shiftKey ? -1 : 1);
+      }
+    };
+    editorReplaceInput.onkeydown = e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        replaceInEditor(e.shiftKey);
+      }
+    };
+    editorLineJumpInput.onkeydown = e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        jumpToLine(editorLineJumpInput.value, e.shiftKey);
       }
     };
     keyInput.onchange = () => {
@@ -1104,6 +1181,11 @@
       lastEditorFindQuery = '';
     };
     content.onscroll = () => syncEditorScroll();
+    lineNumbers.addEventListener('click', e => {
+      const rect = lineNumbers.getBoundingClientRect();
+      const line = Math.floor((e.clientY - rect.top + lineNumbers.scrollTop - 8) / 20) + 1;
+      jumpToLine(line, true);
+    });
     uploadSingleInput.addEventListener('change', () => {
       uploadFromInput(uploadSingleInput, false).catch(err => status.textContent = '❌ ' + err.message);
     });
