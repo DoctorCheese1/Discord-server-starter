@@ -10,6 +10,10 @@
       --active: #094771;
       --danger: #f48771;
       --editor-font: "Consolas", "Menlo", "Monaco", "Liberation Mono", monospace;
+      --editor-selection: #264f78;
+      --editor-line-highlight: #2a2d2e;
+      --editor-find-bg: #515c6a;
+      --editor-find-border: #aeafad;
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; overflow: hidden; }
@@ -170,14 +174,29 @@
     textarea::selection { background: rgba(38, 79, 120, 0.65); }
     .code-line { display: block; line-height: 20px; min-height: 20px; }
     .code-line.error-line { background: rgba(244, 135, 113, 0.2); }
-    .tok-key { color: #9cdcfe; }
-    .tok-string { color: #ce9178; }
-    .tok-number { color: #b5cea8; }
-    .tok-bool { color: #569cd6; }
-    .tok-null { color: #c586c0; }
-    .tok-punct { color: #d4d4d4; }
-    .tok-comment { color: #6a9955; }
-    .tok-section { color: #4ec9b0; }
+    .tok-key,
+    .tok-property,
+    .tok-parameter { color: #9cdcfe; }
+    .tok-string,
+    .tok-char,
+    .tok-regex { color: #ce9178; }
+    .tok-number,
+    .tok-constant,
+    .tok-enum-member { color: #b5cea8; }
+    .tok-bool,
+    .tok-keyword,
+    .tok-operator,
+    .tok-control { color: #569cd6; }
+    .tok-null,
+    .tok-type,
+    .tok-class,
+    .tok-namespace { color: #4ec9b0; }
+    .tok-punct,
+    .tok-delimiter { color: #d4d4d4; }
+    .tok-comment,
+    .tok-doc { color: #6a9955; font-style: italic; }
+    .tok-section,
+    .tok-function { color: #dcdcaa; }
     .tok-attr { color: #9cdcfe; }
     .tok-tag { color: #569cd6; }
     .tok-command { color: #dcdcaa; }
@@ -190,8 +209,9 @@
     .tree-row.file.ext-log, .tree-row.file.ext-txt { color: #b5cea8; }
     .tree-row.file.ext-js, .tree-row.file.ext-mjs, .tree-row.file.ext-cjs { color: #ffd700; }
     .search-hit {
-      background: rgba(255, 215, 0, 0.28);
-      color: #fff3b0;
+      background: var(--editor-find-bg);
+      color: #ffffff;
+      border: 1px solid var(--editor-find-border);
       border-radius: 2px;
       padding: 0 1px;
     }
