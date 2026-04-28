@@ -109,6 +109,25 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
   }
 
   const details = await fetchJson(`https://api.spiget.org/v2/resources/${resourceId}`);
+  const premium = Boolean(details.premium);
+  const external = Boolean(details.external);
+  const resourceUrl = `https://www.spigotmc.org/resources/${details.tag || details.name || `resource-${resourceId}`}.${resourceId}/`;
+  if (premium) {
+    return {
+      source: 'spigot',
+      plugin: details.name || `resource-${resourceId}`,
+      projectId: resourceId,
+      projectSlug: '',
+      url: '',
+      resourceUrl,
+      versionNumber: 'latest',
+      minecraftVersion: mcVersion || 'latest supported',
+      loader: 'spigot',
+      paid: true,
+      external,
+      note: 'Paid Spigot resources cannot be auto-downloaded. Open the resource page and download manually after purchase.'
+    };
+  }
   const downloadUrl = `https://api.spiget.org/v2/resources/${resourceId}/download`;
 
   return {
@@ -117,10 +136,15 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
     projectId: resourceId,
     projectSlug: '',
     url: downloadUrl,
+    resourceUrl,
     versionNumber: 'latest',
     minecraftVersion: mcVersion || 'latest supported',
     loader: 'spigot',
-    note: 'Spigot link always points to the latest resource file.'
+    paid: false,
+    external,
+    note: external
+      ? 'This Spigot resource uses an external download link; if direct download fails, open the resource page.'
+      : 'Spigot link always points to the latest resource file via Spiget API.'
   };
 }
 
