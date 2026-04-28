@@ -96,6 +96,8 @@
             </select>
             <input id="pluginMcVersion" placeholder="Minecraft version (e.g. 1.21.1)" />
             <input id="pluginQuery" placeholder="Plugin name/slug (Modrinth) or resource URL/ID (Spigot)" />
+            <input id="spigotXfUser" placeholder="Spigot xf_user (optional)" />
+            <input id="spigotXfSession" placeholder="Spigot xf_session (optional)" />
             <button id="pluginResolveBtn" type="button">Get Link</button>
             <button id="pluginInstallBtn" type="button">Install to /plugins</button>
           </div>
@@ -175,6 +177,8 @@
     const pluginPlatform = document.getElementById('pluginPlatform');
     const pluginMcVersion = document.getElementById('pluginMcVersion');
     const pluginQuery = document.getElementById('pluginQuery');
+    const spigotXfUser = document.getElementById('spigotXfUser');
+    const spigotXfSession = document.getElementById('spigotXfSession');
     const pluginResolveBtn = document.getElementById('pluginResolveBtn');
     const pluginInstallBtn = document.getElementById('pluginInstallBtn');
     const pluginDownloadStatus = document.getElementById('pluginDownloadStatus');
@@ -217,6 +221,24 @@
     let lastEditorFindQuery = '';
     let pluginSearchFilter = '';
     const expandedFolders = new Set();
+
+    const SPIGOT_AUTH_STORAGE_KEY = 'pluginSpigotAuth';
+    try {
+      const savedAuth = JSON.parse(localStorage.getItem(SPIGOT_AUTH_STORAGE_KEY) || '{}');
+      if (savedAuth && typeof savedAuth === 'object') {
+        spigotXfUser.value = String(savedAuth.xfUser || '');
+        spigotXfSession.value = String(savedAuth.xfSession || '');
+      }
+    } catch (_) {}
+
+    function getSpigotAuthPayload() {
+      const xfUser = (spigotXfUser.value || '').trim();
+      const xfSession = (spigotXfSession.value || '').trim();
+      try {
+        localStorage.setItem(SPIGOT_AUTH_STORAGE_KEY, JSON.stringify({ xfUser, xfSession }));
+      } catch (_) {}
+      return { xfUser, xfSession };
+    }
 
     function loadUiState() {
       try {
@@ -1362,7 +1384,8 @@
           source,
           platform,
           mcVersion,
-          query
+          query,
+          spigotAuth: getSpigotAuthPayload()
         });
         const r = response.result || {};
         const paidBadge = r.paid ? ' • 💰 Paid' : '';
@@ -1413,7 +1436,8 @@
           source,
           platform,
           mcVersion,
-          query
+          query,
+          spigotAuth: getSpigotAuthPayload()
         });
         const pluginLabel = response.plugin || query;
         const targetPath = response.path || 'plugins/plugin.jar';
