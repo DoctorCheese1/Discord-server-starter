@@ -100,6 +100,7 @@
           </div>
           <div id="pluginDownloadStatus" class="plugin-download-status">Ready.</div>
         </div>
+        <input id="pluginsSearch" class="plugins-search" placeholder="Search plugins..." />
         <div id="pluginsStatus" class="plugins-status">Load a server to view plugins.</div>
         <div id="pluginsList" class="plugins-list"></div>
       </section>
@@ -161,6 +162,7 @@
     const fileTab = document.getElementById('fileTab');
     const pluginsTab = document.getElementById('pluginsTab');
     const pluginsPanel = document.getElementById('pluginsPanel');
+    const pluginsSearchInput = document.getElementById('pluginsSearch');
     const pluginsList = document.getElementById('pluginsList');
     const pluginsStatus = document.getElementById('pluginsStatus');
     const pluginSource = document.getElementById('pluginSource');
@@ -203,6 +205,7 @@
     let searchResults = null;
     let lastEditorFindIndex = -1;
     let lastEditorFindQuery = '';
+    let pluginSearchFilter = '';
     const expandedFolders = new Set();
 
     function loadUiState() {
@@ -461,13 +464,22 @@
     }
 
     function renderPluginsPanel() {
-      const plugins = listPlugins();
+      const allPlugins = listPlugins();
+      const terms = getSearchTerms(pluginSearchFilter);
+      const plugins = terms.length
+        ? allPlugins.filter(plugin => {
+            const haystack = (plugin.name + ' plugins/' + plugin.relativePath).toLowerCase();
+            return terms.every(term => haystack.includes(term));
+          })
+        : allPlugins;
       if (!serverSel.value) {
         pluginsStatus.textContent = 'Select a server to view plugins.';
-      } else if (!plugins.length) {
+      } else if (!allPlugins.length) {
         pluginsStatus.textContent = 'No plugin jars found under /plugins.';
+      } else if (pluginSearchFilter.trim() && !plugins.length) {
+        pluginsStatus.textContent = 'No plugins match "' + pluginSearchFilter.trim() + '".';
       } else {
-        pluginsStatus.textContent = plugins.length + ' plugin' + (plugins.length === 1 ? '' : 's') + ' found.';
+        pluginsStatus.textContent = plugins.length + ' of ' + allPlugins.length + ' plugin' + (allPlugins.length === 1 ? '' : 's') + ' shown.';
       }
 
       pluginsList.innerHTML = plugins.map(plugin => {
@@ -1193,6 +1205,10 @@
     pluginsTab.addEventListener('click', () => {
       renderPluginsPanel();
       setActiveTopTab('plugins');
+    });
+    pluginsSearchInput.addEventListener('input', () => {
+      pluginSearchFilter = pluginsSearchInput.value || '';
+      renderPluginsPanel();
     });
     pluginsList.addEventListener('click', async e => {
       const actionButton = e.target.closest('.plugin-toggle, .plugin-delete');

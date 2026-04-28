@@ -96,6 +96,7 @@
     .plugin-download-status { color: #b9bec8; font-size: 12px; word-break: break-word; line-height: 1.45; }
     .plugin-download-status a { color: #8ecbff; }
     .plugin-download-note { color: #9da0a6; }
+    .plugins-search { width: 100%; margin: 2px 0 10px; background: #1a1d23; border: 1px solid #313846; color: #d4d4d4; border-radius: 4px; padding: 8px 10px; font-size: 13px; }
     .plugins-status { color: #9da0a6; margin-bottom: 12px; font-size: 13px; }
     .plugins-list { display: grid; gap: 8px; flex: 1; min-height: 0; overflow: auto; padding-bottom: 12px; }
     .plugin-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid #2d2d30; border-radius: 6px; padding: 10px 12px; background: #252526; }
