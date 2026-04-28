@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { loadServers } from './serverStore.mjs';
+import { getPluginDownloadLink } from './pluginDownloadLinks.mjs';
 
 const TEXT_EXTENSIONS = new Set([
   '.txt', '.json', '.cfg', '.ini', '.properties', '.yaml', '.yml', '.xml', '.bat', '.sh', '.log', '.conf', '.toml'
@@ -225,6 +226,26 @@ export function startWebEditor() {
           cwd: s.cwd
         }));
         return sendJson(res, 200, { servers });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/plugins/download-link') {
+        const raw = await readBody(req);
+        const body = JSON.parse(raw || '{}');
+        const source = String(body.source || '').trim().toLowerCase();
+        const query = String(body.query || '').trim();
+        const platform = String(body.platform || '').trim().toLowerCase();
+        const mcVersion = String(body.mcVersion || '').trim();
+
+        if (!query) {
+          return sendJson(res, 400, { error: 'Plugin query is required' });
+        }
+
+        try {
+          const result = await getPluginDownloadLink({ source, query, platform, mcVersion });
+          return sendJson(res, 200, { result });
+        } catch (error) {
+          return sendJson(res, 400, { error: error?.message || 'Unable to resolve plugin download link' });
+        }
       }
 
       if (req.method === 'GET' && url.pathname === '/api/files') {
