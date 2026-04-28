@@ -182,6 +182,39 @@ function toSafeAttachmentName(value, fallback) {
   return clean || fallback;
 }
 
+function toSafePluginFilename(value, fallbackBase = 'plugin') {
+  const raw = String(value || '').trim();
+  const ext = path.extname(raw).toLowerCase();
+  const base = ext ? raw.slice(0, -ext.length) : raw;
+  const safeBase = toSafeAttachmentName(base, fallbackBase).replace(/_+/g, '-');
+  return `${safeBase}.jar`;
+}
+
+function inferFilenameFromHeaders(headers) {
+  const contentDisposition = headers.get('content-disposition') || '';
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) return decodeURIComponent(utf8Match[1]).replace(/["']/g, '');
+  const simpleMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+  return simpleMatch?.[1] || '';
+}
+
+async function fetchBinary(url) {
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'ServerControlBot/2.0 (plugin downloader)'
+    },
+    redirect: 'follow'
+  });
+  if (!response.ok) {
+    throw new Error(`Download failed (${response.status})`);
+  }
+  const arrayBuffer = await response.arrayBuffer();
+  return {
+    bytes: Buffer.from(arrayBuffer),
+    filenameFromHeader: inferFilenameFromHeaders(response.headers)
+  };
+}
+
 
 function editorPage(prefilledApiKey = '') {
   const template = fs.readFileSync(WEB_EDITOR_TEMPLATE_FILE, 'utf8');
