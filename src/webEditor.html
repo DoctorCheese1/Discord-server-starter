@@ -71,6 +71,25 @@
       </div>
       <section id="pluginsPanel" class="plugins-panel" hidden>
         <div class="plugins-panel-header">Plugin Manager</div>
+        <div class="plugin-download-card">
+          <div class="plugin-download-title">Plugin Download Link</div>
+          <div class="plugin-download-controls">
+            <select id="pluginSource">
+              <option value="modrinth">Modrinth</option>
+              <option value="spigot">Spigot</option>
+            </select>
+            <select id="pluginPlatform">
+              <option value="paper">paper</option>
+              <option value="purpur">purpur</option>
+              <option value="spigot">spigot</option>
+              <option value="bukkit">bukkit</option>
+            </select>
+            <input id="pluginMcVersion" placeholder="Minecraft version (e.g. 1.21.1)" />
+            <input id="pluginQuery" placeholder="Plugin name/slug (Modrinth) or resource URL/ID (Spigot)" />
+            <button id="pluginResolveBtn" type="button">Get Link</button>
+          </div>
+          <div id="pluginDownloadStatus" class="plugin-download-status">Ready.</div>
+        </div>
         <div id="pluginsStatus" class="plugins-status">Load a server to view plugins.</div>
         <div id="pluginsList" class="plugins-list"></div>
       </section>
@@ -134,6 +153,12 @@
     const pluginsPanel = document.getElementById('pluginsPanel');
     const pluginsList = document.getElementById('pluginsList');
     const pluginsStatus = document.getElementById('pluginsStatus');
+    const pluginSource = document.getElementById('pluginSource');
+    const pluginPlatform = document.getElementById('pluginPlatform');
+    const pluginMcVersion = document.getElementById('pluginMcVersion');
+    const pluginQuery = document.getElementById('pluginQuery');
+    const pluginResolveBtn = document.getElementById('pluginResolveBtn');
+    const pluginDownloadStatus = document.getElementById('pluginDownloadStatus');
     const lineNumbers = document.getElementById('lineNumbers');
     const editorGrid = document.querySelector('.editor-grid');
     const editorWrap = document.querySelector('.editor-wrap');
@@ -1174,6 +1199,39 @@
         status.textContent = '❌ ' + err.message;
       } finally {
         button.disabled = false;
+      }
+    });
+
+    pluginResolveBtn.addEventListener('click', async () => {
+      const source = pluginSource.value;
+      const platform = pluginPlatform.value;
+      const mcVersion = pluginMcVersion.value.trim();
+      const query = pluginQuery.value.trim();
+      if (!query) {
+        pluginDownloadStatus.textContent = '❌ Enter a plugin query first.';
+        return;
+      }
+
+      pluginResolveBtn.disabled = true;
+      pluginDownloadStatus.textContent = '⏳ Resolving download link...';
+      try {
+        const response = await postJson('/api/plugins/download-link', {
+          source,
+          platform,
+          mcVersion,
+          query
+        });
+        const r = response.result || {};
+        pluginDownloadStatus.innerHTML =
+          '✅ <strong>' + escapeHtml(r.plugin || query) + '</strong> [' + escapeHtml(String(r.source || source).toUpperCase()) + '] ' +
+          'MC ' + escapeHtml(r.minecraftVersion || (mcVersion || 'latest')) + ' • ' +
+          escapeHtml(r.loader || platform) + '<br>' +
+          '<a href="' + escapeHtml(r.url || '') + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(r.url || '') + '</a>' +
+          (r.note ? '<br><span class="plugin-download-note">' + escapeHtml(r.note) + '</span>' : '');
+      } catch (err) {
+        pluginDownloadStatus.textContent = '❌ ' + err.message;
+      } finally {
+        pluginResolveBtn.disabled = false;
       }
     });
 
