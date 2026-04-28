@@ -674,9 +674,10 @@
       const queryTerms = getSearchTerms(query);
       const folderBarFiles = allFiles.filter(f => !isPluginArtifactPath(f.path));
       const hasRemoteSearch = Array.isArray(searchResults);
-      const searchPaths = hasRemoteSearch ? new Set(searchResults.map(item => item.path)) : null;
+      const searchPaths = hasRemoteSearch ? new Set(searchResults.filter(item => item.type !== 'folder').map(item => item.path)) : null;
+      const searchFolders = hasRemoteSearch ? searchResults.filter(item => item.type === 'folder').map(item => item.path) : [];
       const files = hasRemoteSearch
-        ? folderBarFiles.filter(f => searchPaths.has(f.path))
+        ? folderBarFiles.filter(f => searchPaths.has(f.path) || searchFolders.some(folder => f.path.startsWith(folder + '/')))
         : (query ? folderBarFiles.filter(f => f.path.toLowerCase().includes(query)) : folderBarFiles);
 
       const root = { folders: new Map(), files: [], explicitEmpty: false };

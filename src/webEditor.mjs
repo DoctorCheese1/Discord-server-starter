@@ -546,7 +546,7 @@ export function startWebEditor() {
           return sendJson(res, 200, { results });
         }
 
-        const results = searchableFiles
+        const fileResults = searchableFiles
           .map(file => {
             const lowerPath = file.path.toLowerCase();
             let score = 0;
@@ -558,10 +558,36 @@ export function startWebEditor() {
               else if (lowerPath.includes(term)) score += 25;
             }
             const matchedAllTerms = queryTerms.every(term => lowerPath.includes(term));
-            return { path: file.path, score, matchedAllTerms };
+            return { type: 'file', path: file.path, score, matchedAllTerms };
           })
-          .filter(item => item.score > 0 && item.matchedAllTerms)
-          .map(({ path: resultPath, score }) => ({ path: resultPath, score }))
+          .filter(item => item.score > 0 && item.matchedAllTerms);
+
+        const folderSet = new Set();
+        for (const file of searchableFiles) {
+          const segments = file.path.split('/');
+          for (let i = 1; i < segments.length; i++) {
+            folderSet.add(segments.slice(0, i).join('/'));
+          }
+        }
+
+        const folderResults = Array.from(folderSet)
+          .filter(folderPath => !folder || fileMatchesTerm(folderPath, folder))
+          .map(folderPath => {
+            const lowerPath = folderPath.toLowerCase();
+            let score = 0;
+            for (const term of queryTerms) {
+              if (lowerPath === term) score += 1050;
+              else if (lowerPath.endsWith('/' + term)) score += 280;
+              else if (path.basename(lowerPath) === term) score += 220;
+              else if (lowerPath.includes('/' + term)) score += 80;
+              else if (lowerPath.includes(term)) score += 30;
+            }
+            const matchedAllTerms = queryTerms.every(term => lowerPath.includes(term));
+            return { type: 'folder', path: folderPath, score, matchedAllTerms };
+          })
+          .filter(item => item.score > 0 && item.matchedAllTerms);
+
+        const results = [...fileResults, ...folderResults]
           .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
           .slice(0, MAX_SEARCH_RESULTS);
         return sendJson(res, 200, { results });
