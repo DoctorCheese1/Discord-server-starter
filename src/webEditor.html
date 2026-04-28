@@ -130,7 +130,6 @@
           <button id="editorFindNext" type="button" title="Next match (Enter)">↓</button>
           <button id="editorReplaceOne" type="button" title="Replace current match">R</button>
           <button id="editorReplaceAll" type="button" title="Replace all matches">All</button>
-          <button id="editorLineJumpBtn" type="button" title="Jump to line">Go</button>
         </div>
       </div>
       <div id="apiError" class="api-error"></div>
@@ -195,7 +194,6 @@
     const editorFindNext = document.getElementById('editorFindNext');
     const editorReplaceOne = document.getElementById('editorReplaceOne');
     const editorReplaceAll = document.getElementById('editorReplaceAll');
-    const editorLineJumpBtn = document.getElementById('editorLineJumpBtn');
 
     const KEY_STORAGE_NAME = 'web_editor_api_key';
     const UI_STATE_STORAGE_NAME = 'web_editor_ui_state_v1';
@@ -895,7 +893,7 @@
       }
       const { start, end, line } = getLineRange(lineNumber);
       content.focus();
-      content.setSelectionRange(selectLine ? start : start, end);
+      content.setSelectionRange(selectLine ? start : end, end);
       content.scrollTop = Math.max(0, (line - 1) * 20 - 40);
       syncEditorScroll();
       status.textContent = (selectLine ? 'Selected' : 'Jumped to') + ' line ' + line;
@@ -1154,7 +1152,6 @@
     editorFindPrev.onclick = () => findInEditor(-1);
     editorReplaceOne.onclick = () => replaceInEditor(false);
     editorReplaceAll.onclick = () => replaceInEditor(true);
-    editorLineJumpBtn.onclick = () => jumpToLine(editorLineJumpInput.value, false);
     editorFindInput.onkeydown = e => {
       if (e.key === 'Enter') {
         e.preventDefault();
