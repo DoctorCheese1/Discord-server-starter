@@ -763,7 +763,9 @@
       );
       searchResults = data.results || [];
       renderFiles(query);
-      status.textContent = '🔎 Search found ' + searchResults.length + ' result(s)';
+      const fileHits = searchResults.filter(item => item.type !== 'folder').length;
+      const folderHits = searchResults.filter(item => item.type === 'folder').length;
+      status.textContent = '🔎 Search found ' + searchResults.length + ' result(s) • files: ' + fileHits + ' • folders: ' + folderHits;
     }
 
     function scheduleSearch() {
