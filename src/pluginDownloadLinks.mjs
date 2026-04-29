@@ -184,6 +184,25 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
   };
 }
 
+
+export async function searchModrinthPlugins({ query, limit = 10 }) {
+  const normalizedQuery = String(query || '').trim();
+  if (!normalizedQuery) return [];
+
+  const searchUrl = new URL('https://api.modrinth.com/v2/search');
+  searchUrl.searchParams.set('query', normalizedQuery);
+  searchUrl.searchParams.set('limit', String(Math.max(1, Math.min(30, Number(limit) || 10))));
+  searchUrl.searchParams.set('index', 'relevance');
+  searchUrl.searchParams.set('facets', JSON.stringify([["project_type:plugin"]]));
+  const search = await fetchJson(searchUrl.toString());
+  return (search.hits || []).map(hit => ({
+    projectId: String(hit.project_id || '').trim(),
+    slug: String(hit.slug || '').trim(),
+    title: String(hit.title || hit.slug || hit.project_id || '').trim(),
+    description: String(hit.description || '').trim()
+  })).filter(hit => hit.projectId);
+}
+
 export async function getPluginDownloadLink({ source, query, mcVersion, platform }) {
   const selectedSource = String(source || '').trim().toLowerCase();
   const normalizedQuery = String(query || '').trim();
