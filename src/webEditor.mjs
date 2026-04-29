@@ -359,9 +359,9 @@ export function startWebEditor() {
 
         try {
           const result = await getPluginDownloadLink({ source, query, platform, mcVersion });
-          if (result?.source === 'spigot' && result?.paid) {
+          if (result?.source === 'spigot' && result?.paid && (!xfUser || !xfSession)) {
             return sendJson(res, 400, {
-              error: 'This Spigot plugin is paid and cannot be auto-installed. Open the resource page and download it manually.',
+              error: 'This Spigot plugin is paid. Provide both xf_user and xf_session cookies to auto-install.',
               result
             });
           }

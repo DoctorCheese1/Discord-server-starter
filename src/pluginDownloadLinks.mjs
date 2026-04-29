@@ -118,14 +118,14 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
       plugin: details.name || `resource-${resourceId}`,
       projectId: resourceId,
       projectSlug: '',
-      url: resourceUrl,
+      url: `${resourceUrl}download?version=latest`,
       resourceUrl,
       versionNumber: 'latest',
       minecraftVersion: mcVersion || 'latest supported',
       loader: 'spigot',
       paid: true,
       external,
-      note: 'Paid Spigot resources cannot be auto-downloaded. Open the resource page and download manually after purchase.'
+      note: 'Paid Spigot resources require your Spigot xf_user + xf_session cookies for direct download.'
     };
   }
   const downloadUrl = `https://api.spiget.org/v2/resources/${resourceId}/download`;
