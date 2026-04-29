@@ -241,9 +241,9 @@
 
     function restoreUiState() {
       const serverId = serverSel.value || '';
-      if (!serverId) return { expanded: [], currentFile: '' };
+      if (!serverId) return { expanded: [], currentFile: '', spigotXfUser: '', spigotXfSession: '' };
       const state = loadUiState();
-      return state[serverId] || { expanded: [], currentFile: '' };
+      return state[serverId] || { expanded: [], currentFile: '', spigotXfUser: '', spigotXfSession: '' };
     }
 
     function captureExpandedFoldersFromDom() {
@@ -1025,6 +1025,8 @@
         expandedFolders.clear();
         const restored = restoreUiState();
         setActiveTopTab(restored.activeTopTab || 'file');
+        spigotXfUser.value = restored.spigotXfUser || '';
+        spigotXfSession.value = restored.spigotXfSession || '';
         for (const folder of restored.expanded || []) {
           expandedFolders.add(folder);
         }
@@ -1320,7 +1322,8 @@
       if (!actionButton) return;
       const row = actionButton.closest('.plugin-row');
       if (!row) return;
-      const sourcePath = row.dataset.path;
+      const encodedPath = row.dataset.path || '';
+      const sourcePath = decodeURIComponent(encodedPath);
 
       if (actionButton.classList.contains('plugin-delete')) {
         if (!confirm('Delete plugin "' + sourcePath + '"? This cannot be undone.')) return;
@@ -1521,6 +1524,13 @@
     });
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') closeContextMenu();
+    });
+
+    spigotXfUser.addEventListener('input', () => {
+      saveUiState({ spigotXfUser: spigotXfUser.value.trim() });
+    });
+    spigotXfSession.addEventListener('input', () => {
+      saveUiState({ spigotXfSession: spigotXfSession.value.trim() });
     });
 
     const params = new URLSearchParams(window.location.search);
