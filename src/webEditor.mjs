@@ -341,7 +341,7 @@ export function startWebEditor() {
               result
             });
           }
-          const downloaded = await fetchBinary(result.url, { xfUser, xfSession });
+          const downloaded = await fetchBinary(result.url);
           const pluginLabel = result.plugin || result.projectSlug || query;
           const preferredName = `${result.plugin || result.projectSlug || query}.jar`;
           const fallbackName = downloaded.filenameFromHeader || `${result.projectSlug || 'plugin'}.jar`;
