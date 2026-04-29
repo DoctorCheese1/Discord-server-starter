@@ -95,11 +95,15 @@
               <option value="neoforge">neoforge</option>
             </select>
             <input id="pluginMcVersion" placeholder="Minecraft version (e.g. 1.21.1)" />
-            <input id="pluginQuery" placeholder="Plugin name/slug (Modrinth) or resource URL/ID (Spigot)" />
+            <input id="pluginQuery" placeholder="Plugin name/slug/page ID/URL (Modrinth) or resource URL/ID (Spigot)" />
             <input id="spigotXfUser" type="password" autocomplete="off" placeholder="Spigot xf_user (optional)" />
             <input id="spigotXfSession" type="password" autocomplete="off" placeholder="Spigot xf_session (optional)" />
             <button id="pluginResolveBtn" type="button">Get Link</button>
             <button id="pluginInstallBtn" type="button">Install to /plugins</button>
+          </div>
+          <textarea id="pluginBatchList" class="plugin-batch-list" placeholder="Optional list (one plugin per line) for Modrinth bulk install"></textarea>
+          <div class="plugin-download-controls plugin-download-controls-secondary">
+            <button id="pluginInstallListBtn" type="button">Install List to /plugins</button>
           </div>
           <div id="pluginDownloadStatus" class="plugin-download-status">Ready.</div>
         </div>
@@ -181,6 +185,8 @@
     const spigotXfSession = document.getElementById('spigotXfSession');
     const pluginResolveBtn = document.getElementById('pluginResolveBtn');
     const pluginInstallBtn = document.getElementById('pluginInstallBtn');
+    const pluginBatchList = document.getElementById('pluginBatchList');
+    const pluginInstallListBtn = document.getElementById('pluginInstallListBtn');
     const pluginDownloadStatus = document.getElementById('pluginDownloadStatus');
     const lineNumbers = document.getElementById('lineNumbers');
     const editorGrid = document.querySelector('.editor-grid');
@@ -1462,6 +1468,62 @@
       } catch (err) {
         pluginDownloadStatus.textContent = '❌ ' + err.message;
       } finally {
+        pluginResolveBtn.disabled = false;
+      }
+    });
+
+    pluginInstallListBtn.addEventListener('click', async () => {
+      if (!currentServerId) {
+        pluginDownloadStatus.textContent = '❌ Select a server first.';
+        return;
+      }
+      if (pluginSource.value !== 'modrinth') {
+        pluginDownloadStatus.textContent = '❌ List install currently supports Modrinth source only.';
+        return;
+      }
+      const entries = String(pluginBatchList.value || '')
+        .split(/\r?\n|,/)
+        .map(v => v.trim())
+        .filter(Boolean);
+      if (!entries.length) {
+        pluginDownloadStatus.textContent = '❌ Enter at least one plugin in the list.';
+        return;
+      }
+
+      const platform = pluginPlatform.value;
+      const mcVersion = pluginMcVersion.value.trim();
+      const xfUser = spigotXfUser.value.trim();
+      const xfSession = spigotXfSession.value.trim();
+      pluginInstallListBtn.disabled = true;
+      pluginInstallBtn.disabled = true;
+      pluginResolveBtn.disabled = true;
+      let ok = 0;
+      let fail = 0;
+      try {
+        for (let i = 0; i < entries.length; i++) {
+          const query = entries[i];
+          pluginDownloadStatus.textContent = `⏳ Installing ${i + 1}/${entries.length}: ${query}`;
+          try {
+            await postJson('/api/plugins/install', {
+              serverId: currentServerId,
+              source: 'modrinth',
+              platform,
+              mcVersion,
+              query,
+              xfUser,
+              xfSession
+            });
+            ok += 1;
+          } catch (err) {
+            fail += 1;
+          }
+        }
+        await loadFiles(currentServerId, null);
+        setActiveTopTab('plugins');
+        pluginDownloadStatus.textContent = `✅ Installed ${ok}/${entries.length} plugin(s)` + (fail ? ` • failed: ${fail}` : '');
+      } finally {
+        pluginInstallListBtn.disabled = false;
+        pluginInstallBtn.disabled = false;
         pluginResolveBtn.disabled = false;
       }
     });
