@@ -1291,7 +1291,10 @@
     };
 
     document.getElementById('deletePath').onclick = async () => {
-      const targetPath = await requestPathInput('Delete file/folder path', currentFile || '', 'Delete');
+      let targetPath = contextTarget?.path || currentFile || '';
+      if (!targetPath) {
+        targetPath = await requestPathInput('Delete file/folder path', currentFile || '', 'Delete');
+      }
       if (!targetPath) return;
       try {
         await deleteAnyPath(targetPath);
