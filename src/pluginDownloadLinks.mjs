@@ -1,4 +1,7 @@
 const USER_AGENT = 'ServerControlBot/2.0 (plugin download helper)';
+const MODRINTH_PLUGIN_ALIASES = new Map([
+  ['battlepass', '5i4QwtMC']
+]);
 
 async function fetchJson(url) {
   const response = await fetch(url, {
@@ -79,7 +82,9 @@ function chooseModrinthVersion(versions, mcVersion, platform) {
 }
 
 async function resolveModrinthPlugin({ query, mcVersion, platform }) {
-  const modrinthRef = parseModrinthProjectRef(query);
+  const normalizedQuery = String(query || '').trim();
+  const aliasProjectId = MODRINTH_PLUGIN_ALIASES.get(normalizedQuery.toLowerCase()) || '';
+  const modrinthRef = aliasProjectId || parseModrinthProjectRef(normalizedQuery);
   let hit = null;
 
   if (modrinthRef) {
@@ -95,7 +100,7 @@ async function resolveModrinthPlugin({ query, mcVersion, platform }) {
 
   if (!hit) {
     const searchUrl = new URL('https://api.modrinth.com/v2/search');
-    searchUrl.searchParams.set('query', query);
+    searchUrl.searchParams.set('query', normalizedQuery);
     searchUrl.searchParams.set('limit', '10');
     searchUrl.searchParams.set('index', 'relevance');
     searchUrl.searchParams.set('facets', JSON.stringify([['project_type:plugin']]));
@@ -104,7 +109,7 @@ async function resolveModrinthPlugin({ query, mcVersion, platform }) {
   }
 
   if (!hit?.project_id) {
-    throw new Error(`No Modrinth plugin found for "${query}".`);
+    throw new Error(`No Modrinth plugin found for "${normalizedQuery}".`);
   }
 
   const versions = await fetchJson(`https://api.modrinth.com/v2/project/${hit.project_id}/version`);
@@ -124,7 +129,7 @@ async function resolveModrinthPlugin({ query, mcVersion, platform }) {
 
   return {
     source: 'modrinth',
-    plugin: hit.title || hit.slug || query,
+    plugin: hit.title || hit.slug || normalizedQuery,
     projectId: hit.project_id,
     projectSlug: hit.slug || '',
     url: file.url,
