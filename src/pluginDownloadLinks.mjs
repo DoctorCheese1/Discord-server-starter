@@ -98,7 +98,9 @@ function chooseModrinthVersion(versions, mcVersion, platform) {
 async function resolveModrinthPlugin({ query, mcVersion, platform }) {
   const normalizedQuery = String(query || '').trim();
   const aliasProjectId = MODRINTH_PLUGIN_ALIASES.get(normalizedQuery.toLowerCase()) || '';
-  const modrinthRef = aliasProjectId || parseModrinthProjectRef(normalizedQuery);
+  const modrinthRefs = aliasProjectId
+    ? [aliasProjectId]
+    : parseModrinthProjectRefs(normalizedQuery);
   let hit = null;
 
   if (modrinthRefs.length) {
