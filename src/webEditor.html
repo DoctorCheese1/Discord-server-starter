@@ -205,6 +205,7 @@
     const SERVER_PROVIDED_KEY = __SERVER_PROVIDED_KEY__;
     let allFiles = [];
     let emptyFolders = [];
+    let editorPluginEntries = {};
     let currentFile = '';
     let originalContent = '';
     let popupTimer;
@@ -458,7 +459,9 @@
         name: filename.replace(/\.jar$/i, ''),
         relativePath: relativeJarPath,
         path: filePath,
-        enabled: !match[2]
+        enabled: !match[2],
+        canonicalPath: `plugins/${relativeJarPath}`,
+        metadata: null
       };
     }
 
@@ -471,6 +474,7 @@
       for (const file of allFiles) {
         const plugin = parsePluginFromPath(file.path);
         if (!plugin) continue;
+        plugin.metadata = editorPluginEntries[plugin.canonicalPath] || null;
         plugins.push(plugin);
       }
       return plugins.sort((a, b) => {
@@ -510,9 +514,11 @@
             '<div class="plugin-meta">' +
               '<div class="plugin-name">' + safeName + '</div>' +
               '<div class="plugin-path">plugins/' + safeRelativePath + '</div>' +
+              (plugin.metadata ? '<div class="plugin-path">Added by editor • ' + escapeHtml((plugin.metadata.source || '').toUpperCase()) + ' • ' + escapeHtml(plugin.metadata.projectId || plugin.metadata.projectSlug || plugin.metadata.query || '') + '</div>' : '') +
               '<div class="plugin-state ' + stateClass + '">' + stateLabel + '</div>' +
             '</div>' +
             '<div class="plugin-actions">' +
+              (plugin.metadata ? '<button type="button" class="plugin-update">Update</button>' : '') +
               '<button type="button" class="plugin-toggle">' + actionLabel + '</button>' +
               '<button type="button" class="plugin-delete">Delete</button>' +
             '</div>' +
@@ -1016,11 +1022,15 @@
       serverSel.disabled = true;
 
       try {
-        const data = await fetchJson('/api/files?serverId=' + encodeURIComponent(id));
+        const [data, pluginState] = await Promise.all([
+          fetchJson('/api/files?serverId=' + encodeURIComponent(id)),
+          fetchJson('/api/plugins/editor-state?serverId=' + encodeURIComponent(id)).catch(() => ({ entries: {} }))
+        ]);
         if (requestId !== activeFilesRequestId) return;
 
         allFiles = data.files;
         emptyFolders = data.emptyFolders || [];
+        editorPluginEntries = pluginState.entries || {};
         searchResults = null;
         expandedFolders.clear();
         const restored = restoreUiState();
@@ -1321,13 +1331,48 @@
       renderPluginsPanel();
     });
     pluginsList.addEventListener('click', async e => {
-      const actionButton = e.target.closest('.plugin-toggle, .plugin-delete');
+      const actionButton = e.target.closest('.plugin-toggle, .plugin-delete, .plugin-update');
       if (!actionButton) return;
       e.preventDefault();
       e.stopPropagation();
       const row = actionButton.closest('.plugin-row');
       if (!row) return;
       const sourcePath = decodeURIComponent(row.dataset.path || '');
+      const canonicalPath = sourcePath.replace(/\.disabled$/i, '');
+      const metadata = editorPluginEntries[canonicalPath] || null;
+
+      if (actionButton.classList.contains('plugin-update')) {
+        if (!metadata) return;
+        const serverId = serverSel.value;
+        const source = String(metadata.source || '').toLowerCase();
+        const query = metadata.projectId || metadata.projectSlug || metadata.query || metadata.plugin;
+        if (!serverId || !source || !query) {
+          pluginDownloadStatus.textContent = '❌ Missing update metadata for this plugin.';
+          return;
+        }
+        try {
+          actionButton.disabled = true;
+          pluginDownloadStatus.textContent = '⏳ Updating plugin...';
+          const response = await postJson('/api/plugins/install', {
+            serverId,
+            source,
+            query,
+            platform: pluginPlatform.value,
+            mcVersion: pluginMcVersion.value.trim(),
+            xfUser: spigotXfUser.value.trim(),
+            xfSession: spigotXfSession.value.trim()
+          });
+          pluginDownloadStatus.textContent = '✅ Updated ' + (response.plugin || query) + (response.version ? ' (' + response.version + ')' : '');
+          await loadFiles();
+          renderPluginsPanel();
+          setActiveTopTab('plugins');
+        } catch (err) {
+          pluginDownloadStatus.textContent = '❌ ' + err.message;
+        } finally {
+          actionButton.disabled = false;
+        }
+        return;
+      }
 
       if (actionButton.classList.contains('plugin-delete')) {
         if (!confirm('Delete plugin "' + sourcePath + '"? This cannot be undone.')) return;
@@ -1419,6 +1464,8 @@
       const platform = pluginPlatform.value;
       const mcVersion = pluginMcVersion.value.trim();
       const query = pluginQuery.value.trim();
+      const xfUser = spigotXfUser.value.trim();
+      const xfSession = spigotXfSession.value.trim();
       if (!query) {
         pluginDownloadStatus.textContent = '❌ Enter a plugin query first.';
         return;
