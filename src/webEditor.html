@@ -502,11 +502,11 @@
         const actionLabel = plugin.enabled ? 'Disable' : 'Enable';
         const stateLabel = plugin.enabled ? 'Enabled' : 'Disabled';
         const stateClass = plugin.enabled ? 'enabled' : 'disabled';
-        const encodedPath = encodeURIComponent(plugin.path);
+        const safePath = escapeHtml(plugin.path);
         const safeName = escapeHtml(plugin.name);
         const safeRelativePath = escapeHtml(plugin.relativePath);
         return (
-          '<div class="plugin-row" data-path="' + encodedPath + '" data-enabled="' + plugin.enabled + '">' +
+          '<div class="plugin-row" data-path="' + safePath + '" data-enabled="' + plugin.enabled + '">' +
             '<div class="plugin-meta">' +
               '<div class="plugin-name">' + safeName + '</div>' +
               '<div class="plugin-path">plugins/' + safeRelativePath + '</div>' +
