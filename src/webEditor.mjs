@@ -228,20 +228,10 @@ function inferFilenameFromHeaders(headers) {
   return simpleMatch?.[1] || '';
 }
 
-function toSpigotCookieHeader(spigotAuth = {}) {
-  const xfUser = String(spigotAuth?.xfUser || '').trim();
-  const xfSession = String(spigotAuth?.xfSession || '').trim();
-  const cookieParts = [];
-  if (xfUser) cookieParts.push(`xf_user=${xfUser}`);
-  if (xfSession) cookieParts.push(`xf_session=${xfSession}`);
-  return cookieParts.join('; ');
-}
-
-async function fetchBinary(url, extraHeaders = {}) {
+async function fetchBinary(url) {
   const response = await fetch(url, {
     headers: {
-      'User-Agent': 'ServerControlBot/2.0 (plugin downloader)',
-      ...extraHeaders
+      'User-Agent': 'ServerControlBot/2.0 (plugin downloader)'
     },
     redirect: 'follow'
   });
@@ -308,14 +298,13 @@ export function startWebEditor() {
         const query = String(body.query || '').trim();
         const platform = String(body.platform || '').trim().toLowerCase();
         const mcVersion = String(body.mcVersion || '').trim();
-        const spigotAuth = body.spigotAuth && typeof body.spigotAuth === 'object' ? body.spigotAuth : {};
 
         if (!query) {
           return sendJson(res, 400, { error: 'Plugin query is required' });
         }
 
         try {
-          const result = await getPluginDownloadLink({ source, query, platform, mcVersion, spigotAuth });
+          const result = await getPluginDownloadLink({ source, query, platform, mcVersion });
           return sendJson(res, 200, { result });
         } catch (error) {
           return sendJson(res, 400, { error: error?.message || 'Unable to resolve plugin download link' });
@@ -330,7 +319,6 @@ export function startWebEditor() {
         const query = String(body.query || '').trim();
         const platform = String(body.platform || '').trim().toLowerCase();
         const mcVersion = String(body.mcVersion || '').trim();
-        const spigotAuth = body.spigotAuth && typeof body.spigotAuth === 'object' ? body.spigotAuth : {};
 
         if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
         if (!query) return sendJson(res, 400, { error: 'Plugin query is required' });
@@ -340,15 +328,13 @@ export function startWebEditor() {
 
         try {
           const result = await getPluginDownloadLink({ source, query, platform, mcVersion });
-          const cookie = toSpigotCookieHeader(spigotAuth);
-          if (result?.source === 'spigot' && result?.paid && !cookie) {
+          if (result?.source === 'spigot' && result?.paid) {
             return sendJson(res, 400, {
-              error: 'This Spigot plugin is paid. Add xf_user + xf_session from your Spigot account to download it.',
+              error: 'This Spigot plugin is paid and cannot be auto-installed. Open the resource page and download it manually.',
               result
             });
           }
-          const downloadHeaders = cookie ? { Cookie: cookie } : {};
-          const downloaded = await fetchBinary(result.url, downloadHeaders);
+          const downloaded = await fetchBinary(result.url);
           const preferredName = `${result.plugin || result.projectSlug || query}.jar`;
           const fallbackName = downloaded.filenameFromHeader || `${result.projectSlug || 'plugin'}.jar`;
           const filename = toSafePluginFilename(preferredName, path.basename(fallbackName, path.extname(fallbackName)));
