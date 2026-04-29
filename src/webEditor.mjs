@@ -341,9 +341,10 @@ export function startWebEditor() {
               result
             });
           }
-          const downloaded = await fetchBinary(result.url);
+          const downloaded = await fetchBinary(result.url, { xfUser, xfSession });
           const pluginLabel = result.plugin || result.projectSlug || query;
-          const preferredName = `${result.plugin || result.projectSlug || query}.jar`;
+          const versionSuffix = sanitizeVersionLabel(result.versionNumber || result.minecraftVersion || '');
+          const preferredName = `${result.plugin || result.projectSlug || query}${versionSuffix ? `-${versionSuffix}` : ''}.jar`;
           const fallbackName = downloaded.filenameFromHeader || `${result.projectSlug || 'plugin'}.jar`;
           const filename = toSafePluginFilename(preferredName, path.basename(fallbackName, path.extname(fallbackName)));
           const relPath = path.posix.join('plugins', filename);
