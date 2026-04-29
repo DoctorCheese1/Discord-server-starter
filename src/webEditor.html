@@ -1320,6 +1320,8 @@
     pluginsList.addEventListener('click', async e => {
       const actionButton = e.target.closest('.plugin-toggle, .plugin-delete');
       if (!actionButton) return;
+      e.preventDefault();
+      e.stopPropagation();
       const row = actionButton.closest('.plugin-row');
       if (!row) return;
       const encodedPath = row.dataset.path || '';
