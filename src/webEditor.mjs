@@ -228,10 +228,15 @@ function inferFilenameFromHeaders(headers) {
   return simpleMatch?.[1] || '';
 }
 
-async function fetchBinary(url) {
+async function fetchBinary(url, { xfUser = '', xfSession = '' } = {}) {
+  const cookieParts = [];
+  if (xfUser) cookieParts.push(`xf_user=${xfUser}`);
+  if (xfSession) cookieParts.push(`xf_session=${xfSession}`);
+  const cookieHeader = cookieParts.join('; ');
   const response = await fetch(url, {
     headers: {
-      'User-Agent': 'ServerControlBot/2.0 (plugin downloader)'
+      'User-Agent': 'ServerControlBot/2.0 (plugin downloader)',
+      ...(cookieHeader ? { Cookie: cookieHeader } : {})
     },
     redirect: 'follow'
   });
@@ -319,6 +324,8 @@ export function startWebEditor() {
         const query = String(body.query || '').trim();
         const platform = String(body.platform || '').trim().toLowerCase();
         const mcVersion = String(body.mcVersion || '').trim();
+        const xfUser = String(body.xfUser || '').trim();
+        const xfSession = String(body.xfSession || '').trim();
 
         if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
         if (!query) return sendJson(res, 400, { error: 'Plugin query is required' });
@@ -334,7 +341,8 @@ export function startWebEditor() {
               result
             });
           }
-          const downloaded = await fetchBinary(result.url);
+          const downloaded = await fetchBinary(result.url, { xfUser, xfSession });
+          const pluginLabel = result.plugin || result.projectSlug || query;
           const preferredName = `${result.plugin || result.projectSlug || query}.jar`;
           const fallbackName = downloaded.filenameFromHeader || `${result.projectSlug || 'plugin'}.jar`;
           const filename = toSafePluginFilename(preferredName, path.basename(fallbackName, path.extname(fallbackName)));

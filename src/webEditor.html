@@ -96,6 +96,8 @@
             </select>
             <input id="pluginMcVersion" placeholder="Minecraft version (e.g. 1.21.1)" />
             <input id="pluginQuery" placeholder="Plugin name/slug (Modrinth) or resource URL/ID (Spigot)" />
+            <input id="spigotXfUser" type="password" autocomplete="off" placeholder="Spigot xf_user (optional)" />
+            <input id="spigotXfSession" type="password" autocomplete="off" placeholder="Spigot xf_session (optional)" />
             <button id="pluginResolveBtn" type="button">Get Link</button>
             <button id="pluginInstallBtn" type="button">Install to /plugins</button>
           </div>
@@ -175,6 +177,8 @@
     const pluginPlatform = document.getElementById('pluginPlatform');
     const pluginMcVersion = document.getElementById('pluginMcVersion');
     const pluginQuery = document.getElementById('pluginQuery');
+    const spigotXfUser = document.getElementById('spigotXfUser');
+    const spigotXfSession = document.getElementById('spigotXfSession');
     const pluginResolveBtn = document.getElementById('pluginResolveBtn');
     const pluginInstallBtn = document.getElementById('pluginInstallBtn');
     const pluginDownloadStatus = document.getElementById('pluginDownloadStatus');
@@ -1350,6 +1354,8 @@
       const platform = pluginPlatform.value;
       const mcVersion = pluginMcVersion.value.trim();
       const query = pluginQuery.value.trim();
+      const xfUser = spigotXfUser.value.trim();
+      const xfSession = spigotXfSession.value.trim();
       if (!query) {
         pluginDownloadStatus.textContent = '❌ Enter a plugin query first.';
         return;
@@ -1362,7 +1368,9 @@
           source,
           platform,
           mcVersion,
-          query
+          query,
+          xfUser,
+          xfSession
         });
         const r = response.result || {};
         const paidBadge = r.paid ? ' • 💰 Paid' : '';
@@ -1413,7 +1421,9 @@
           source,
           platform,
           mcVersion,
-          query
+          query,
+          xfUser,
+          xfSession
         });
         const pluginLabel = response.plugin || query;
         const targetPath = response.path || 'plugins/plugin.jar';
