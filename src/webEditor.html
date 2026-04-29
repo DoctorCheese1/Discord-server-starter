@@ -1419,6 +1419,8 @@
       const platform = pluginPlatform.value;
       const mcVersion = pluginMcVersion.value.trim();
       const query = pluginQuery.value.trim();
+      const xfUser = spigotXfUser.value.trim();
+      const xfSession = spigotXfSession.value.trim();
       if (!query) {
         pluginDownloadStatus.textContent = '❌ Enter a plugin query first.';
         return;
