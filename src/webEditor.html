@@ -247,6 +247,13 @@
       return state[serverId] || { expanded: [], currentFile: '', spigotXfUser: '', spigotXfSession: '' };
     }
 
+    function persistSpigotSessionState() {
+      saveUiState({
+        spigotXfUser: spigotXfUser.value.trim(),
+        spigotXfSession: spigotXfSession.value.trim()
+      });
+    }
+
     function captureExpandedFoldersFromDom() {
       const expanded = [];
       for (const details of tree.querySelectorAll('details[data-folder][open]')) {
@@ -1405,6 +1412,9 @@
         actionButton.disabled = false;
       }
     });
+
+    spigotXfUser.addEventListener('input', persistSpigotSessionState);
+    spigotXfSession.addEventListener('input', persistSpigotSessionState);
 
     pluginResolveBtn.addEventListener('click', async () => {
       const source = pluginSource.value;
