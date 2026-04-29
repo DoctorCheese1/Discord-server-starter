@@ -241,9 +241,9 @@
 
     function restoreUiState() {
       const serverId = serverSel.value || '';
-      if (!serverId) return { expanded: [], currentFile: '' };
+      if (!serverId) return { expanded: [], currentFile: '', spigotXfUser: '', spigotXfSession: '' };
       const state = loadUiState();
-      return state[serverId] || { expanded: [], currentFile: '' };
+      return state[serverId] || { expanded: [], currentFile: '', spigotXfUser: '', spigotXfSession: '' };
     }
 
     function captureExpandedFoldersFromDom() {
@@ -308,10 +308,12 @@
     }
 
     function escapeHtml(text) {
-      return text
+      return String(text || '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
     }
 
     function escapeRegExp(text) {
@@ -500,11 +502,14 @@
         const actionLabel = plugin.enabled ? 'Disable' : 'Enable';
         const stateLabel = plugin.enabled ? 'Enabled' : 'Disabled';
         const stateClass = plugin.enabled ? 'enabled' : 'disabled';
+        const encodedPath = encodeURIComponent(plugin.path);
+        const safeName = escapeHtml(plugin.name);
+        const safeRelativePath = escapeHtml(plugin.relativePath);
         return (
-          '<div class="plugin-row" data-path="' + plugin.path + '" data-enabled="' + plugin.enabled + '">' +
+          '<div class="plugin-row" data-path="' + encodedPath + '" data-enabled="' + plugin.enabled + '">' +
             '<div class="plugin-meta">' +
-              '<div class="plugin-name">' + plugin.name + '</div>' +
-              '<div class="plugin-path">plugins/' + plugin.relativePath + '</div>' +
+              '<div class="plugin-name">' + safeName + '</div>' +
+              '<div class="plugin-path">plugins/' + safeRelativePath + '</div>' +
               '<div class="plugin-state ' + stateClass + '">' + stateLabel + '</div>' +
             '</div>' +
             '<div class="plugin-actions">' +
@@ -1020,6 +1025,8 @@
         expandedFolders.clear();
         const restored = restoreUiState();
         setActiveTopTab(restored.activeTopTab || 'file');
+        spigotXfUser.value = restored.spigotXfUser || '';
+        spigotXfSession.value = restored.spigotXfSession || '';
         for (const folder of restored.expanded || []) {
           expandedFolders.add(folder);
         }
@@ -1315,7 +1322,8 @@
       if (!actionButton) return;
       const row = actionButton.closest('.plugin-row');
       if (!row) return;
-      const sourcePath = row.dataset.path;
+      const encodedPath = row.dataset.path || '';
+      const sourcePath = decodeURIComponent(encodedPath);
 
       if (actionButton.classList.contains('plugin-delete')) {
         if (!confirm('Delete plugin "' + sourcePath + '"? This cannot be undone.')) return;
@@ -1516,6 +1524,13 @@
     });
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') closeContextMenu();
+    });
+
+    spigotXfUser.addEventListener('input', () => {
+      saveUiState({ spigotXfUser: spigotXfUser.value.trim() });
+    });
+    spigotXfSession.addEventListener('input', () => {
+      saveUiState({ spigotXfSession: spigotXfSession.value.trim() });
     });
 
     const params = new URLSearchParams(window.location.search);
