@@ -338,7 +338,8 @@ Features:
 * lists editable text files under each server folder
 * search files by name/path from inside the editor
 * load/save files directly from browser
-* Plugin Manager tab can resolve plugin download links from **Modrinth** (filtered by platform + MC version) or **Spigot** (latest resource file link)
+* Plugin Manager tab can resolve plugin download links from **Modrinth** (name/slug/page ID/URL, filtered by platform + MC version) or **Spigot** (latest resource file link)
+* Plugin Manager can search and list Modrinth plugin matches before install, and you can install directly by Modrinth page ID/URL (for example: `https://modrinth.com/project/5i4QwtMC`)
 * For paid Spigot resources, add your `xf_user` + `xf_session` cookies in the Plugin Manager to download with your own Spigot account session
 * To update a Spigot plugin, set source to **Spigot** and enter the plugin page URL or numeric resource ID, then click **Install to /plugins** (older versioned jars for that plugin are replaced automatically)
 * remembers API key in browser local storage for easier reconnects

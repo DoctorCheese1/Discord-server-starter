@@ -95,11 +95,15 @@
               <option value="neoforge">neoforge</option>
             </select>
             <input id="pluginMcVersion" placeholder="Minecraft version (e.g. 1.21.1)" />
-            <input id="pluginQuery" placeholder="Plugin name/slug (Modrinth) or resource URL/ID (Spigot)" />
+            <input id="pluginQuery" placeholder="Plugin name/slug/page ID/URL (Modrinth) or resource URL/ID (Spigot)" />
             <input id="spigotXfUser" type="password" autocomplete="off" placeholder="Spigot xf_user (optional)" />
             <input id="spigotXfSession" type="password" autocomplete="off" placeholder="Spigot xf_session (optional)" />
             <button id="pluginResolveBtn" type="button">Get Link</button>
             <button id="pluginInstallBtn" type="button">Install to /plugins</button>
+          </div>
+          <div class="plugin-download-controls plugin-download-controls-secondary">
+            <button id="pluginSearchBtn" type="button">Search Modrinth</button>
+            <select id="pluginSearchResults"><option value="">Search results will appear here</option></select>
           </div>
           <div id="pluginDownloadStatus" class="plugin-download-status">Ready.</div>
         </div>
@@ -181,6 +185,8 @@
     const spigotXfSession = document.getElementById('spigotXfSession');
     const pluginResolveBtn = document.getElementById('pluginResolveBtn');
     const pluginInstallBtn = document.getElementById('pluginInstallBtn');
+    const pluginSearchBtn = document.getElementById('pluginSearchBtn');
+    const pluginSearchResults = document.getElementById('pluginSearchResults');
     const pluginDownloadStatus = document.getElementById('pluginDownloadStatus');
     const lineNumbers = document.getElementById('lineNumbers');
     const editorGrid = document.querySelector('.editor-grid');
@@ -1464,6 +1470,49 @@
       } finally {
         pluginResolveBtn.disabled = false;
       }
+    });
+
+    pluginSearchBtn.addEventListener('click', async () => {
+      const source = pluginSource.value;
+      const query = pluginQuery.value.trim();
+      if (source !== 'modrinth') {
+        pluginDownloadStatus.textContent = '❌ Search list is available for Modrinth source only.';
+        return;
+      }
+      if (!query) {
+        pluginDownloadStatus.textContent = '❌ Enter a Modrinth query, slug, or page ID first.';
+        return;
+      }
+
+      pluginSearchBtn.disabled = true;
+      pluginSearchResults.disabled = true;
+      pluginDownloadStatus.textContent = '⏳ Searching Modrinth...';
+      try {
+        const response = await postJson('/api/plugins/search', { source, query, limit: 15 });
+        const results = Array.isArray(response.results) ? response.results : [];
+        if (!results.length) {
+          pluginSearchResults.innerHTML = '<option value="">No Modrinth plugins found</option>';
+          pluginDownloadStatus.textContent = '❌ No Modrinth plugins found.';
+          return;
+        }
+        pluginSearchResults.innerHTML = results.map((r, idx) => `<option value="${escapeHtml(r.projectId)}" data-slug="${escapeHtml(r.slug || '')}" ${idx === 0 ? 'selected' : ''}>${escapeHtml(r.title)} (${escapeHtml(r.slug || r.projectId)})</option>`).join('');
+        const first = results[0];
+        pluginQuery.value = first.projectId || first.slug || query;
+        pluginDownloadStatus.textContent = `✅ Found ${results.length} Modrinth plugin(s). Selected: ${first.title}`;
+      } catch (err) {
+        pluginDownloadStatus.textContent = '❌ ' + err.message;
+      } finally {
+        pluginSearchBtn.disabled = false;
+        pluginSearchResults.disabled = false;
+      }
+    });
+
+    pluginSearchResults.addEventListener('change', () => {
+      const selected = pluginSearchResults.options[pluginSearchResults.selectedIndex];
+      if (!selected) return;
+      const value = (selected.value || '').trim();
+      const slug = (selected.getAttribute('data-slug') || '').trim();
+      pluginQuery.value = value || slug || pluginQuery.value;
     });
 
     pluginInstallBtn.addEventListener('click', async () => {

@@ -24,6 +24,23 @@ function parseSpigotResourceId(input) {
   return match?.[1] || '';
 }
 
+
+function parseModrinthProjectRef(input) {
+  const raw = String(input || '').trim();
+  if (!raw) return '';
+
+  const fromUrl = raw.match(/modrinth\.com\/(?:plugin|project)\/([^/?#]+)/i);
+  if (fromUrl?.[1]) return fromUrl[1].trim();
+
+  if (/^[a-zA-Z0-9_-]{3,64}$/.test(raw)) return raw;
+  return '';
+}
+
+async function fetchModrinthProject(projectRef) {
+  const encoded = encodeURIComponent(projectRef);
+  return fetchJson(`https://api.modrinth.com/v2/project/${encoded}`);
+}
+
 function normalizePlatform(platform) {
   const value = String(platform || '').trim().toLowerCase();
   if (!value) return 'paper';
@@ -62,13 +79,30 @@ function chooseModrinthVersion(versions, mcVersion, platform) {
 }
 
 async function resolveModrinthPlugin({ query, mcVersion, platform }) {
-  const searchUrl = new URL('https://api.modrinth.com/v2/search');
-  searchUrl.searchParams.set('query', query);
-  searchUrl.searchParams.set('limit', '10');
-  searchUrl.searchParams.set('index', 'relevance');
-  searchUrl.searchParams.set('facets', JSON.stringify([['project_type:plugin']]));
-  const search = await fetchJson(searchUrl.toString());
-  const hit = (search.hits || [])[0];
+  const modrinthRef = parseModrinthProjectRef(query);
+  let hit = null;
+
+  if (modrinthRef) {
+    const project = await fetchModrinthProject(modrinthRef).catch(() => null);
+    if (project?.id && String(project.project_type || '').toLowerCase() === 'plugin') {
+      hit = {
+        project_id: project.id,
+        title: project.title,
+        slug: project.slug
+      };
+    }
+  }
+
+  if (!hit) {
+    const searchUrl = new URL('https://api.modrinth.com/v2/search');
+    searchUrl.searchParams.set('query', query);
+    searchUrl.searchParams.set('limit', '10');
+    searchUrl.searchParams.set('index', 'relevance');
+    searchUrl.searchParams.set('facets', JSON.stringify([['project_type:plugin']]));
+    const search = await fetchJson(searchUrl.toString());
+    hit = (search.hits || [])[0];
+  }
+
   if (!hit?.project_id) {
     throw new Error(`No Modrinth plugin found for "${query}".`);
   }
@@ -148,6 +182,25 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
       ? 'This Spigot resource uses an external download link; if direct download fails, open the resource page.'
       : 'Spigot link always points to the latest resource file via Spiget API.'
   };
+}
+
+
+export async function searchModrinthPlugins({ query, limit = 10 }) {
+  const normalizedQuery = String(query || '').trim();
+  if (!normalizedQuery) return [];
+
+  const searchUrl = new URL('https://api.modrinth.com/v2/search');
+  searchUrl.searchParams.set('query', normalizedQuery);
+  searchUrl.searchParams.set('limit', String(Math.max(1, Math.min(30, Number(limit) || 10))));
+  searchUrl.searchParams.set('index', 'relevance');
+  searchUrl.searchParams.set('facets', JSON.stringify([["project_type:plugin"]]));
+  const search = await fetchJson(searchUrl.toString());
+  return (search.hits || []).map(hit => ({
+    projectId: String(hit.project_id || '').trim(),
+    slug: String(hit.slug || '').trim(),
+    title: String(hit.title || hit.slug || hit.project_id || '').trim(),
+    description: String(hit.description || '').trim()
+  })).filter(hit => hit.projectId);
 }
 
 export async function getPluginDownloadLink({ source, query, mcVersion, platform }) {

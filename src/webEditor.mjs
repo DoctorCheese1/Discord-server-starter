@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { loadServers } from './serverStore.mjs';
-import { getPluginDownloadLink } from './pluginDownloadLinks.mjs';
+import { getPluginDownloadLink, searchModrinthPlugins } from './pluginDownloadLinks.mjs';
 
 const TEXT_EXTENSIONS = new Set([
   '.txt', '.json', '.cfg', '.ini', '.properties', '.yaml', '.yml', '.xml', '.bat', '.sh', '.log', '.conf', '.toml'
@@ -344,6 +344,24 @@ export function startWebEditor() {
           return sendJson(res, 200, { result });
         } catch (error) {
           return sendJson(res, 400, { error: error?.message || 'Unable to resolve plugin download link' });
+        }
+      }
+
+
+      if (req.method === 'POST' && url.pathname === '/api/plugins/search') {
+        const raw = await readBody(req);
+        const body = JSON.parse(raw || '{}');
+        const source = String(body.source || '').trim().toLowerCase();
+        const query = String(body.query || '').trim();
+
+        if (!query) return sendJson(res, 400, { error: 'Plugin query is required' });
+        if (source !== 'modrinth') return sendJson(res, 400, { error: 'Search list is currently supported for Modrinth only' });
+
+        try {
+          const results = await searchModrinthPlugins({ query, limit: Number(body.limit) || 10 });
+          return sendJson(res, 200, { results });
+        } catch (error) {
+          return sendJson(res, 400, { error: error?.message || 'Unable to search plugins' });
         }
       }
 
