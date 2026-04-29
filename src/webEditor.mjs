@@ -349,9 +349,7 @@ export function startWebEditor() {
           }
           const downloadHeaders = cookie ? { Cookie: cookie } : {};
           const downloaded = await fetchBinary(result.url, downloadHeaders);
-          const versionLabel = sanitizeVersionLabel(result.versionNumber || result.minecraftVersion || '');
-          const pluginLabel = result.plugin || result.projectSlug || query;
-          const preferredName = versionLabel ? `${pluginLabel}-${versionLabel}.jar` : `${pluginLabel}.jar`;
+          const preferredName = `${result.plugin || result.projectSlug || query}.jar`;
           const fallbackName = downloaded.filenameFromHeader || `${result.projectSlug || 'plugin'}.jar`;
           const filename = toSafePluginFilename(preferredName, path.basename(fallbackName, path.extname(fallbackName)));
           const relPath = path.posix.join('plugins', filename);
