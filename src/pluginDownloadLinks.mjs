@@ -39,6 +39,20 @@ function parseModrinthProjectRef(input) {
   return '';
 }
 
+function parseModrinthProjectRefs(input) {
+  const raw = String(input || '').trim();
+  if (!raw) return [];
+
+  const fromAliases = MODRINTH_PLUGIN_ALIASES.get(raw.toLowerCase());
+  const fromSplit = raw
+    .split(/[\s,;]+/)
+    .map(token => parseModrinthProjectRef(token))
+    .filter(Boolean);
+
+  const fromWhole = parseModrinthProjectRef(raw);
+  return [...new Set([...(fromAliases ? [fromAliases] : []), ...fromSplit, ...(fromWhole ? [fromWhole] : [])])];
+}
+
 async function fetchModrinthProject(projectRef) {
   const encoded = encodeURIComponent(projectRef);
   return fetchJson(`https://api.modrinth.com/v2/project/${encoded}`);
@@ -87,14 +101,18 @@ async function resolveModrinthPlugin({ query, mcVersion, platform }) {
   const modrinthRef = aliasProjectId || parseModrinthProjectRef(normalizedQuery);
   let hit = null;
 
-  if (modrinthRef) {
-    const project = await fetchModrinthProject(modrinthRef).catch(() => null);
-    if (project?.id && String(project.project_type || '').toLowerCase() === 'plugin') {
-      hit = {
-        project_id: project.id,
-        title: project.title,
-        slug: project.slug
-      };
+  if (modrinthRefs.length) {
+    for (const modrinthRef of modrinthRefs) {
+      const project = await fetchModrinthProject(modrinthRef).catch(() => null);
+      if (project?.id) {
+        hit = {
+          project_id: project.id,
+          title: project.title,
+          slug: project.slug,
+          project_type: String(project.project_type || '').toLowerCase()
+        };
+        break;
+      }
     }
   }
 
@@ -104,8 +122,14 @@ async function resolveModrinthPlugin({ query, mcVersion, platform }) {
     searchUrl.searchParams.set('limit', '10');
     searchUrl.searchParams.set('index', 'relevance');
     searchUrl.searchParams.set('facets', JSON.stringify([['project_type:plugin']]));
-    const search = await fetchJson(searchUrl.toString());
-    hit = (search.hits || [])[0];
+    const pluginOnlySearch = await fetchJson(searchUrl.toString());
+    hit = (pluginOnlySearch.hits || [])[0];
+
+    if (!hit) {
+      searchUrl.searchParams.delete('facets');
+      const broadSearch = await fetchJson(searchUrl.toString());
+      hit = (broadSearch.hits || [])[0];
+    }
   }
 
   if (!hit?.project_id) {
