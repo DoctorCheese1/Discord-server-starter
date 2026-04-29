@@ -104,11 +104,11 @@
     .plugin-download-note { color: #9da0a6; }
     .plugins-search { width: 100%; margin: 2px 0 10px; background: #1a1d23; border: 1px solid #313846; color: #d4d4d4; border-radius: 4px; padding: 8px 10px; font-size: 13px; }
     .plugins-status { color: #9da0a6; margin-bottom: 12px; font-size: 13px; }
-    .plugins-list { display: grid; gap: 8px; flex: 1; min-height: 0; overflow: auto; padding-bottom: 12px; }
-    .plugin-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid #2d2d30; border-radius: 6px; padding: 10px 12px; background: #252526; }
+    .plugins-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; flex: 1; min-height: 0; overflow: auto; padding-bottom: 12px; }
+    .plugin-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid #2d2d30; border-radius: 6px; padding: 10px 12px; min-height: 72px; box-sizing: border-box; background: #252526; }
     .plugin-meta { min-width: 0; }
-    .plugin-name { font-size: 14px; color: #d4d4d4; word-break: break-word; }
-    .plugin-path { font-size: 11px; color: #8b8f99; margin-top: 2px; word-break: break-all; }
+    .plugin-name { font-size: 14px; color: #d4d4d4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .plugin-path { font-size: 11px; color: #8b8f99; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .plugin-state { font-size: 12px; margin-top: 3px; }
     .plugin-state.enabled { color: #6a9955; }
     .plugin-state.disabled { color: #f48771; }
