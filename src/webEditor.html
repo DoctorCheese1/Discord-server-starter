@@ -1386,11 +1386,16 @@
         try {
           actionButton.disabled = true;
           await deleteAnyPath(sourcePath, true);
+          delete editorPluginEntries[canonicalPath];
           renderPluginsPanel();
           setActiveTopTab('plugins');
-          status.textContent = '✅ Plugin deleted: ' + pathBase(sourcePath).replace(/\.jar(?:\.disabled)?$/i, '');
+          const deletedPluginName = pathBase(sourcePath).replace(/\.jar(?:\.disabled)?$/i, '');
+          pluginDownloadStatus.textContent = '✅ Deleted plugin: ' + deletedPluginName;
+          status.textContent = '✅ Plugin deleted: ' + deletedPluginName;
         } catch (err) {
-          status.textContent = '❌ ' + err.message;
+          const errMsg = '❌ ' + err.message;
+          pluginDownloadStatus.textContent = errMsg;
+          status.textContent = errMsg;
         } finally {
           actionButton.disabled = false;
         }
