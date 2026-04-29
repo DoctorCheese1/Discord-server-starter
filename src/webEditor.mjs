@@ -222,17 +222,18 @@ function writeEditorPluginState(serverCwd, state) {
   fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
 }
 
-function removePreviousPluginVersions(pluginsDir, pluginLabel, nextFilename) {
+function removePreviousPluginVersions(pluginsDir, pluginLabel, nextFilename, knownPaths = []) {
   if (!fs.existsSync(pluginsDir)) return [];
   const safeBase = toSafeAttachmentName(pluginLabel, 'plugin').replace(/_+/g, '-');
   const escapedBase = safeBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const versionedPattern = new RegExp(`^${escapedBase}(?:-[a-zA-Z0-9._-]+)?\\.jar(?:\\.disabled)?$`, 'i');
+  const knownNames = new Set((knownPaths || []).map(rel => path.basename(String(rel || ''))));
   const removed = [];
   for (const entry of fs.readdirSync(pluginsDir, { withFileTypes: true })) {
     if (!entry.isFile()) continue;
     const name = entry.name;
     if (name === nextFilename) continue;
-    if (!versionedPattern.test(name)) continue;
+    if (!versionedPattern.test(name) && !knownNames.has(name)) continue;
     const fullPath = path.resolve(pluginsDir, name);
     try {
       fs.rmSync(fullPath);
@@ -259,12 +260,18 @@ async function fetchBinary(url, { xfUser = '', xfSession = '' } = {}) {
   const cookieHeader = cookieParts.join('; ');
   const response = await fetch(url, {
     headers: {
-      'User-Agent': 'ServerControlBot/2.0 (plugin downloader)',
+      'User-Agent': 'Mozilla/5.0 (compatible; ServerControlBot/2.0; +https://spigotmc.org)',
+      Accept: '*/*',
+      Referer: 'https://www.spigotmc.org/',
+      Origin: 'https://www.spigotmc.org',
       ...(cookieHeader ? { Cookie: cookieHeader } : {})
     },
     redirect: 'follow'
   });
   if (!response.ok) {
+    if (response.status === 403 && cookieHeader) {
+      throw new Error('Download failed (403). Spigot rejected the session cookies. Re-copy xf_user and xf_session from a logged-in Spigot browser session.');
+    }
     throw new Error(`Download failed (${response.status})`);
   }
   const arrayBuffer = await response.arrayBuffer();
@@ -376,9 +383,12 @@ export function startWebEditor() {
           if (!isSafePath(serverConfig.cwd, relPath)) return sendJson(res, 400, { error: 'Invalid plugin path' });
 
           fs.mkdirSync(pluginsDir, { recursive: true });
-          const removed = removePreviousPluginVersions(pluginsDir, pluginLabel, filename);
-          fs.writeFileSync(targetFullPath, downloaded.bytes);
           const state = readEditorPluginState(serverConfig.cwd);
+          const knownPluginPaths = Object.entries(state.entries || {})
+            .filter(([, meta]) => String(meta?.source || '').toLowerCase() === String(result.source || source || '').toLowerCase() && String(meta?.projectId || '').trim() === String(result.projectId || '').trim())
+            .map(([rel]) => rel);
+          const removed = removePreviousPluginVersions(pluginsDir, pluginLabel, filename, knownPluginPaths);
+          fs.writeFileSync(targetFullPath, downloaded.bytes);
           const metadata = {
             source: result.source || source || 'unknown',
             projectId: String(result.projectId || '').trim(),
