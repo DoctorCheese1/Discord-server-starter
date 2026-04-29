@@ -527,7 +527,6 @@
             '<div class="plugin-actions">' +
               (plugin.metadata ? '<button type="button" class="plugin-update">Update</button>' : '') +
               '<button type="button" class="plugin-toggle">' + actionLabel + '</button>' +
-              '<button type="button" class="plugin-delete">Delete</button>' +
             '</div>' +
           '</div>'
         );
@@ -1338,7 +1337,7 @@
       renderPluginsPanel();
     });
     pluginsList.addEventListener('click', async e => {
-      const actionButton = e.target.closest('.plugin-toggle, .plugin-delete, .plugin-update');
+      const actionButton = e.target.closest('.plugin-toggle, .plugin-update');
       if (!actionButton) return;
       e.preventDefault();
       e.stopPropagation();
@@ -1375,27 +1374,6 @@
           setActiveTopTab('plugins');
         } catch (err) {
           pluginDownloadStatus.textContent = '❌ ' + err.message;
-        } finally {
-          actionButton.disabled = false;
-        }
-        return;
-      }
-
-      if (actionButton.classList.contains('plugin-delete')) {
-        if (!confirm('Delete plugin "' + sourcePath + '"? This cannot be undone.')) return;
-        try {
-          actionButton.disabled = true;
-          await deleteAnyPath(sourcePath, true);
-          delete editorPluginEntries[canonicalPath];
-          renderPluginsPanel();
-          setActiveTopTab('plugins');
-          const deletedPluginName = pathBase(sourcePath).replace(/\.jar(?:\.disabled)?$/i, '');
-          pluginDownloadStatus.textContent = '✅ Deleted plugin: ' + deletedPluginName;
-          status.textContent = '✅ Plugin deleted: ' + deletedPluginName;
-        } catch (err) {
-          const errMsg = '❌ ' + err.message;
-          pluginDownloadStatus.textContent = errMsg;
-          status.textContent = errMsg;
         } finally {
           actionButton.disabled = false;
         }
