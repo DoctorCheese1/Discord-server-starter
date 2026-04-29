@@ -527,6 +527,7 @@
             '<div class="plugin-actions">' +
               (plugin.metadata ? '<button type="button" class="plugin-update">Update</button>' : '') +
               '<button type="button" class="plugin-toggle">' + actionLabel + '</button>' +
+              '<button type="button" class="plugin-delete">Delete</button>' +
             '</div>' +
           '</div>'
         );
@@ -1337,7 +1338,7 @@
       renderPluginsPanel();
     });
     pluginsList.addEventListener('click', async e => {
-      const actionButton = e.target.closest('.plugin-toggle, .plugin-update');
+      const actionButton = e.target.closest('.plugin-toggle, .plugin-update, .plugin-delete');
       if (!actionButton) return;
       e.preventDefault();
       e.stopPropagation();
@@ -1374,6 +1375,25 @@
           setActiveTopTab('plugins');
         } catch (err) {
           pluginDownloadStatus.textContent = '❌ ' + err.message;
+        } finally {
+          actionButton.disabled = false;
+        }
+        return;
+      }
+
+      if (actionButton.classList.contains('plugin-delete')) {
+        const pluginName = pathBase(sourcePath).replace(/\.jar(?:\.disabled)?$/i, '');
+        const confirmed = window.confirm('Delete plugin "' + pluginName + '"? This cannot be undone.');
+        if (!confirmed) return;
+        try {
+          actionButton.disabled = true;
+          await postJson('/api/path/delete', { serverId: serverSel.value, path: sourcePath });
+          await loadFiles();
+          renderPluginsPanel();
+          setActiveTopTab('plugins');
+          status.textContent = '✅ Plugin deleted: ' + pluginName;
+        } catch (err) {
+          status.textContent = '❌ ' + err.message;
         } finally {
           actionButton.disabled = false;
         }
