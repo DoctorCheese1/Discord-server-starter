@@ -101,9 +101,9 @@
             <button id="pluginResolveBtn" type="button">Get Link</button>
             <button id="pluginInstallBtn" type="button">Install to /plugins</button>
           </div>
+          <textarea id="pluginBatchList" class="plugin-batch-list" placeholder="Optional list (one plugin per line) for Modrinth bulk install"></textarea>
           <div class="plugin-download-controls plugin-download-controls-secondary">
-            <button id="pluginSearchBtn" type="button">Search Modrinth</button>
-            <select id="pluginSearchResults"><option value="">Search results will appear here</option></select>
+            <button id="pluginInstallListBtn" type="button">Install List to /plugins</button>
           </div>
           <div id="pluginDownloadStatus" class="plugin-download-status">Ready.</div>
         </div>
@@ -185,8 +185,8 @@
     const spigotXfSession = document.getElementById('spigotXfSession');
     const pluginResolveBtn = document.getElementById('pluginResolveBtn');
     const pluginInstallBtn = document.getElementById('pluginInstallBtn');
-    const pluginSearchBtn = document.getElementById('pluginSearchBtn');
-    const pluginSearchResults = document.getElementById('pluginSearchResults');
+    const pluginBatchList = document.getElementById('pluginBatchList');
+    const pluginInstallListBtn = document.getElementById('pluginInstallListBtn');
     const pluginDownloadStatus = document.getElementById('pluginDownloadStatus');
     const lineNumbers = document.getElementById('lineNumbers');
     const editorGrid = document.querySelector('.editor-grid');
@@ -1472,47 +1472,60 @@
       }
     });
 
-    pluginSearchBtn.addEventListener('click', async () => {
-      const source = pluginSource.value;
-      const query = pluginQuery.value.trim();
-      if (source !== 'modrinth') {
-        pluginDownloadStatus.textContent = '❌ Search list is available for Modrinth source only.';
+    pluginInstallListBtn.addEventListener('click', async () => {
+      if (!currentServerId) {
+        pluginDownloadStatus.textContent = '❌ Select a server first.';
         return;
       }
-      if (!query) {
-        pluginDownloadStatus.textContent = '❌ Enter a Modrinth query, slug, or page ID first.';
+      if (pluginSource.value !== 'modrinth') {
+        pluginDownloadStatus.textContent = '❌ List install currently supports Modrinth source only.';
+        return;
+      }
+      const entries = String(pluginBatchList.value || '')
+        .split(/\r?\n|,/)
+        .map(v => v.trim())
+        .filter(Boolean);
+      if (!entries.length) {
+        pluginDownloadStatus.textContent = '❌ Enter at least one plugin in the list.';
         return;
       }
 
-      pluginSearchBtn.disabled = true;
-      pluginSearchResults.disabled = true;
-      pluginDownloadStatus.textContent = '⏳ Searching Modrinth...';
+      const platform = pluginPlatform.value;
+      const mcVersion = pluginMcVersion.value.trim();
+      const xfUser = spigotXfUser.value.trim();
+      const xfSession = spigotXfSession.value.trim();
+      pluginInstallListBtn.disabled = true;
+      pluginInstallBtn.disabled = true;
+      pluginResolveBtn.disabled = true;
+      let ok = 0;
+      let fail = 0;
       try {
-        const response = await postJson('/api/plugins/search', { source, query, limit: 15 });
-        const results = Array.isArray(response.results) ? response.results : [];
-        if (!results.length) {
-          pluginSearchResults.innerHTML = '<option value="">No Modrinth plugins found</option>';
-          pluginDownloadStatus.textContent = '❌ No Modrinth plugins found.';
-          return;
+        for (let i = 0; i < entries.length; i++) {
+          const query = entries[i];
+          pluginDownloadStatus.textContent = `⏳ Installing ${i + 1}/${entries.length}: ${query}`;
+          try {
+            await postJson('/api/plugins/install', {
+              serverId: currentServerId,
+              source: 'modrinth',
+              platform,
+              mcVersion,
+              query,
+              xfUser,
+              xfSession
+            });
+            ok += 1;
+          } catch (err) {
+            fail += 1;
+          }
         }
-        pluginSearchResults.innerHTML = results.map((r, idx) => `<option value="${escapeHtml(r.projectId)}" data-slug="${escapeHtml(r.slug || '')}" ${idx === 0 ? 'selected' : ''}>${escapeHtml(r.title)} (${escapeHtml(r.slug || r.projectId)})</option>`).join('');
-        const first = results[0];
-        pluginQuery.value = first.projectId || first.slug || query;
-        pluginDownloadStatus.textContent = `✅ Found ${results.length} Modrinth plugin(s). Selected: ${first.title}`;
-      } catch (err) {
-        pluginDownloadStatus.textContent = '❌ ' + err.message;
+        await loadFiles(currentServerId, null);
+        setActiveTopTab('plugins');
+        pluginDownloadStatus.textContent = `✅ Installed ${ok}/${entries.length} plugin(s)` + (fail ? ` • failed: ${fail}` : '');
       } finally {
-        pluginSearchBtn.disabled = false;
-        pluginSearchResults.disabled = false;
+        pluginInstallListBtn.disabled = false;
+        pluginInstallBtn.disabled = false;
+        pluginResolveBtn.disabled = false;
       }
-    });
-
-    pluginSearchResults.addEventListener('change', () => {
-      const selected = pluginSearchResults.options[pluginSearchResults.selectedIndex];
-      if (!selected) return;
-      const value = (selected.value || '').trim();
-      const slug = (selected.getAttribute('data-slug') || '').trim();
-      pluginQuery.value = value || slug || pluginQuery.value;
     });
 
     pluginInstallBtn.addEventListener('click', async () => {
