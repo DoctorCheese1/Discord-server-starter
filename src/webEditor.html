@@ -1324,8 +1324,7 @@
       e.stopPropagation();
       const row = actionButton.closest('.plugin-row');
       if (!row) return;
-      const encodedPath = row.dataset.path || '';
-      const sourcePath = decodeURIComponent(encodedPath);
+      const sourcePath = row.dataset.path || '';
 
       if (actionButton.classList.contains('plugin-delete')) {
         if (!confirm('Delete plugin "' + sourcePath + '"? This cannot be undone.')) return;
