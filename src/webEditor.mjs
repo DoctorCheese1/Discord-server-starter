@@ -190,6 +190,36 @@ function toSafePluginFilename(value, fallbackBase = 'plugin') {
   return `${safeBase}.jar`;
 }
 
+function sanitizeVersionLabel(version) {
+  return String(version || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function removePreviousPluginVersions(pluginsDir, pluginLabel, nextFilename) {
+  if (!fs.existsSync(pluginsDir)) return [];
+  const safeBase = toSafeAttachmentName(pluginLabel, 'plugin').replace(/_+/g, '-');
+  const escapedBase = safeBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const versionedPattern = new RegExp(`^${escapedBase}(?:-[a-zA-Z0-9._-]+)?\\.jar(?:\\.disabled)?$`, 'i');
+  const removed = [];
+  for (const entry of fs.readdirSync(pluginsDir, { withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const name = entry.name;
+    if (name === nextFilename) continue;
+    if (!versionedPattern.test(name)) continue;
+    const fullPath = path.resolve(pluginsDir, name);
+    try {
+      fs.rmSync(fullPath);
+      removed.push(name);
+    } catch {
+      // keep best-effort cleanup non-fatal
+    }
+  }
+  return removed;
+}
+
 function inferFilenameFromHeaders(headers) {
   const contentDisposition = headers.get('content-disposition') || '';
   const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
@@ -198,10 +228,20 @@ function inferFilenameFromHeaders(headers) {
   return simpleMatch?.[1] || '';
 }
 
-async function fetchBinary(url) {
+function toSpigotCookieHeader(spigotAuth = {}) {
+  const xfUser = String(spigotAuth?.xfUser || '').trim();
+  const xfSession = String(spigotAuth?.xfSession || '').trim();
+  const cookieParts = [];
+  if (xfUser) cookieParts.push(`xf_user=${xfUser}`);
+  if (xfSession) cookieParts.push(`xf_session=${xfSession}`);
+  return cookieParts.join('; ');
+}
+
+async function fetchBinary(url, extraHeaders = {}) {
   const response = await fetch(url, {
     headers: {
-      'User-Agent': 'ServerControlBot/2.0 (plugin downloader)'
+      'User-Agent': 'ServerControlBot/2.0 (plugin downloader)',
+      ...extraHeaders
     },
     redirect: 'follow'
   });
@@ -268,13 +308,14 @@ export function startWebEditor() {
         const query = String(body.query || '').trim();
         const platform = String(body.platform || '').trim().toLowerCase();
         const mcVersion = String(body.mcVersion || '').trim();
+        const spigotAuth = body.spigotAuth && typeof body.spigotAuth === 'object' ? body.spigotAuth : {};
 
         if (!query) {
           return sendJson(res, 400, { error: 'Plugin query is required' });
         }
 
         try {
-          const result = await getPluginDownloadLink({ source, query, platform, mcVersion });
+          const result = await getPluginDownloadLink({ source, query, platform, mcVersion, spigotAuth });
           return sendJson(res, 200, { result });
         } catch (error) {
           return sendJson(res, 400, { error: error?.message || 'Unable to resolve plugin download link' });
@@ -289,6 +330,7 @@ export function startWebEditor() {
         const query = String(body.query || '').trim();
         const platform = String(body.platform || '').trim().toLowerCase();
         const mcVersion = String(body.mcVersion || '').trim();
+        const spigotAuth = body.spigotAuth && typeof body.spigotAuth === 'object' ? body.spigotAuth : {};
 
         if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
         if (!query) return sendJson(res, 400, { error: 'Plugin query is required' });
@@ -298,14 +340,18 @@ export function startWebEditor() {
 
         try {
           const result = await getPluginDownloadLink({ source, query, platform, mcVersion });
-          if (result?.source === 'spigot' && result?.paid) {
+          const cookie = toSpigotCookieHeader(spigotAuth);
+          if (result?.source === 'spigot' && result?.paid && !cookie) {
             return sendJson(res, 400, {
-              error: 'This Spigot plugin is paid and cannot be auto-installed. Open the resource page and download it manually.',
+              error: 'This Spigot plugin is paid. Add xf_user + xf_session from your Spigot account to download it.',
               result
             });
           }
-          const downloaded = await fetchBinary(result.url);
-          const preferredName = `${result.plugin || result.projectSlug || query}.jar`;
+          const downloadHeaders = cookie ? { Cookie: cookie } : {};
+          const downloaded = await fetchBinary(result.url, downloadHeaders);
+          const versionLabel = sanitizeVersionLabel(result.versionNumber || result.minecraftVersion || '');
+          const pluginLabel = result.plugin || result.projectSlug || query;
+          const preferredName = versionLabel ? `${pluginLabel}-${versionLabel}.jar` : `${pluginLabel}.jar`;
           const fallbackName = downloaded.filenameFromHeader || `${result.projectSlug || 'plugin'}.jar`;
           const filename = toSafePluginFilename(preferredName, path.basename(fallbackName, path.extname(fallbackName)));
           const relPath = path.posix.join('plugins', filename);
@@ -313,13 +359,16 @@ export function startWebEditor() {
           if (!isSafePath(serverConfig.cwd, relPath)) return sendJson(res, 400, { error: 'Invalid plugin path' });
 
           fs.mkdirSync(pluginsDir, { recursive: true });
+          const removed = removePreviousPluginVersions(pluginsDir, pluginLabel, filename);
           fs.writeFileSync(targetFullPath, downloaded.bytes);
 
           return sendJson(res, 200, {
             ok: true,
             path: relPath,
-            plugin: result.plugin || query,
-            source: result.source || source
+            plugin: pluginLabel,
+            source: result.source || source,
+            version: result.versionNumber || result.minecraftVersion || 'latest',
+            replaced: removed
           });
         } catch (error) {
           return sendJson(res, 400, { error: error?.message || 'Unable to install plugin' });

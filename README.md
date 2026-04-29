@@ -339,6 +339,8 @@ Features:
 * search files by name/path from inside the editor
 * load/save files directly from browser
 * Plugin Manager tab can resolve plugin download links from **Modrinth** (filtered by platform + MC version) or **Spigot** (latest resource file link)
+* For paid Spigot resources, add your `xf_user` + `xf_session` cookies in the Plugin Manager to download with your own Spigot account session
+* To update a Spigot plugin, set source to **Spigot** and enter the plugin page URL or numeric resource ID, then click **Install to /plugins** (older versioned jars for that plugin are replaced automatically)
 * remembers API key in browser local storage for easier reconnects
 
 Safety limits:
@@ -347,6 +349,23 @@ Safety limits:
 * max file size/content: 1MB
 
 > Use `WEB_EDITOR_API_KEY` in production.
+
+### Spigot account cookies for paid plugins (`xf_user`, `xf_session`)
+
+Paid Spigot plugins require your authenticated Spigot session. You can copy these values from your browser after logging into Spigot:
+
+1. Sign in to https://www.spigotmc.org.
+2. Open browser DevTools (`F12`).
+3. Go to **Application/Storage** → **Cookies** → `https://www.spigotmc.org`.
+4. Copy cookie values for:
+   * `xf_user`
+   * `xf_session`
+5. Paste them into the Plugin Manager fields in the web editor.
+
+Security notes:
+* Treat these like passwords/session tokens.
+* Do not share them.
+* If exposed, log out of Spigot and back in to rotate session cookies.
 
 ---
 

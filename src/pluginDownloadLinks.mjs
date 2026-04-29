@@ -118,7 +118,7 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
       plugin: details.name || `resource-${resourceId}`,
       projectId: resourceId,
       projectSlug: '',
-      url: '',
+      url: resourceUrl,
       resourceUrl,
       versionNumber: 'latest',
       minecraftVersion: mcVersion || 'latest supported',
