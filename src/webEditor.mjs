@@ -198,6 +198,30 @@ function sanitizeVersionLabel(version) {
     .replace(/^-|-$/g, '');
 }
 
+function getEditorPluginStatePath(serverCwd) {
+  return path.resolve(serverCwd, 'plugins', '.editor-installed.json');
+}
+
+function readEditorPluginState(serverCwd) {
+  const statePath = getEditorPluginStatePath(serverCwd);
+  if (!fs.existsSync(statePath)) return { entries: {} };
+  try {
+    const parsed = JSON.parse(fs.readFileSync(statePath, 'utf8') || '{}');
+    const entries = parsed && typeof parsed === 'object' && parsed.entries && typeof parsed.entries === 'object'
+      ? parsed.entries
+      : {};
+    return { entries };
+  } catch {
+    return { entries: {} };
+  }
+}
+
+function writeEditorPluginState(serverCwd, state) {
+  const statePath = getEditorPluginStatePath(serverCwd);
+  fs.mkdirSync(path.dirname(statePath), { recursive: true });
+  fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
+}
+
 function removePreviousPluginVersions(pluginsDir, pluginLabel, nextFilename) {
   if (!fs.existsSync(pluginsDir)) return [];
   const safeBase = toSafeAttachmentName(pluginLabel, 'plugin').replace(/_+/g, '-');
@@ -354,6 +378,21 @@ export function startWebEditor() {
           fs.mkdirSync(pluginsDir, { recursive: true });
           const removed = removePreviousPluginVersions(pluginsDir, pluginLabel, filename);
           fs.writeFileSync(targetFullPath, downloaded.bytes);
+          const state = readEditorPluginState(serverConfig.cwd);
+          const metadata = {
+            source: result.source || source || 'unknown',
+            projectId: String(result.projectId || '').trim(),
+            projectSlug: String(result.projectSlug || '').trim(),
+            query: String(query || '').trim(),
+            plugin: String(pluginLabel || '').trim(),
+            version: String(result.versionNumber || result.minecraftVersion || 'latest').trim(),
+            installedAt: new Date().toISOString()
+          };
+          state.entries[relPath] = metadata;
+          for (const oldName of removed) {
+            delete state.entries[path.posix.join('plugins', oldName)];
+          }
+          writeEditorPluginState(serverConfig.cwd, state);
 
           return sendJson(res, 200, {
             ok: true,
@@ -366,6 +405,14 @@ export function startWebEditor() {
         } catch (error) {
           return sendJson(res, 400, { error: error?.message || 'Unable to install plugin' });
         }
+      }
+
+      if (req.method === 'GET' && url.pathname === '/api/plugins/editor-state') {
+        const serverId = url.searchParams.get('serverId');
+        const serverConfig = findServer(serverId);
+        if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
+        const state = readEditorPluginState(serverConfig.cwd);
+        return sendJson(res, 200, state);
       }
 
       if (req.method === 'GET' && url.pathname === '/api/files') {
