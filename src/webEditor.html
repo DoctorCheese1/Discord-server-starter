@@ -1383,37 +1383,17 @@
 
       if (actionButton.classList.contains('plugin-delete')) {
         const pluginName = pathBase(sourcePath).replace(/\.jar(?:\.disabled)?$/i, '');
-        let deleteTargets = [canonicalPath, canonicalPath + '.disabled'].filter((pluginPath, index, arr) => {
-          if (arr.indexOf(pluginPath) !== index) return false;
-          return allFiles.some(file => file.path === pluginPath);
-        });
-        if (!deleteTargets.length) {
-          // Fallback for editor-added entries that may not be represented in allFiles yet.
-          deleteTargets = [sourcePath, canonicalPath, canonicalPath + '.disabled'].filter((pluginPath, index, arr) => {
-            return pluginPath && arr.indexOf(pluginPath) === index;
-          });
-        }
-        const confirmed = window.confirm(
-          'Delete plugin "' + pluginName + '"?' +
-          (deleteTargets.length > 1 ? ' This will remove both enabled/disabled variants.' : '') +
-          ' This cannot be undone.'
-        );
+        const confirmed = window.confirm('Delete plugin "' + pluginName + '"? This cannot be undone.');
         if (!confirmed) return;
         try {
           actionButton.disabled = true;
-          let deletedAny = false;
-          for (const targetPath of deleteTargets) {
-            const beforeCount = allFiles.length;
-            await deleteAnyPath(targetPath, true);
-            if (allFiles.length < beforeCount) deletedAny = true;
-          }
-          if (!deletedAny) throw new Error('Plugin file was not found to delete. Refresh and try again.');
-          delete editorPluginEntries[canonicalPath];
+          await postJson('/api/path/delete', { serverId: serverSel.value, path: sourcePath });
+          await loadFiles();
           renderPluginsPanel();
           setActiveTopTab('plugins');
-          pluginDownloadStatus.textContent = '✅ Plugin deleted: ' + pluginName;
+          status.textContent = '✅ Plugin deleted: ' + pluginName;
         } catch (err) {
-          pluginDownloadStatus.textContent = '❌ ' + err.message;
+          status.textContent = '❌ ' + err.message;
         } finally {
           actionButton.disabled = false;
         }
