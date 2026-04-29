@@ -118,6 +118,18 @@
     .plugin-toggle:hover:not(:disabled) { background: #094771; border-color: #0f5f92; color: #fff; }
     .plugin-toggle:disabled { opacity: .6; cursor: wait; }
     .plugin-actions { display: flex; gap: 8px; align-items: center; }
+    .plugin-update {
+      border: 1px solid #2f5e8f;
+      border-radius: 4px;
+      background: #1f3f5e;
+      color: #d6e8ff;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+    }
+    .plugin-update:hover:not(:disabled) { background: #0f5f92; border-color: #1a79ba; color: #fff; }
+    .plugin-update:disabled { opacity: .6; cursor: wait; }
     .plugin-delete { border: 1px solid #744343; border-radius: 4px; background: #3b2424; color: #f2c5c5; padding: 6px 10px; cursor: pointer; font-size: 12px; }
     .plugin-delete:hover:not(:disabled) { background: #7a2f2f; border-color: #a84d4d; color: #fff; }
     .plugin-delete:disabled { opacity: .6; cursor: wait; }
