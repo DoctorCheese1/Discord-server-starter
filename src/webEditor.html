@@ -502,11 +502,11 @@
         const actionLabel = plugin.enabled ? 'Disable' : 'Enable';
         const stateLabel = plugin.enabled ? 'Enabled' : 'Disabled';
         const stateClass = plugin.enabled ? 'enabled' : 'disabled';
-        const safePath = escapeHtml(plugin.path);
+        const encodedPath = encodeURIComponent(plugin.path);
         const safeName = escapeHtml(plugin.name);
         const safeRelativePath = escapeHtml(plugin.relativePath);
         return (
-          '<div class="plugin-row" data-path="' + safePath + '" data-enabled="' + plugin.enabled + '">' +
+          '<div class="plugin-row" data-path="' + encodedPath + '" data-enabled="' + plugin.enabled + '">' +
             '<div class="plugin-meta">' +
               '<div class="plugin-name">' + safeName + '</div>' +
               '<div class="plugin-path">plugins/' + safeRelativePath + '</div>' +
@@ -1324,7 +1324,7 @@
       e.stopPropagation();
       const row = actionButton.closest('.plugin-row');
       if (!row) return;
-      const sourcePath = row.dataset.path || '';
+      const sourcePath = decodeURIComponent(row.dataset.path || '');
 
       if (actionButton.classList.contains('plugin-delete')) {
         if (!confirm('Delete plugin "' + sourcePath + '"? This cannot be undone.')) return;
