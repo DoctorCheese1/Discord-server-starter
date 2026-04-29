@@ -1441,7 +1441,9 @@
         });
         const pluginLabel = response.plugin || query;
         const targetPath = response.path || 'plugins/plugin.jar';
-        pluginDownloadStatus.textContent = '✅ Installed ' + pluginLabel + ' to ' + targetPath;
+        const versionLabel = (response.version || '').trim();
+        const replacedCount = Array.isArray(response.replaced) ? response.replaced.length : 0;
+        pluginDownloadStatus.textContent = '✅ Installed ' + pluginLabel + (versionLabel ? ' (' + versionLabel + ')' : '') + ' to ' + targetPath + (replacedCount ? ' • replaced ' + replacedCount + ' old version(s)' : '');
         await loadFiles();
         renderPluginsPanel();
         setActiveTopTab('plugins');

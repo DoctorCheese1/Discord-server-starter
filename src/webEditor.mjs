@@ -190,6 +190,36 @@ function toSafePluginFilename(value, fallbackBase = 'plugin') {
   return `${safeBase}.jar`;
 }
 
+function sanitizeVersionLabel(version) {
+  return String(version || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function removePreviousPluginVersions(pluginsDir, pluginLabel, nextFilename) {
+  if (!fs.existsSync(pluginsDir)) return [];
+  const safeBase = toSafeAttachmentName(pluginLabel, 'plugin').replace(/_+/g, '-');
+  const escapedBase = safeBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const versionedPattern = new RegExp(`^${escapedBase}(?:-[a-zA-Z0-9._-]+)?\\.jar(?:\\.disabled)?$`, 'i');
+  const removed = [];
+  for (const entry of fs.readdirSync(pluginsDir, { withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const name = entry.name;
+    if (name === nextFilename) continue;
+    if (!versionedPattern.test(name)) continue;
+    const fullPath = path.resolve(pluginsDir, name);
+    try {
+      fs.rmSync(fullPath);
+      removed.push(name);
+    } catch {
+      // keep best-effort cleanup non-fatal
+    }
+  }
+  return removed;
+}
+
 function inferFilenameFromHeaders(headers) {
   const contentDisposition = headers.get('content-disposition') || '';
   const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
@@ -327,13 +357,16 @@ export function startWebEditor() {
           if (!isSafePath(serverConfig.cwd, relPath)) return sendJson(res, 400, { error: 'Invalid plugin path' });
 
           fs.mkdirSync(pluginsDir, { recursive: true });
+          const removed = removePreviousPluginVersions(pluginsDir, pluginLabel, filename);
           fs.writeFileSync(targetFullPath, downloaded.bytes);
 
           return sendJson(res, 200, {
             ok: true,
             path: relPath,
-            plugin: result.plugin || query,
-            source: result.source || source
+            plugin: pluginLabel,
+            source: result.source || source,
+            version: result.versionNumber || result.minecraftVersion || 'latest',
+            replaced: removed
           });
         } catch (error) {
           return sendJson(res, 400, { error: error?.message || 'Unable to install plugin' });
