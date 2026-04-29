@@ -335,6 +335,7 @@ export function startWebEditor() {
             });
           }
           const downloaded = await fetchBinary(result.url);
+          const pluginLabel = result.plugin || result.projectSlug || query;
           const preferredName = `${result.plugin || result.projectSlug || query}.jar`;
           const fallbackName = downloaded.filenameFromHeader || `${result.projectSlug || 'plugin'}.jar`;
           const filename = toSafePluginFilename(preferredName, path.basename(fallbackName, path.extname(fallbackName)));
