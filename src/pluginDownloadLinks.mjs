@@ -109,6 +109,8 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
   }
 
   const details = await fetchJson(`https://api.spiget.org/v2/resources/${resourceId}`);
+  const latestVersion = await fetchJson(`https://api.spiget.org/v2/resources/${resourceId}/versions/latest`).catch(() => null);
+  const latestVersionLabel = String(latestVersion?.name || latestVersion?.id || 'latest').trim() || 'latest';
   const premium = Boolean(details.premium);
   const external = Boolean(details.external);
   const resourceUrl = `https://www.spigotmc.org/resources/${details.tag || details.name || `resource-${resourceId}`}.${resourceId}/`;
@@ -118,14 +120,14 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
       plugin: details.name || `resource-${resourceId}`,
       projectId: resourceId,
       projectSlug: '',
-      url: resourceUrl,
+      url: `${resourceUrl}download?version=latest`,
       resourceUrl,
-      versionNumber: 'latest',
+      versionNumber: latestVersionLabel,
       minecraftVersion: mcVersion || 'latest supported',
       loader: 'spigot',
       paid: true,
       external,
-      note: 'Paid Spigot resources cannot be auto-downloaded. Open the resource page and download manually after purchase.'
+      note: 'Paid Spigot resources require your Spigot xf_user + xf_session cookies for direct download.'
     };
   }
   const downloadUrl = `https://api.spiget.org/v2/resources/${resourceId}/download`;
@@ -137,7 +139,7 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
     projectSlug: '',
     url: downloadUrl,
     resourceUrl,
-    versionNumber: 'latest',
+    versionNumber: latestVersionLabel,
     minecraftVersion: mcVersion || 'latest supported',
     loader: 'spigot',
     paid: false,
