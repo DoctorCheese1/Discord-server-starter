@@ -84,6 +84,7 @@ async function requestWithFallback(url, headers) {
     return {
       status: response.statusCode || response.status || 0,
       location: response.headers?.location || '',
+      body: typeof response.body === 'string' ? response.body : '',
       engine: 'cloudscraper'
     };
   } catch {
@@ -93,12 +94,24 @@ async function requestWithFallback(url, headers) {
       headers
     });
 
+    const body = await response.text();
     return {
       status: response.status,
       location: response.headers.get('location') || '',
+      body,
       engine: 'fetch'
     };
   }
+}
+
+
+function inferAuthState(body = '') {
+  const text = String(body || '');
+  if (!text) return 'unknown';
+  if (/Log Out|data-logout-url|account\/logout/i.test(text)) return 'logged_in';
+  if (/Log in|Register|Forgot your password\?/i.test(text)) return 'logged_out';
+  if (/cf-browser-verification|Attention Required|Cloudflare/i.test(text)) return 'cloudflare_challenge';
+  return 'unknown';
 }
 
 async function main() {
@@ -128,12 +141,19 @@ async function main() {
     Cookie: cookieHeader
   };
 
+  const preflight = await requestWithFallback('https://www.spigotmc.org/account/', headers);
+  const preflightAuth = inferAuthState(preflight.body);
+
   const response = await requestWithFallback(downloadUrl, headers);
   const { status, location, engine } = response;
   console.log(`ℹ️ Request engine: ${engine}`);
+  console.log(`ℹ️ Account check: ${preflight.status} (${preflightAuth})`);
 
   if (status === 403) {
     fail('❌ Cookie test failed: 403 Forbidden (session/cookies not accepted).', 2);
+    if (preflightAuth === 'logged_out') console.error('Hint: cookies are not logged in anymore (session expired).');
+    if (preflightAuth === 'cloudflare_challenge') console.error('Hint: Cloudflare challenge detected; clearances may be bound to browser context.');
+    if (preflightAuth === 'logged_in') console.error('Hint: account appears logged in, but this resource/version may not be accessible to this account.');
     return;
   }
 
