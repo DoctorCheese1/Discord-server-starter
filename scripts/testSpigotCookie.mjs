@@ -70,15 +70,35 @@ function buildCookieHeader() {
   return formatCookieHeader(cookieParts);
 }
 
-async function requestWithCloudscraper(url, headers) {
-  const { default: cloudscraper } = await import('cloudscraper');
-  return cloudscraper.get({
-    url,
-    headers,
-    resolveWithFullResponse: true,
-    simple: false,
-    followAllRedirects: false
-  });
+async function requestWithFallback(url, headers) {
+  try {
+    const { default: cloudscraper } = await import('cloudscraper');
+    const response = await cloudscraper.get({
+      url,
+      headers,
+      resolveWithFullResponse: true,
+      simple: false,
+      followAllRedirects: false
+    });
+
+    return {
+      status: response.statusCode || response.status || 0,
+      location: response.headers?.location || '',
+      engine: 'cloudscraper'
+    };
+  } catch {
+    const response = await fetch(url, {
+      method: 'GET',
+      redirect: 'manual',
+      headers
+    });
+
+    return {
+      status: response.status,
+      location: response.headers.get('location') || '',
+      engine: 'fetch'
+    };
+  }
 }
 
 async function main() {
@@ -108,17 +128,9 @@ async function main() {
     Cookie: cookieHeader
   };
 
-  let response;
-  try {
-    response = await requestWithCloudscraper(downloadUrl, headers);
-  } catch (error) {
-    fail(`❌ Cloudscraper request failed: ${error.message}`, 4);
-    console.error('Tip: install dependency with: npm i cloudscraper');
-    return;
-  }
-
-  const location = response.headers?.location || '';
-  const status = response.statusCode || response.status || 0;
+  const response = await requestWithFallback(downloadUrl, headers);
+  const { status, location, engine } = response;
+  console.log(`ℹ️ Request engine: ${engine}`);
 
   if (status === 403) {
     fail('❌ Cookie test failed: 403 Forbidden (session/cookies not accepted).', 2);
