@@ -28,13 +28,8 @@ function parseSpigotResourceId(input) {
 function normalizeCookieParts(input) {
   const raw = String(input || '').trim();
   if (!raw) return [];
-  return raw
-    .split(';')
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .filter((part) => part.includes('='));
+  return raw.split(';').map((part) => part.trim()).filter(Boolean).filter((part) => part.includes('='));
 }
-
 
 function parseCookieHeader(header) {
   return normalizeCookieParts(header)
@@ -54,14 +49,12 @@ function formatCookieHeader(cookieEntries) {
 }
 
 function buildCookieHeader() {
-  // Mode A: full cookie header passed as arg2 (recommended)
   if (cookieOrXfUser.includes('=') && cookieOrXfUser.includes(';')) {
     const full = parseCookieHeader(cookieOrXfUser);
     const extra = parseCookieHeader(extraCookieHeader);
     return formatCookieHeader([...full, ...extra]);
   }
 
-  // Mode B: legacy positional args xf_user xf_session [xf_tfa_trust] [extra_cookie_header]
   if (!cookieOrXfUser || !xfSession) return '';
   const decodedXfUser = decodeCookieValue(cookieOrXfUser);
   const decodedXfSession = decodeCookieValue(xfSession);
@@ -75,6 +68,17 @@ function buildCookieHeader() {
   if (decodedXfTfaTrust) cookieParts.push(['xf_tfa_trust', decodedXfTfaTrust]);
   cookieParts.push(...extraCookieParts);
   return formatCookieHeader(cookieParts);
+}
+
+async function requestWithCloudscraper(url, headers) {
+  const { default: cloudscraper } = await import('cloudscraper');
+  return cloudscraper.get({
+    url,
+    headers,
+    resolveWithFullResponse: true,
+    simple: false,
+    followAllRedirects: false
+  });
 }
 
 async function main() {
@@ -96,41 +100,45 @@ async function main() {
   }
 
   const downloadUrl = `https://www.spigotmc.org/resources/${resourceId}/download?version=latest`;
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    Referer: `https://www.spigotmc.org/resources/${resourceId}/`,
+    Origin: 'https://www.spigotmc.org',
+    Cookie: cookieHeader
+  };
 
-  const response = await fetch(downloadUrl, {
-    method: 'GET',
-    redirect: 'manual',
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      Referer: `https://www.spigotmc.org/resources/${resourceId}/`,
-      Origin: 'https://www.spigotmc.org',
-      Cookie: cookieHeader
-    }
-  });
-
-  const location = response.headers.get('location') || '';
-
-  if (response.status === 403) {
-    fail('❌ Cookie test failed: 403 Forbidden (session/cookies not accepted).', 2);
-    console.error('Tip: use full browser Cookie header as arg2 to include all required cookies.');
+  let response;
+  try {
+    response = await requestWithCloudscraper(downloadUrl, headers);
+  } catch (error) {
+    fail(`❌ Cloudscraper request failed: ${error.message}`, 4);
+    console.error('Tip: install dependency with: npm i cloudscraper');
     return;
   }
 
-  if (response.status >= 300 && response.status < 400 && location) {
+  const location = response.headers?.location || '';
+  const status = response.statusCode || response.status || 0;
+
+  if (status === 403) {
+    fail('❌ Cookie test failed: 403 Forbidden (session/cookies not accepted).', 2);
+    return;
+  }
+
+  if (status >= 300 && status < 400 && location) {
     console.log('✅ Cookie test looks valid: received redirect to download target.');
-    console.log(`Status: ${response.status}`);
+    console.log(`Status: ${status}`);
     console.log(`Location: ${location}`);
     return;
   }
 
-  if (response.ok) {
+  if (status >= 200 && status < 300) {
     console.log('✅ Cookie test succeeded: direct downloadable response returned.');
-    console.log(`Status: ${response.status}`);
+    console.log(`Status: ${status}`);
     return;
   }
 
-  fail(`⚠️ Unexpected response: HTTP ${response.status}`, 3);
+  fail(`⚠️ Unexpected response: HTTP ${status}`, 3);
   if (location) console.error(`Location: ${location}`);
 }
 
