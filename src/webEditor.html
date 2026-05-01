@@ -95,7 +95,7 @@
               <option value="neoforge">neoforge</option>
             </select>
             <input id="pluginMcVersion" placeholder="Minecraft version (e.g. 1.21.1)" />
-            <input id="pluginQuery" placeholder="Plugin name/slug/page ID/URL (Modrinth) or resource URL/ID (Spigot)" />
+            <input id="pluginQuery" placeholder="Plugin name/slug (Modrinth) or resource URL/ID (Spigot)" />
             <input id="spigotXfUser" type="password" autocomplete="off" placeholder="Spigot xf_user (optional)" />
             <input id="spigotXfSession" type="password" autocomplete="off" placeholder="Spigot xf_session (optional)" />
             <button id="pluginResolveBtn" type="button">Get Link</button>
@@ -221,7 +221,6 @@
     let lastEditorFindIndex = -1;
     let lastEditorFindQuery = '';
     let pluginSearchFilter = '';
-    let pluginListScrollTop = 0;
     const expandedFolders = new Set();
 
     function loadUiState() {
@@ -243,27 +242,16 @@
 
     function restoreUiState() {
       const serverId = serverSel.value || '';
-      if (!serverId) return { expanded: [], currentFile: '' };
+      if (!serverId) return { expanded: [], currentFile: '', spigotXfUser: '', spigotXfSession: '' };
       const state = loadUiState();
-      return state[serverId] || { expanded: [], currentFile: '' };
+      return state[serverId] || { expanded: [], currentFile: '', spigotXfUser: '', spigotXfSession: '' };
     }
 
-    const SPIGOT_AUTH_STORAGE_KEY = 'pluginSpigotAuth';
-    try {
-      const savedAuth = JSON.parse(localStorage.getItem(SPIGOT_AUTH_STORAGE_KEY) || '{}');
-      if (savedAuth && typeof savedAuth === 'object') {
-        spigotXfUser.value = String(savedAuth.xfUser || '');
-        spigotXfSession.value = String(savedAuth.xfSession || '');
-      }
-    } catch (_) {}
-
-    function getSpigotAuthPayload() {
-      const xfUser = (spigotXfUser.value || '').trim();
-      const xfSession = (spigotXfSession.value || '').trim();
-      try {
-        localStorage.setItem(SPIGOT_AUTH_STORAGE_KEY, JSON.stringify({ xfUser, xfSession }));
-      } catch (_) {}
-      return { xfUser, xfSession };
+    function persistSpigotSessionState() {
+      saveUiState({
+        spigotXfUser: spigotXfUser.value.trim(),
+        spigotXfSession: spigotXfSession.value.trim()
+      });
     }
 
     function captureExpandedFoldersFromDom() {
@@ -503,7 +491,6 @@
     }
 
     function renderPluginsPanel() {
-      pluginListScrollTop = pluginsList.scrollTop || pluginListScrollTop || 0;
       const allPlugins = listPlugins();
       const terms = getSearchTerms(pluginSearchFilter);
       const plugins = terms.length
@@ -545,7 +532,6 @@
           '</div>'
         );
       }).join('');
-      pluginsList.scrollTop = pluginListScrollTop;
     }
 
     function setActiveTopTab(tabName) {
@@ -1056,6 +1042,8 @@
         expandedFolders.clear();
         const restored = restoreUiState();
         setActiveTopTab(restored.activeTopTab || 'file');
+        spigotXfUser.value = restored.spigotXfUser || '';
+        spigotXfSession.value = restored.spigotXfSession || '';
         for (const folder of restored.expanded || []) {
           expandedFolders.add(folder);
         }
@@ -1350,8 +1338,7 @@
       renderPluginsPanel();
     });
     pluginsList.addEventListener('click', async e => {
-      pluginListScrollTop = pluginsList.scrollTop || 0;
-      const actionButton = e.target.closest('.plugin-toggle, .plugin-update, .plugin-delete');
+      const actionButton = e.target.closest('.plugin-toggle, .plugin-delete, .plugin-update');
       if (!actionButton) return;
       e.preventDefault();
       e.stopPropagation();
@@ -1379,7 +1366,8 @@
             query,
             platform: pluginPlatform.value,
             mcVersion: pluginMcVersion.value.trim(),
-            ...getSpigotSessionPayload()
+            xfUser: spigotXfUser.value.trim(),
+            xfSession: spigotXfSession.value.trim()
           });
           pluginDownloadStatus.textContent = '✅ Updated ' + (response.plugin || query) + (response.version ? ' (' + response.version + ')' : '');
           await loadFiles();
@@ -1394,16 +1382,13 @@
       }
 
       if (actionButton.classList.contains('plugin-delete')) {
-        const pluginName = pathBase(sourcePath).replace(/\.jar(?:\.disabled)?$/i, '');
-        const confirmed = window.confirm('Delete plugin "' + pluginName + '"? This cannot be undone.');
-        if (!confirmed) return;
+        if (!confirm('Delete plugin "' + sourcePath + '"? This cannot be undone.')) return;
         try {
           actionButton.disabled = true;
-          await postJson('/api/path/delete', { serverId: serverSel.value, path: sourcePath });
-          await loadFiles();
+          await deleteAnyPath(sourcePath, true);
           renderPluginsPanel();
           setActiveTopTab('plugins');
-          status.textContent = '✅ Plugin deleted: ' + pluginName;
+          status.textContent = '✅ Plugin deleted: ' + pathBase(sourcePath).replace(/\.jar(?:\.disabled)?$/i, '');
         } catch (err) {
           status.textContent = '❌ ' + err.message;
         } finally {
@@ -1427,16 +1412,17 @@
         actionButton.disabled = false;
       }
     });
-    pluginsList.addEventListener('scroll', () => {
-      pluginListScrollTop = pluginsList.scrollTop || 0;
-    });
+
+    spigotXfUser.addEventListener('input', persistSpigotSessionState);
+    spigotXfSession.addEventListener('input', persistSpigotSessionState);
 
     pluginResolveBtn.addEventListener('click', async () => {
       const source = pluginSource.value;
       const platform = pluginPlatform.value;
       const mcVersion = pluginMcVersion.value.trim();
       const query = pluginQuery.value.trim();
-      const spigotAuth = getSpigotAuthPayload();
+      const xfUser = spigotXfUser.value.trim();
+      const xfSession = spigotXfSession.value.trim();
       if (!query) {
         pluginDownloadStatus.textContent = '❌ Enter a plugin query first.';
         return;
@@ -1450,7 +1436,8 @@
           platform,
           mcVersion,
           query,
-          spigotAuth
+          xfUser,
+          xfSession
         });
         const r = response.result || {};
         const paidBadge = r.paid ? ' • 💰 Paid' : '';
@@ -1477,7 +1464,6 @@
     });
 
     pluginInstallBtn.addEventListener('click', async () => {
-      pluginListScrollTop = pluginsList.scrollTop || 0;
       const serverId = serverSel.value;
       if (!serverId) {
         pluginDownloadStatus.textContent = '❌ Select a server first.';
@@ -1488,7 +1474,8 @@
       const platform = pluginPlatform.value;
       const mcVersion = pluginMcVersion.value.trim();
       const query = pluginQuery.value.trim();
-      const spigotAuth = getSpigotAuthPayload();
+      const xfUser = spigotXfUser.value.trim();
+      const xfSession = spigotXfSession.value.trim();
       if (!query) {
         pluginDownloadStatus.textContent = '❌ Enter a plugin query first.';
         return;
@@ -1504,7 +1491,8 @@
           platform,
           mcVersion,
           query,
-          spigotAuth
+          xfUser,
+          xfSession
         });
         const pluginLabel = response.plugin || query;
         const targetPath = response.path || 'plugins/plugin.jar';
@@ -1597,6 +1585,13 @@
     });
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') closeContextMenu();
+    });
+
+    spigotXfUser.addEventListener('input', () => {
+      saveUiState({ spigotXfUser: spigotXfUser.value.trim() });
+    });
+    spigotXfSession.addEventListener('input', () => {
+      saveUiState({ spigotXfSession: spigotXfSession.value.trim() });
     });
 
     const params = new URLSearchParams(window.location.search);
