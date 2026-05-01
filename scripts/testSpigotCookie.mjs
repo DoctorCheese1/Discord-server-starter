@@ -1,10 +1,19 @@
 #!/usr/bin/env node
 
-const [, , resourceArg = '', xfUser = '', xfSession = '', xfTfaTrust = ''] = process.argv;
+const [, , resourceArg = '', xfUser = '', xfSession = '', xfTfaTrust = '', extraCookieHeader = ''] = process.argv;
 
 function fail(message, code = 1) {
   console.error(message);
   process.exitCode = code;
+}
+
+function decodeCookieValue(value) {
+  const raw = String(value || '').trim();
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
 }
 
 function parseSpigotResourceId(input) {
@@ -16,9 +25,33 @@ function parseSpigotResourceId(input) {
   return match?.[1] || '';
 }
 
+function normalizeExtraCookies(input) {
+  const raw = String(input || '').trim();
+  if (!raw) return [];
+  return raw
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part) => part.includes('='));
+}
+
+function buildCookieHeader(xfUserValue, xfSessionValue, xfTfaTrustValue, extraCookieParts) {
+  const cookieParts = [`xf_user=${xfUserValue}`, `xf_session=${xfSessionValue}`];
+  if (xfTfaTrustValue) cookieParts.push(`xf_tfa_trust=${xfTfaTrustValue}`);
+
+  for (const part of extraCookieParts) {
+    const key = part.split('=')[0]?.trim();
+    if (!key) continue;
+    if (key === 'xf_user' || key === 'xf_session' || key === 'xf_tfa_trust') continue;
+    cookieParts.push(part);
+  }
+
+  return cookieParts.join('; ');
+}
+
 async function main() {
   if (!resourceArg || !xfUser || !xfSession) {
-    fail('Usage: node scripts/testSpigotCookie.mjs <resourceIdOrUrl> <xf_user> <xf_session> [xf_tfa_trust]');
+    fail('Usage: node scripts/testSpigotCookie.mjs <resourceIdOrUrl> <xf_user> <xf_session> [xf_tfa_trust] [extra_cookie_header]');
     return;
   }
 
@@ -28,8 +61,11 @@ async function main() {
     return;
   }
 
-  const cookieParts = [`xf_user=${xfUser}`, `xf_session=${xfSession}`];
-  if (xfTfaTrust) cookieParts.push(`xf_tfa_trust=${xfTfaTrust}`);
+  const decodedXfUser = decodeCookieValue(xfUser);
+  const decodedXfSession = decodeCookieValue(xfSession);
+  const decodedXfTfaTrust = decodeCookieValue(xfTfaTrust);
+  const extraCookieParts = normalizeExtraCookies(extraCookieHeader);
+  const cookieHeader = buildCookieHeader(decodedXfUser, decodedXfSession, decodedXfTfaTrust, extraCookieParts);
 
   const downloadUrl = `https://www.spigotmc.org/resources/${resourceId}/download?version=latest`;
 
@@ -37,17 +73,20 @@ async function main() {
     method: 'GET',
     redirect: 'manual',
     headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; ServerControlBot/2.0; +https://spigotmc.org)',
-      Accept: '*/*',
-      Referer: 'https://www.spigotmc.org/',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      Referer: `https://www.spigotmc.org/resources/${resourceId}/`,
       Origin: 'https://www.spigotmc.org',
-      Cookie: cookieParts.join('; ')
+      Cookie: cookieHeader
     }
   });
 
   const location = response.headers.get('location') || '';
+
   if (response.status === 403) {
-    fail('❌ Cookie test failed: 403 Forbidden (session not accepted).', 2);
+    fail('❌ Cookie test failed: 403 Forbidden (session/cookies not accepted).', 2);
+    console.error('Tip: pass extra browser cookies as the 5th arg, e.g. "cf_clearance=...; spigot_session=..."');
+    if (location) console.error(`Location: ${location}`);
     return;
   }
 
