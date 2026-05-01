@@ -1,10 +1,19 @@
 #!/usr/bin/env node
 
-const [, , resourceArg = '', xfUser = '', xfSession = '', xfTfaTrust = ''] = process.argv;
+const [, , resourceArg = '', cookieOrXfUser = '', xfSession = '', xfTfaTrust = '', extraCookieHeader = ''] = process.argv;
 
-if (!resourceArg || !xfUser || !xfSession) {
-  console.error('Usage: node scripts/testSpigotCookie.mjs <resourceIdOrUrl> <xf_user> <xf_session> [xf_tfa_trust]');
-  process.exit(1);
+function fail(message, code = 1) {
+  console.error(message);
+  process.exitCode = code;
+}
+
+function decodeCookieValue(value) {
+  const raw = String(value || '').trim();
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
 }
 
 function parseSpigotResourceId(input) {
@@ -16,48 +25,113 @@ function parseSpigotResourceId(input) {
   return match?.[1] || '';
 }
 
-const resourceId = parseSpigotResourceId(resourceArg);
-if (!resourceId) {
-  console.error('Could not parse Spigot resource ID from input:', resourceArg);
-  process.exit(1);
+function normalizeCookieParts(input) {
+  const raw = String(input || '').trim();
+  if (!raw) return [];
+  return raw
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part) => part.includes('='));
 }
 
-const cookieParts = [`xf_user=${xfUser}`, `xf_session=${xfSession}`];
-if (xfTfaTrust) cookieParts.push(`xf_tfa_trust=${xfTfaTrust}`);
 
-const downloadUrl = `https://www.spigotmc.org/resources/${resourceId}/download?version=latest`;
+function parseCookieHeader(header) {
+  return normalizeCookieParts(header)
+    .map((part) => {
+      const idx = part.indexOf('=');
+      if (idx <= 0) return null;
+      const key = part.slice(0, idx).trim();
+      const value = decodeCookieValue(part.slice(idx + 1));
+      if (!key) return null;
+      return [key, value];
+    })
+    .filter(Boolean);
+}
 
-const response = await fetch(downloadUrl, {
-  method: 'GET',
-  redirect: 'manual',
-  headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; ServerControlBot/2.0; +https://spigotmc.org)',
-    Accept: '*/*',
-    Referer: 'https://www.spigotmc.org/',
-    Origin: 'https://www.spigotmc.org',
-    Cookie: cookieParts.join('; ')
+function formatCookieHeader(cookieEntries) {
+  return cookieEntries.map(([key, value]) => `${key}=${value}`).join('; ');
+}
+
+function buildCookieHeader() {
+  // Mode A: full cookie header passed as arg2 (recommended)
+  if (cookieOrXfUser.includes('=') && cookieOrXfUser.includes(';')) {
+    const full = parseCookieHeader(cookieOrXfUser);
+    const extra = parseCookieHeader(extraCookieHeader);
+    return formatCookieHeader([...full, ...extra]);
   }
-});
 
-const location = response.headers.get('location') || '';
-if (response.status === 403) {
-  console.error('❌ Cookie test failed: 403 Forbidden (session not accepted).');
-  process.exit(2);
+  // Mode B: legacy positional args xf_user xf_session [xf_tfa_trust] [extra_cookie_header]
+  if (!cookieOrXfUser || !xfSession) return '';
+  const decodedXfUser = decodeCookieValue(cookieOrXfUser);
+  const decodedXfSession = decodeCookieValue(xfSession);
+  const decodedXfTfaTrust = decodeCookieValue(xfTfaTrust);
+  const extraCookieParts = parseCookieHeader(extraCookieHeader);
+
+  const cookieParts = [
+    ['xf_user', decodedXfUser],
+    ['xf_session', decodedXfSession]
+  ];
+  if (decodedXfTfaTrust) cookieParts.push(['xf_tfa_trust', decodedXfTfaTrust]);
+  cookieParts.push(...extraCookieParts);
+  return formatCookieHeader(cookieParts);
 }
 
-if (response.status >= 300 && response.status < 400 && location) {
-  console.log('✅ Cookie test looks valid: received redirect to download target.');
-  console.log(`Status: ${response.status}`);
-  console.log(`Location: ${location}`);
-  process.exit(0);
+async function main() {
+  if (!resourceArg || !cookieOrXfUser) {
+    fail('Usage: node scripts/testSpigotCookie.mjs <resourceIdOrUrl> <full_cookie_header|xf_user> [xf_session] [xf_tfa_trust] [extra_cookie_header]');
+    return;
+  }
+
+  const resourceId = parseSpigotResourceId(resourceArg);
+  if (!resourceId) {
+    fail(`Could not parse Spigot resource ID from input: ${resourceArg}`);
+    return;
+  }
+
+  const cookieHeader = buildCookieHeader();
+  if (!cookieHeader) {
+    fail('Missing cookie info. Provide a full cookie header string, or xf_user + xf_session.', 1);
+    return;
+  }
+
+  const downloadUrl = `https://www.spigotmc.org/resources/${resourceId}/download?version=latest`;
+
+  const response = await fetch(downloadUrl, {
+    method: 'GET',
+    redirect: 'manual',
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      Referer: `https://www.spigotmc.org/resources/${resourceId}/`,
+      Origin: 'https://www.spigotmc.org',
+      Cookie: cookieHeader
+    }
+  });
+
+  const location = response.headers.get('location') || '';
+
+  if (response.status === 403) {
+    fail('❌ Cookie test failed: 403 Forbidden (session/cookies not accepted).', 2);
+    console.error('Tip: use full browser Cookie header as arg2 to include all required cookies.');
+    return;
+  }
+
+  if (response.status >= 300 && response.status < 400 && location) {
+    console.log('✅ Cookie test looks valid: received redirect to download target.');
+    console.log(`Status: ${response.status}`);
+    console.log(`Location: ${location}`);
+    return;
+  }
+
+  if (response.ok) {
+    console.log('✅ Cookie test succeeded: direct downloadable response returned.');
+    console.log(`Status: ${response.status}`);
+    return;
+  }
+
+  fail(`⚠️ Unexpected response: HTTP ${response.status}`, 3);
+  if (location) console.error(`Location: ${location}`);
 }
 
-if (response.ok) {
-  console.log('✅ Cookie test succeeded: direct downloadable response returned.');
-  console.log(`Status: ${response.status}`);
-  process.exit(0);
-}
-
-console.error(`⚠️ Unexpected response: HTTP ${response.status}`);
-if (location) console.error(`Location: ${location}`);
-process.exit(3);
+await main();
