@@ -202,6 +202,8 @@
     const KEY_STORAGE_NAME = 'web_editor_api_key';
     const UI_STATE_STORAGE_NAME = 'web_editor_ui_state_v1';
     const SERVER_STORAGE_NAME = 'web_editor_selected_server';
+    const SPIGOT_XF_USER_STORAGE_NAME = 'spigot_xf_user';
+    const SPIGOT_XF_SESSION_STORAGE_NAME = 'spigot_xf_session';
     const SERVER_PROVIDED_KEY = __SERVER_PROVIDED_KEY__;
     let allFiles = [];
     let emptyFolders = [];
@@ -221,6 +223,7 @@
     let lastEditorFindIndex = -1;
     let lastEditorFindQuery = '';
     let pluginSearchFilter = '';
+    let pluginListScrollTop = 0;
     const expandedFolders = new Set();
 
     function loadUiState() {
@@ -247,11 +250,28 @@
       return state[serverId] || { expanded: [], currentFile: '', spigotXfUser: '', spigotXfSession: '' };
     }
 
+    function getSpigotSessionPayload() {
+      return {
+        xfUser: spigotXfUser.value.trim(),
+        xfSession: spigotXfSession.value.trim()
+      };
+    }
+
     function persistSpigotSessionState() {
-      saveUiState({
-        spigotXfUser: spigotXfUser.value.trim(),
-        spigotXfSession: spigotXfSession.value.trim()
-      });
+      const { xfUser, xfSession } = getSpigotSessionPayload();
+      saveUiState({ spigotXfUser: xfUser, spigotXfSession: xfSession });
+      localStorage.setItem(SPIGOT_XF_USER_STORAGE_NAME, xfUser);
+      localStorage.setItem(SPIGOT_XF_SESSION_STORAGE_NAME, xfSession);
+    }
+
+    function getStoredSpigotSession() {
+      const restored = restoreUiState();
+      const fallbackUser = localStorage.getItem(SPIGOT_XF_USER_STORAGE_NAME) || '';
+      const fallbackSession = localStorage.getItem(SPIGOT_XF_SESSION_STORAGE_NAME) || '';
+      return {
+        xfUser: (restored.spigotXfUser || fallbackUser || '').trim(),
+        xfSession: (restored.spigotXfSession || fallbackSession || '').trim()
+      };
     }
 
     function captureExpandedFoldersFromDom() {
@@ -491,6 +511,7 @@
     }
 
     function renderPluginsPanel() {
+      pluginListScrollTop = pluginsList.scrollTop || pluginListScrollTop || 0;
       const allPlugins = listPlugins();
       const terms = getSearchTerms(pluginSearchFilter);
       const plugins = terms.length
@@ -532,6 +553,7 @@
           '</div>'
         );
       }).join('');
+      pluginsList.scrollTop = pluginListScrollTop;
     }
 
     function setActiveTopTab(tabName) {
@@ -1042,8 +1064,9 @@
         expandedFolders.clear();
         const restored = restoreUiState();
         setActiveTopTab(restored.activeTopTab || 'file');
-        spigotXfUser.value = restored.spigotXfUser || '';
-        spigotXfSession.value = restored.spigotXfSession || '';
+        const storedSpigotSession = getStoredSpigotSession();
+        spigotXfUser.value = storedSpigotSession.xfUser;
+        spigotXfSession.value = storedSpigotSession.xfSession;
         for (const folder of restored.expanded || []) {
           expandedFolders.add(folder);
         }
@@ -1338,6 +1361,7 @@
       renderPluginsPanel();
     });
     pluginsList.addEventListener('click', async e => {
+      pluginListScrollTop = pluginsList.scrollTop || 0;
       const actionButton = e.target.closest('.plugin-toggle, .plugin-update, .plugin-delete');
       if (!actionButton) return;
       e.preventDefault();
@@ -1366,8 +1390,7 @@
             query,
             platform: pluginPlatform.value,
             mcVersion: pluginMcVersion.value.trim(),
-            xfUser: spigotXfUser.value.trim(),
-            xfSession: spigotXfSession.value.trim()
+            ...getSpigotSessionPayload()
           });
           pluginDownloadStatus.textContent = '✅ Updated ' + (response.plugin || query) + (response.version ? ' (' + response.version + ')' : '');
           await loadFiles();
@@ -1415,6 +1438,9 @@
         actionButton.disabled = false;
       }
     });
+    pluginsList.addEventListener('scroll', () => {
+      pluginListScrollTop = pluginsList.scrollTop || 0;
+    });
 
     spigotXfUser.addEventListener('input', persistSpigotSessionState);
     spigotXfSession.addEventListener('input', persistSpigotSessionState);
@@ -1424,8 +1450,7 @@
       const platform = pluginPlatform.value;
       const mcVersion = pluginMcVersion.value.trim();
       const query = pluginQuery.value.trim();
-      const xfUser = spigotXfUser.value.trim();
-      const xfSession = spigotXfSession.value.trim();
+      const { xfUser, xfSession } = getSpigotSessionPayload();
       if (!query) {
         pluginDownloadStatus.textContent = '❌ Enter a plugin query first.';
         return;
@@ -1467,6 +1492,7 @@
     });
 
     pluginInstallBtn.addEventListener('click', async () => {
+      pluginListScrollTop = pluginsList.scrollTop || 0;
       const serverId = serverSel.value;
       if (!serverId) {
         pluginDownloadStatus.textContent = '❌ Select a server first.';
@@ -1477,8 +1503,7 @@
       const platform = pluginPlatform.value;
       const mcVersion = pluginMcVersion.value.trim();
       const query = pluginQuery.value.trim();
-      const xfUser = spigotXfUser.value.trim();
-      const xfSession = spigotXfSession.value.trim();
+      const { xfUser, xfSession } = getSpigotSessionPayload();
       if (!query) {
         pluginDownloadStatus.textContent = '❌ Enter a plugin query first.';
         return;
@@ -1588,13 +1613,6 @@
     });
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') closeContextMenu();
-    });
-
-    spigotXfUser.addEventListener('input', () => {
-      saveUiState({ spigotXfUser: spigotXfUser.value.trim() });
-    });
-    spigotXfSession.addEventListener('input', () => {
-      saveUiState({ spigotXfSession: spigotXfSession.value.trim() });
     });
 
     const params = new URLSearchParams(window.location.search);
