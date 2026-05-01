@@ -7,16 +7,6 @@ function fail(message, code = 1) {
   process.exitCode = code;
 }
 
-
-function decodeCookieValue(value) {
-  const raw = String(value || '').trim();
-  try {
-    return decodeURIComponent(raw);
-  } catch {
-    return raw;
-  }
-}
-
 function parseSpigotResourceId(input) {
   const raw = String(input || '').trim();
   if (/^\d+$/.test(raw)) return raw;
@@ -38,12 +28,8 @@ async function main() {
     return;
   }
 
-  const decodedXfUser = decodeCookieValue(xfUser);
-  const decodedXfSession = decodeCookieValue(xfSession);
-  const decodedXfTfaTrust = decodeCookieValue(xfTfaTrust);
-
-  const cookieParts = [`xf_user=${decodedXfUser}`, `xf_session=${decodedXfSession}`];
-  if (decodedXfTfaTrust) cookieParts.push(`xf_tfa_trust=${decodedXfTfaTrust}`);
+  const cookieParts = [`xf_user=${xfUser}`, `xf_session=${xfSession}`];
+  if (xfTfaTrust) cookieParts.push(`xf_tfa_trust=${xfTfaTrust}`);
 
   const downloadUrl = `https://www.spigotmc.org/resources/${resourceId}/download?version=latest`;
 
