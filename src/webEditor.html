@@ -204,8 +204,6 @@
     const SERVER_STORAGE_NAME = 'web_editor_selected_server';
     const SPIGOT_XF_USER_STORAGE_NAME = 'spigot_xf_user';
     const SPIGOT_XF_SESSION_STORAGE_NAME = 'spigot_xf_session';
-    const SPIGOT_XF_USER_STORAGE_LEGACY_NAMES = ['spigotXf_user', 'web_editor_spigot_xf_user'];
-    const SPIGOT_XF_SESSION_STORAGE_LEGACY_NAMES = ['spigotXf_session', 'web_editor_spigot_xf_session'];
     const SERVER_PROVIDED_KEY = __SERVER_PROVIDED_KEY__;
     let allFiles = [];
     let emptyFolders = [];
@@ -268,16 +266,8 @@
 
     function getStoredSpigotSession() {
       const restored = restoreUiState();
-      const fallbackUser = (
-        localStorage.getItem(SPIGOT_XF_USER_STORAGE_NAME) ||
-        SPIGOT_XF_USER_STORAGE_LEGACY_NAMES.map(name => localStorage.getItem(name)).find(Boolean) ||
-        ''
-      );
-      const fallbackSession = (
-        localStorage.getItem(SPIGOT_XF_SESSION_STORAGE_NAME) ||
-        SPIGOT_XF_SESSION_STORAGE_LEGACY_NAMES.map(name => localStorage.getItem(name)).find(Boolean) ||
-        ''
-      );
+      const fallbackUser = localStorage.getItem(SPIGOT_XF_USER_STORAGE_NAME) || '';
+      const fallbackSession = localStorage.getItem(SPIGOT_XF_SESSION_STORAGE_NAME) || '';
       return {
         xfUser: (restored.spigotXfUser || fallbackUser || '').trim(),
         xfSession: (restored.spigotXfSession || fallbackSession || '').trim()
