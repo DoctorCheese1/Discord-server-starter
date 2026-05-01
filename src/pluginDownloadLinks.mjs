@@ -127,7 +127,7 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
       loader: 'spigot',
       paid: true,
       external,
-      note: 'Paid Spigot resources require your Spigot xf_user + xf_session cookies for direct download.'
+      note: 'Paid Spigot resources require Spigot session cookies (xf_user + xf_session, and sometimes xf_tfa_trust).'
     };
   }
   const downloadUrl = `https://api.spiget.org/v2/resources/${resourceId}/download`;
