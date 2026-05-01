@@ -253,10 +253,11 @@ function inferFilenameFromHeaders(headers) {
   return simpleMatch?.[1] || '';
 }
 
-async function fetchBinary(url, { xfUser = '', xfSession = '' } = {}) {
+async function fetchBinary(url, { xfUser = '', xfSession = '', xfTfaTrust = '' } = {}) {
   const cookieParts = [];
   if (xfUser) cookieParts.push(`xf_user=${xfUser}`);
   if (xfSession) cookieParts.push(`xf_session=${xfSession}`);
+  if (xfTfaTrust) cookieParts.push(`xf_tfa_trust=${xfTfaTrust}`);
   const cookieHeader = cookieParts.join('; ');
   const response = await fetch(url, {
     headers: {
@@ -270,7 +271,7 @@ async function fetchBinary(url, { xfUser = '', xfSession = '' } = {}) {
   });
   if (!response.ok) {
     if (response.status === 403 && cookieHeader) {
-      throw new Error('Download failed (403). Spigot rejected the session cookies. Re-copy xf_user and xf_session from a logged-in Spigot browser session.');
+      throw new Error('Download failed (403). Spigot rejected the session cookies. Re-copy xf_user + xf_session (and xf_tfa_trust if your account uses 2FA trust) from a logged-in Spigot browser session.');
     }
     throw new Error(`Download failed (${response.status})`);
   }
@@ -357,6 +358,7 @@ export function startWebEditor() {
         const mcVersion = String(body.mcVersion || '').trim();
         const xfUser = String(body.xfUser || '').trim();
         const xfSession = String(body.xfSession || '').trim();
+        const xfTfaTrust = String(body.xfTfaTrust || '').trim();
 
         if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
         if (!query) return sendJson(res, 400, { error: 'Plugin query is required' });
@@ -372,7 +374,7 @@ export function startWebEditor() {
               result
             });
           }
-          const downloaded = await fetchBinary(result.url, { xfUser, xfSession });
+          const downloaded = await fetchBinary(result.url, { xfUser, xfSession, xfTfaTrust });
           const pluginLabel = result.plugin || result.projectSlug || query;
           const versionSuffix = sanitizeVersionLabel(result.versionNumber || result.minecraftVersion || '');
           const preferredName = `${result.plugin || result.projectSlug || query}${versionSuffix ? `-${versionSuffix}` : ''}.jar`;
