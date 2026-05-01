@@ -253,25 +253,24 @@ function inferFilenameFromHeaders(headers) {
   return simpleMatch?.[1] || '';
 }
 
-async function fetchBinary(url, { xfUser = '', xfSession = '' } = {}) {
+function toSpigotCookieHeader(spigotAuth = {}) {
+  const xfUser = String(spigotAuth?.xfUser || '').trim();
+  const xfSession = String(spigotAuth?.xfSession || '').trim();
   const cookieParts = [];
   if (xfUser) cookieParts.push(`xf_user=${xfUser}`);
   if (xfSession) cookieParts.push(`xf_session=${xfSession}`);
-  const cookieHeader = cookieParts.join('; ');
+  return cookieParts.join('; ');
+}
+
+async function fetchBinary(url, extraHeaders = {}) {
   const response = await fetch(url, {
     headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; ServerControlBot/2.0; +https://spigotmc.org)',
-      Accept: '*/*',
-      Referer: 'https://www.spigotmc.org/',
-      Origin: 'https://www.spigotmc.org',
-      ...(cookieHeader ? { Cookie: cookieHeader } : {})
+      'User-Agent': 'ServerControlBot/2.0 (plugin downloader)',
+      ...extraHeaders
     },
     redirect: 'follow'
   });
   if (!response.ok) {
-    if (response.status === 403 && cookieHeader) {
-      throw new Error('Download failed (403). Spigot rejected the session cookies. Re-copy xf_user and xf_session from a logged-in Spigot browser session.');
-    }
     throw new Error(`Download failed (${response.status})`);
   }
   const arrayBuffer = await response.arrayBuffer();
@@ -373,8 +372,7 @@ export function startWebEditor() {
         const query = String(body.query || '').trim();
         const platform = String(body.platform || '').trim().toLowerCase();
         const mcVersion = String(body.mcVersion || '').trim();
-        const xfUser = String(body.xfUser || '').trim();
-        const xfSession = String(body.xfSession || '').trim();
+        const spigotAuth = body.spigotAuth && typeof body.spigotAuth === 'object' ? body.spigotAuth : {};
 
         if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
         if (!query) return sendJson(res, 400, { error: 'Plugin query is required' });
@@ -384,13 +382,15 @@ export function startWebEditor() {
 
         try {
           const result = await getPluginDownloadLink({ source, query, platform, mcVersion });
-          if (result?.source === 'spigot' && result?.paid && (!xfUser || !xfSession)) {
+          const cookie = toSpigotCookieHeader(spigotAuth);
+          if (result?.source === 'spigot' && result?.paid && !cookie) {
             return sendJson(res, 400, {
-              error: 'This Spigot plugin is paid. Provide both xf_user and xf_session cookies to auto-install.',
+              error: 'This Spigot plugin is paid. Add xf_user + xf_session from your Spigot account to download it.',
               result
             });
           }
-          const downloaded = await fetchBinary(result.url, { xfUser, xfSession });
+          const downloadHeaders = cookie ? { Cookie: cookie } : {};
+          const downloaded = await fetchBinary(result.url, downloadHeaders);
           const pluginLabel = result.plugin || result.projectSlug || query;
           const versionSuffix = sanitizeVersionLabel(result.versionNumber || result.minecraftVersion || '');
           const preferredName = `${result.plugin || result.projectSlug || query}${versionSuffix ? `-${versionSuffix}` : ''}.jar`;
