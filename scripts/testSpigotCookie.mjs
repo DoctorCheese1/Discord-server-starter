@@ -35,12 +35,30 @@ function normalizeCookieParts(input) {
     .filter((part) => part.includes('='));
 }
 
+
+function parseCookieHeader(header) {
+  return normalizeCookieParts(header)
+    .map((part) => {
+      const idx = part.indexOf('=');
+      if (idx <= 0) return null;
+      const key = part.slice(0, idx).trim();
+      const value = decodeCookieValue(part.slice(idx + 1));
+      if (!key) return null;
+      return [key, value];
+    })
+    .filter(Boolean);
+}
+
+function formatCookieHeader(cookieEntries) {
+  return cookieEntries.map(([key, value]) => `${key}=${value}`).join('; ');
+}
+
 function buildCookieHeader() {
   // Mode A: full cookie header passed as arg2 (recommended)
   if (cookieOrXfUser.includes('=') && cookieOrXfUser.includes(';')) {
-    const full = normalizeCookieParts(cookieOrXfUser);
-    const extra = normalizeCookieParts(extraCookieHeader);
-    return [...full, ...extra].join('; ');
+    const full = parseCookieHeader(cookieOrXfUser);
+    const extra = parseCookieHeader(extraCookieHeader);
+    return formatCookieHeader([...full, ...extra]);
   }
 
   // Mode B: legacy positional args xf_user xf_session [xf_tfa_trust] [extra_cookie_header]
@@ -48,12 +66,15 @@ function buildCookieHeader() {
   const decodedXfUser = decodeCookieValue(cookieOrXfUser);
   const decodedXfSession = decodeCookieValue(xfSession);
   const decodedXfTfaTrust = decodeCookieValue(xfTfaTrust);
-  const extraCookieParts = normalizeCookieParts(extraCookieHeader);
+  const extraCookieParts = parseCookieHeader(extraCookieHeader);
 
-  const cookieParts = [`xf_user=${decodedXfUser}`, `xf_session=${decodedXfSession}`];
-  if (decodedXfTfaTrust) cookieParts.push(`xf_tfa_trust=${decodedXfTfaTrust}`);
+  const cookieParts = [
+    ['xf_user', decodedXfUser],
+    ['xf_session', decodedXfSession]
+  ];
+  if (decodedXfTfaTrust) cookieParts.push(['xf_tfa_trust', decodedXfTfaTrust]);
   cookieParts.push(...extraCookieParts);
-  return cookieParts.join('; ');
+  return formatCookieHeader(cookieParts);
 }
 
 async function main() {
