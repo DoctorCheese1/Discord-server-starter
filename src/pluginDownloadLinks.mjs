@@ -113,7 +113,7 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
   const latestVersionLabel = String(latestVersion?.name || latestVersion?.id || 'latest').trim() || 'latest';
   const premium = Boolean(details.premium);
   const external = Boolean(details.external);
-  const resourceUrl = `https://www.spigotmc.org/resources/${details.tag || details.name || `resource-${resourceId}`}.${resourceId}/`;
+  const resourceUrl = `https://www.spigotmc.org/resources/${resourceId}/`;
   if (premium) {
     return {
       source: 'spigot',
@@ -127,7 +127,7 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
       loader: 'spigot',
       paid: true,
       external,
-      note: 'Paid Spigot resources require your Spigot xf_user + xf_session cookies for direct download.'
+      note: 'Paid Spigot resources require Spigot session cookies (xf_user + xf_session, and sometimes xf_tfa_trust).'
     };
   }
   const downloadUrl = `https://api.spiget.org/v2/resources/${resourceId}/download`;
