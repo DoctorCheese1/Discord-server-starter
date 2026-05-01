@@ -113,7 +113,7 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
   const latestVersionLabel = String(latestVersion?.name || latestVersion?.id || 'latest').trim() || 'latest';
   const premium = Boolean(details.premium);
   const external = Boolean(details.external);
-  const resourceUrl = `https://www.spigotmc.org/resources/${details.tag || details.name || `resource-${resourceId}`}.${resourceId}/`;
+  const resourceUrl = `https://www.spigotmc.org/resources/${resourceId}/`;
   if (premium) {
     return {
       source: 'spigot',
