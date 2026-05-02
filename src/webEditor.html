@@ -266,9 +266,10 @@
     function getSpigotAuthPayload() {
       const cookieHeader = spigotCookieHeader.value.trim();
       if (cookieHeader) {
-        return { xfUser: cookieHeader, xfSession: '', xfTfaTrust: '', cfClearance: '' };
+        return { cookieHeader, xfUser: '', xfSession: '', xfTfaTrust: '', cfClearance: '' };
       }
       return {
+        cookieHeader: '',
         xfUser: spigotXfUser.value.trim(),
         xfSession: spigotXfSession.value.trim(),
         xfTfaTrust: spigotXfTfaTrust.value.trim(),
@@ -1620,6 +1621,9 @@
     spigotXfTfaTrust.addEventListener('input', () => {
       saveUiState({ spigotXfTfaTrust: spigotXfTfaTrust.value.trim(),
         spigotCfClearance: spigotCfClearance.value.trim() });
+    });
+    spigotCfClearance.addEventListener('input', () => {
+      saveUiState({ spigotCfClearance: spigotCfClearance.value.trim() });
     });
     spigotCfClearance.addEventListener('input', () => {
       saveUiState({ spigotCfClearance: spigotCfClearance.value.trim() });

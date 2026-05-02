@@ -279,14 +279,15 @@ function parseCookieHeaderPairs(header) {
     .filter(Boolean);
 }
 
-async function fetchBinary(url, { xfUser = '', xfSession = '', xfTfaTrust = '', cfClearance = '' } = {}) {
+async function fetchBinary(url, { cookieHeader = '', xfUser = '', xfSession = '', xfTfaTrust = '', cfClearance = '' } = {}) {
   const toCookieFragment = (key, value) => {
     const input = String(value || '').trim();
     if (!input) return '';
     if (input.includes('=')) return input;
     return `${key}=${safeDecodeCookieValue(input)}`;
   };
-  const userInput = String(xfUser || '').trim();
+  const explicitCookieHeader = String(cookieHeader || '').trim();
+  const userInput = explicitCookieHeader || String(xfUser || '').trim();
   const fullCookieMode = userInput.includes('=') && userInput.includes(';');
   const cookieParts = [];
   if (fullCookieMode) {
@@ -300,7 +301,7 @@ async function fetchBinary(url, { xfUser = '', xfSession = '', xfTfaTrust = '', 
     if (xfTfaTrust) cookieParts.push(toCookieFragment('xf_tfa_trust', xfTfaTrust));
     if (cfClearance) cookieParts.push(toCookieFragment('cf_clearance', cfClearance));
   }
-  const cookieHeader = cookieParts.filter(Boolean).join('; ');
+  const cookieHeaderValue = cookieParts.filter(Boolean).join('; ');
   const response = await fetch(url, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -314,13 +315,13 @@ async function fetchBinary(url, { xfUser = '', xfSession = '', xfTfaTrust = '', 
       'Sec-Fetch-Mode': 'navigate',
       'Sec-Fetch-Dest': 'document',
       'Upgrade-Insecure-Requests': '1',
-      ...(cookieHeader ? { Cookie: cookieHeader } : {})
+      ...(cookieHeaderValue ? { Cookie: cookieHeaderValue } : {})
     },
     redirect: 'follow'
   });
   if (!response.ok) {
-    if (response.status === 403 && cookieHeader) {
-      throw new Error('Download failed (403). Spigot rejected the session context. Put your full browser Cookie header in xf_user (recommended), or provide fresh xf_user + xf_session + xf_tfa_trust + cf_clearance values from a logged-in browser session.');
+    if (response.status === 403 && cookieHeaderValue) {
+      throw new Error('Download failed (403). Spigot rejected the session context. Put your full browser Cookie header in cookieHeader (recommended), or provide fresh xf_user + xf_session + xf_tfa_trust + cf_clearance values from a logged-in browser session.');
     }
     throw new Error(`Download failed (${response.status})`);
   }
@@ -405,6 +406,7 @@ export function startWebEditor() {
         const query = String(body.query || '').trim();
         const platform = String(body.platform || '').trim().toLowerCase();
         const mcVersion = String(body.mcVersion || '').trim();
+        const cookieHeader = String(body.cookieHeader || '').trim();
         const xfUser = String(body.xfUser || '').trim();
         const xfSession = String(body.xfSession || '').trim();
         const xfTfaTrust = String(body.xfTfaTrust || '').trim();
@@ -418,14 +420,14 @@ export function startWebEditor() {
 
         try {
           const result = await getPluginDownloadLink({ source, query, platform, mcVersion });
-          const hasFullCookie = xfUser.includes('=') && xfUser.includes(';');
+          const hasFullCookie = cookieHeader.includes('=') && cookieHeader.includes(';');
           if (result?.source === 'spigot' && result?.paid && !hasFullCookie && (!xfUser || !xfSession)) {
             return sendJson(res, 400, {
-              error: 'This Spigot plugin is paid. Provide full cookie header, or both xf_user and xf_session cookies to auto-install.',
+              error: 'This Spigot plugin is paid. Provide cookieHeader, or both xf_user and xf_session cookies to auto-install.',
               result
             });
           }
-          const downloaded = await fetchBinary(result.url, { xfUser, xfSession, xfTfaTrust, cfClearance });
+          const downloaded = await fetchBinary(result.url, { cookieHeader, xfUser, xfSession, xfTfaTrust, cfClearance });
           const pluginLabel = result.plugin || result.projectSlug || query;
           const versionSuffix = sanitizeVersionLabel(result.versionNumber || result.minecraftVersion || '');
           const preferredName = `${result.plugin || result.projectSlug || query}${versionSuffix ? `-${versionSuffix}` : ''}.jar`;
