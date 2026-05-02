@@ -135,6 +135,11 @@ function addToken(url, token) {
 }
 
 
+
+function hasCloudflareCookie(cookieHeader) {
+  return /(?:^|;\s*)cf_clearance=/i.test(String(cookieHeader || ''));
+}
+
 function buildCurlPreview(url, userAgent, cookieHeader) {
   const safeUrl = String(url || '').replace(/"/g, '\"');
   const safeUa = String(userAgent || '').replace(/"/g, '\"');
@@ -175,6 +180,7 @@ ${resource.body}`);
   console.log(`ℹ️ Account check: ${account.status} (${authState})`);
   console.log(`ℹ️ Resource access hint: ${resourceState}`);
   console.log(`ℹ️ User-Agent: ${userAgent}`);
+  console.log(`ℹ️ Has cf_clearance: ${hasCloudflareCookie(cookieHeader)}`);
   console.log(`ℹ️ Latest version id: ${latestVersionId || 'not found'}`);
   console.log(`ℹ️ Spiget path: ${latestSpigetPath || 'not found'}`);
 
@@ -204,6 +210,7 @@ ${resource.body}`);
   if (authState === 'cloudflare_challenge') {
     console.error('Hint: Cloudflare challenge detected; clearance may be browser-bound.');
     console.error('Hint: rerun with your exact browser User-Agent as arg 6 and fresh cf_clearance cookie.');
+    if (!hasCloudflareCookie(cookieHeader)) console.error('Hint: your current cookie input does not include cf_clearance.');
   }
   if (resourceState === 'no_access') console.error('Hint: account may not own/have access to this resource.');
   if (resourceState === 'unavailable') console.error('Hint: resource appears unavailable/removed on Spigot.');
