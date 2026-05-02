@@ -1624,6 +1624,9 @@
     spigotCfClearance.addEventListener('input', () => {
       saveUiState({ spigotCfClearance: spigotCfClearance.value.trim() });
     });
+    spigotCfClearance.addEventListener('input', () => {
+      saveUiState({ spigotCfClearance: spigotCfClearance.value.trim() });
+    });
 
     const params = new URLSearchParams(window.location.search);
     const keyFromUrl = params.get('key');
