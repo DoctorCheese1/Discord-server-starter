@@ -317,6 +317,7 @@ async function fetchBinary(url, { cookieHeader = '', xfUser = '', xfSession = ''
     ...(cookieHeaderValue ? { Cookie: cookieHeaderValue } : {})
   };
   let response;
+  let requestEngine = 'fetch';
   try {
     const { default: cloudscraper } = await import('cloudscraper');
     const cloudResponse = await cloudscraper.get({
@@ -338,6 +339,7 @@ async function fetchBinary(url, { cookieHeader = '', xfUser = '', xfSession = ''
         get: name => cloudHeaders.get(String(name || '').toLowerCase()) || ''
       }
     };
+    requestEngine = 'cloudscraper';
   } catch {
     const fetchResponse = await fetch(url, { headers, redirect: 'follow' });
     const arrayBuffer = await fetchResponse.arrayBuffer();
@@ -347,10 +349,15 @@ async function fetchBinary(url, { cookieHeader = '', xfUser = '', xfSession = ''
       bytes: Buffer.from(arrayBuffer),
       headers: fetchResponse.headers
     };
+    requestEngine = 'fetch';
   }
   if (!response.ok) {
     if (response.status === 403 && cookieHeaderValue) {
-      throw new Error('Download failed (403). Spigot rejected the session context. Paste your full browser Cookie header into the "Spigot full Cookie header" field (recommended), or provide fresh xf_user + xf_session + xf_tfa_trust + cf_clearance values from a logged-in browser session.');
+      const usingFullCookieHeader = fullCookieMode;
+      if (usingFullCookieHeader) {
+        throw new Error(`Download failed (403) via ${requestEngine}. Spigot rejected the provided browser cookie context. Refresh cookies from an active logged-in browser tab (including fresh cf_clearance) and paste the full value into "Spigot full Cookie header".`);
+      }
+      throw new Error(`Download failed (403) via ${requestEngine}. Spigot rejected the session context. Paste your full browser Cookie header into the "Spigot full Cookie header" field (recommended), or provide fresh xf_user + xf_session + xf_tfa_trust + cf_clearance values from a logged-in browser session.`);
     }
     throw new Error(`Download failed (${response.status})`);
   }
