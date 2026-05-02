@@ -321,7 +321,7 @@ async function fetchBinary(url, { cookieHeader = '', xfUser = '', xfSession = ''
   });
   if (!response.ok) {
     if (response.status === 403 && cookieHeaderValue) {
-      throw new Error('Download failed (403). Spigot rejected the session context. Put your full browser Cookie header in cookieHeader (recommended), or provide fresh xf_user + xf_session + xf_tfa_trust + cf_clearance values from a logged-in browser session.');
+      throw new Error('Download failed (403). Spigot rejected the session context. Paste your full browser Cookie header into the "Spigot full Cookie header" field (recommended), or provide fresh xf_user + xf_session + xf_tfa_trust + cf_clearance values from a logged-in browser session.');
     }
     throw new Error(`Download failed (${response.status})`);
   }
