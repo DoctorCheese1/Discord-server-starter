@@ -120,14 +120,14 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
       plugin: details.name || `resource-${resourceId}`,
       projectId: resourceId,
       projectSlug: '',
-      url: `${resourceUrl}download?version=latest`,
+      url: details?.file?.url ? `https://www.spigotmc.org/${String(details.file.url).replace(/^\/+/, '')}` : `${resourceUrl}download`,
       resourceUrl,
       versionNumber: latestVersionLabel,
       minecraftVersion: mcVersion || 'latest supported',
       loader: 'spigot',
       paid: true,
       external,
-      note: 'Paid Spigot resources require Spigot session cookies (xf_user + xf_session, and sometimes xf_tfa_trust).'
+      note: 'Paid Spigot resources require browser-backed cookies. Prefer full cookie header (including cf_clearance), or xf_user + xf_session + xf_tfa_trust.'
     };
   }
   const downloadUrl = `https://api.spiget.org/v2/resources/${resourceId}/download`;
