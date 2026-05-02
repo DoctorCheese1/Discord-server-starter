@@ -254,24 +254,39 @@ function inferFilenameFromHeaders(headers) {
 }
 
 async function fetchBinary(url, { xfUser = '', xfSession = '', xfTfaTrust = '' } = {}) {
+  const userInput = String(xfUser || '').trim();
+  const fullCookieMode = userInput.includes('=') && userInput.includes(';');
   const cookieParts = [];
-  if (xfUser) cookieParts.push(`xf_user=${xfUser}`);
-  if (xfSession) cookieParts.push(`xf_session=${xfSession}`);
-  if (xfTfaTrust) cookieParts.push(`xf_tfa_trust=${xfTfaTrust}`);
-  const cookieHeader = cookieParts.join('; ');
+  if (fullCookieMode) {
+    cookieParts.push(userInput);
+    if (xfSession) cookieParts.push(String(xfSession).trim());
+    if (xfTfaTrust) cookieParts.push(String(xfTfaTrust).trim());
+  } else {
+    if (xfUser) cookieParts.push(`xf_user=${xfUser}`);
+    if (xfSession) cookieParts.push(`xf_session=${xfSession}`);
+    if (xfTfaTrust) cookieParts.push(`xf_tfa_trust=${xfTfaTrust}`);
+  }
+  const cookieHeader = cookieParts.filter(Boolean).join('; ');
   const response = await fetch(url, {
     headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; ServerControlBot/2.0; +https://spigotmc.org)',
-      Accept: '*/*',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
       Referer: 'https://www.spigotmc.org/',
       Origin: 'https://www.spigotmc.org',
+      'Sec-Fetch-Site': 'same-origin',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Dest': 'document',
+      'Upgrade-Insecure-Requests': '1',
       ...(cookieHeader ? { Cookie: cookieHeader } : {})
     },
     redirect: 'follow'
   });
   if (!response.ok) {
     if (response.status === 403 && cookieHeader) {
-      throw new Error('Download failed (403). Spigot rejected the session cookies. Re-copy xf_user + xf_session (and xf_tfa_trust if your account uses 2FA trust) from a logged-in Spigot browser session.');
+      throw new Error('Download failed (403). Spigot rejected the session context. Provide full browser cookie header (including cf_clearance) or fresh xf_user + xf_session + xf_tfa_trust from a logged-in browser session.');
     }
     throw new Error(`Download failed (${response.status})`);
   }
