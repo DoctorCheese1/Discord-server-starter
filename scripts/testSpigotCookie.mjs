@@ -88,19 +88,28 @@ async function requestWithFallback(url, headers) {
       engine: 'cloudscraper'
     };
   } catch {
-    const response = await fetch(url, {
-      method: 'GET',
-      redirect: 'manual',
-      headers
-    });
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        redirect: 'manual',
+        headers
+      });
 
-    const body = await response.text();
-    return {
-      status: response.status,
-      location: response.headers.get('location') || '',
-      body,
-      engine: 'fetch'
-    };
+      const body = await response.text();
+      return {
+        status: response.status,
+        location: response.headers.get('location') || '',
+        body,
+        engine: 'fetch'
+      };
+    } catch (error) {
+      return {
+        status: 0,
+        location: '',
+        body: String(error?.message || error || ''),
+        engine: 'fetch-error'
+      };
+    }
   }
 }
 
@@ -130,7 +139,14 @@ function extractDownloadUrlsFromResourcePage(resourceId, html) {
 
   const normalized = urls
     .map((u) => u.replace(/&amp;/g, '&'))
-    .map((u) => (u.startsWith('http') ? u : `https://www.spigotmc.org${u}`));
+    .map((u) => {
+      try {
+        return new URL(u, 'https://www.spigotmc.org/').toString();
+      } catch {
+        return '';
+      }
+    })
+    .filter(Boolean);
 
   // Add non-versioned fallback endpoints in case HTML contains no explicit links.
   normalized.push(`https://www.spigotmc.org/resources/${resourceId}/download`);
@@ -197,6 +213,11 @@ async function main() {
   const { status, location, engine } = response;
   console.log(`ℹ️ Request engine: ${engine}`);
   console.log(`ℹ️ Account check: ${preflight.status} (${preflightAuth})`);
+
+  if (status === 0) {
+    fail(`❌ Request failed before HTTP response: ${response.body}`, 5);
+    return;
+  }
 
   if (status === 403) {
     const extractedDownloadUrls = extractDownloadUrlsFromResourcePage(resourceId, resourcePage.body);
