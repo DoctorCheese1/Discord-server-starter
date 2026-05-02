@@ -87,12 +87,19 @@ function extractXfToken(body = '') {
   return body.match(/name=["']_xfToken["']\s+value=["']([^"']+)["']/i)?.[1] || '';
 }
 
-function buildCandidateUrls(resourceId, html) {
+
+function extractLatestVersionId(resourceId, body = '') {
+  const text = String(body || '');
+  const m = text.match(new RegExp(`/resources/(?:[^/]+\.)?${resourceId}/download\?version=(\d+)`, 'i'));
+  return m?.[1] || '';
+}
+
+function buildCandidateUrls(resourceId, html, latestVersionId = '') {
   const out = new Set([
     `https://www.spigotmc.org/resources/${resourceId}/download?version=${TEST_VERSION}`,
-    `https://www.spigotmc.org/resources/${resourceId}/download`,
-    `https://www.spigotmc.org/resources/${resourceId}/download?version=latest`
+    `https://www.spigotmc.org/resources/${resourceId}/download`
   ]);
+  if (latestVersionId) out.add(`https://www.spigotmc.org/resources/${resourceId}/download?version=${latestVersionId}`);
   const patterns = [
     new RegExp(`/resources/(?:[^/]+\\.)?${resourceId}/download[^"'\\s<]*`, 'ig'),
     /href=["']([^"']*download[^"']*)["']/ig
@@ -104,6 +111,21 @@ function buildCandidateUrls(resourceId, html) {
     }
   }
   return [...out];
+}
+
+
+async function fetchLatestSpigetPath(resourceId) {
+  const apiUrl = `https://api.spiget.org/v2/resources/${resourceId}`;
+  try {
+    const response = await fetch(apiUrl);
+    if (!response.ok) return '';
+    const data = await response.json();
+    const rawPath = String(data?.file?.url || '').trim();
+    if (!rawPath) return '';
+    return rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+  } catch {
+    return '';
+  }
 }
 
 function addToken(url, token) {
@@ -132,6 +154,10 @@ async function main() {
 
   const account = await request('https://www.spigotmc.org/account/', headers);
   const resource = await request(`https://www.spigotmc.org/resources/${resourceId}/`, headers);
+  const versionsPage = await request(`https://www.spigotmc.org/resources/${resourceId}/updates`, headers);
+  const latestVersionId = extractLatestVersionId(resourceId, `${versionsPage.body}
+${resource.body}`);
+  const latestSpigetPath = await fetchLatestSpigetPath(resourceId);
   const authState = inferAuthState(account.body);
   const resourceState = inferResourceState(resource.body);
   const token = extractXfToken(resource.body);
@@ -140,8 +166,12 @@ async function main() {
   console.log(`ℹ️ Account check: ${account.status} (${authState})`);
   console.log(`ℹ️ Resource access hint: ${resourceState}`);
   console.log(`ℹ️ User-Agent: ${userAgent}`);
+  console.log(`ℹ️ Latest version id: ${latestVersionId || 'not found'}`);
+  console.log(`ℹ️ Spiget path: ${latestSpigetPath || 'not found'}`);
 
-  const candidates = buildCandidateUrls(resourceId, resource.body).map((u) => addToken(u, token));
+  const baseCandidates = buildCandidateUrls(resourceId, resource.body, latestVersionId);
+  if (latestSpigetPath) baseCandidates.unshift(`https://www.spigotmc.org${latestSpigetPath}`);
+  const candidates = [...new Set(baseCandidates)].map((u) => addToken(u, token));
   for (const [i, url] of candidates.entries()) {
     const r = await request(url, headers);
     if (r.status >= 300 && r.status < 400 && r.location) {
