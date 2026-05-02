@@ -134,6 +134,14 @@ function addToken(url, token) {
   return `${url}${url.includes('?') ? '&' : '?'}_xfToken=${encodeURIComponent(token)}`;
 }
 
+
+function buildCurlPreview(url, userAgent, cookieHeader) {
+  const safeUrl = String(url || '').replace(/"/g, '\"');
+  const safeUa = String(userAgent || '').replace(/"/g, '\"');
+  const safeCookie = String(cookieHeader || '').replace(/"/g, '\"');
+  return `curl -i "${safeUrl}" -H "User-Agent: ${safeUa}" -H "Cookie: ${safeCookie}"`;
+}
+
 async function main() {
   if (!resourceArg || !cookieOrXfUser) return fail('Usage: node scripts/testSpigotCookie.mjs <resourceIdOrUrl> <full_cookie_header|xf_user> [xf_session] [xf_tfa_trust] [extra_cookie_header] [user_agent]');
 
@@ -173,6 +181,7 @@ ${resource.body}`);
   const baseCandidates = buildCandidateUrls(resourceId, resource.body, latestVersionId);
   if (latestSpigetPath) baseCandidates.unshift(`https://www.spigotmc.org${latestSpigetPath}`);
   const candidates = [...new Set(baseCandidates)].map((u) => addToken(u, token));
+  if (candidates.length) console.log(`ℹ️ Manual test command: ${buildCurlPreview(candidates[0], userAgent, cookieHeader)}`);
   for (const [i, url] of candidates.entries()) {
     const r = await request(url, headers);
     if (r.status >= 300 && r.status < 400 && r.location) {
