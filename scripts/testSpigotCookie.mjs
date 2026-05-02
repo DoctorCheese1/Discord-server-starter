@@ -138,7 +138,8 @@ function addToken(url, token) {
 
 
 function extractCookieValue(cookieHeader, key) {
-  const match = String(cookieHeader || '').match(new RegExp(`(?:^|;\s*)${key}=([^;]+)`, 'i'));
+  const safeKey = String(key || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = String(cookieHeader || '').match(new RegExp(`(?:^|;\\s*)${safeKey}=([^;]+)`, 'i'));
   return match?.[1] || '';
 }
 
