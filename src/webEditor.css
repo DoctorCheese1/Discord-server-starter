@@ -115,6 +115,10 @@
     .plugin-toggle { border: 1px solid #3f4656; border-radius: 4px; background: #2d2d30; color: #d4d4d4; padding: 6px 10px; cursor: pointer; font-size: 12px; }
     .plugin-toggle:hover:not(:disabled) { background: #094771; border-color: #0f5f92; color: #fff; }
     .plugin-toggle:disabled { opacity: .6; cursor: wait; }
+
+    .plugin-update { border: 1px solid #0f5f92; border-radius: 4px; background: #094771; color: #ffffff; padding: 6px 10px; cursor: pointer; font-size: 12px; }
+    .plugin-update:hover:not(:disabled) { background: #0b5e93; border-color: #1a79b6; color: #fff; }
+    .plugin-update:disabled { opacity: .6; cursor: wait; }
     .plugin-actions { display: flex; gap: 8px; align-items: center; }
     .plugin-delete { border: 1px solid #744343; border-radius: 4px; background: #3b2424; color: #f2c5c5; padding: 6px 10px; cursor: pointer; font-size: 12px; }
     .plugin-delete:hover:not(:disabled) { background: #7a2f2f; border-color: #a84d4d; color: #fff; }
