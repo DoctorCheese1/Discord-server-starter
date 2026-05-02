@@ -136,6 +136,23 @@ function addToken(url, token) {
 
 
 
+
+function extractCookieValue(cookieHeader, key) {
+  const match = String(cookieHeader || '').match(new RegExp(`(?:^|;\s*)${key}=([^;]+)`, 'i'));
+  return match?.[1] || '';
+}
+
+function inferCfClearanceAge(cookieHeader) {
+  const cf = extractCookieValue(cookieHeader, 'cf_clearance');
+  if (!cf) return 'missing';
+  const m = cf.match(/-(\d{10})-/);
+  if (!m) return 'unknown';
+  const issued = Number(m[1]) * 1000;
+  const ageMinutes = Math.floor((Date.now() - issued) / 60000);
+  if (Number.isNaN(ageMinutes)) return 'unknown';
+  return `${ageMinutes}m old`;
+}
+
 function hasCloudflareCookie(cookieHeader) {
   return /(?:^|;\s*)cf_clearance=/i.test(String(cookieHeader || ''));
 }
@@ -181,6 +198,7 @@ ${resource.body}`);
   console.log(`ℹ️ Resource access hint: ${resourceState}`);
   console.log(`ℹ️ User-Agent: ${userAgent}`);
   console.log(`ℹ️ Has cf_clearance: ${hasCloudflareCookie(cookieHeader)}`);
+  console.log(`ℹ️ cf_clearance age: ${inferCfClearanceAge(cookieHeader)}`);
   console.log(`ℹ️ Latest version id: ${latestVersionId || 'not found'}`);
   console.log(`ℹ️ Spiget path: ${latestSpigetPath || 'not found'}`);
 
@@ -211,6 +229,7 @@ ${resource.body}`);
     console.error('Hint: Cloudflare challenge detected; clearance may be browser-bound.');
     console.error('Hint: rerun with your exact browser User-Agent as arg 6 and fresh cf_clearance cookie.');
     if (!hasCloudflareCookie(cookieHeader)) console.error('Hint: your current cookie input does not include cf_clearance.');
+    if (inferCfClearanceAge(cookieHeader).endsWith('old')) console.error('Hint: your cf_clearance may be stale; copy a fresh one from a live browser session.');
   }
   if (resourceState === 'no_access') console.error('Hint: account may not own/have access to this resource.');
   if (resourceState === 'unavailable') console.error('Hint: resource appears unavailable/removed on Spigot.');
