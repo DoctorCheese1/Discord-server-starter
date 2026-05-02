@@ -254,19 +254,34 @@ function inferFilenameFromHeaders(headers) {
 }
 
 async function fetchBinary(url, { xfUser = '', xfSession = '', xfTfaTrust = '', cfClearance = '' } = {}) {
+  const decodeCookieValue = value => {
+    const input = String(value || '').trim();
+    if (!input) return '';
+    try {
+      return decodeURIComponent(input);
+    } catch {
+      return input;
+    }
+  };
+  const toCookieFragment = (key, value) => {
+    const input = String(value || '').trim();
+    if (!input) return '';
+    if (input.includes('=')) return input;
+    return `${key}=${decodeCookieValue(input)}`;
+  };
   const userInput = String(xfUser || '').trim();
   const fullCookieMode = userInput.includes('=') && userInput.includes(';');
   const cookieParts = [];
   if (fullCookieMode) {
     cookieParts.push(userInput);
-    if (xfSession) cookieParts.push(String(xfSession).trim());
-    if (xfTfaTrust) cookieParts.push(String(xfTfaTrust).trim());
-    if (cfClearance) cookieParts.push(`cf_clearance=${String(cfClearance).trim()}`);
+    if (xfSession) cookieParts.push(toCookieFragment('xf_session', xfSession));
+    if (xfTfaTrust) cookieParts.push(toCookieFragment('xf_tfa_trust', xfTfaTrust));
+    if (cfClearance) cookieParts.push(toCookieFragment('cf_clearance', cfClearance));
   } else {
-    if (xfUser) cookieParts.push(`xf_user=${xfUser}`);
-    if (xfSession) cookieParts.push(`xf_session=${xfSession}`);
-    if (xfTfaTrust) cookieParts.push(`xf_tfa_trust=${xfTfaTrust}`);
-    if (cfClearance) cookieParts.push(`cf_clearance=${cfClearance}`);
+    if (xfUser) cookieParts.push(toCookieFragment('xf_user', xfUser));
+    if (xfSession) cookieParts.push(toCookieFragment('xf_session', xfSession));
+    if (xfTfaTrust) cookieParts.push(toCookieFragment('xf_tfa_trust', xfTfaTrust));
+    if (cfClearance) cookieParts.push(toCookieFragment('cf_clearance', cfClearance));
   }
   const cookieHeader = cookieParts.filter(Boolean).join('; ');
   const response = await fetch(url, {
@@ -288,7 +303,7 @@ async function fetchBinary(url, { xfUser = '', xfSession = '', xfTfaTrust = '', 
   });
   if (!response.ok) {
     if (response.status === 403 && cookieHeader) {
-      throw new Error('Download failed (403). Spigot rejected the session context. Provide full browser cookie header (including cf_clearance) or fresh xf_user + xf_session + xf_tfa_trust from a logged-in browser session.');
+      throw new Error('Download failed (403). Spigot rejected the session context. Put your full browser Cookie header in xf_user (recommended), or provide fresh xf_user + xf_session + xf_tfa_trust + cf_clearance values from a logged-in browser session.');
     }
     throw new Error(`Download failed (${response.status})`);
   }
