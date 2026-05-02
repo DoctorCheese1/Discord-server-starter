@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const [, , resourceArg = '', cookieOrXfUser = '', xfSession = '', xfTfaTrust = '', extraCookieHeader = ''] = process.argv;
+const [, , resourceArg = '', cookieOrXfUser = '', xfSession = '', xfTfaTrust = '', extraCookieHeader = '', userAgentArg = ''] = process.argv;
 
 function fail(message, code = 1) {
   console.error(message);
@@ -189,7 +189,7 @@ function inferResourceAccessState(body = '') {
 
 async function main() {
   if (!resourceArg || !cookieOrXfUser) {
-    fail('Usage: node scripts/testSpigotCookie.mjs <resourceIdOrUrl> <full_cookie_header|xf_user> [xf_session] [xf_tfa_trust] [extra_cookie_header]');
+    fail('Usage: node scripts/testSpigotCookie.mjs <resourceIdOrUrl> <full_cookie_header|xf_user> [xf_session] [xf_tfa_trust] [extra_cookie_header] [user_agent]');
     return;
   }
 
@@ -206,8 +206,10 @@ async function main() {
   }
 
   const downloadUrl = `https://www.spigotmc.org/resources/${resourceId}/download`; 
+  const userAgent = userAgentArg || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
   const headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'User-Agent': userAgent,
     Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     Referer: `https://www.spigotmc.org/resources/${resourceId}/`,
     Origin: 'https://www.spigotmc.org',
@@ -225,6 +227,7 @@ async function main() {
   console.log(`ℹ️ Request engine: ${engine}`);
   console.log(`ℹ️ Account check: ${preflight.status} (${preflightAuth})`);
   console.log(`ℹ️ Resource access hint: ${resourceAccess}`);
+  console.log(`ℹ️ User-Agent: ${userAgent}`);
 
   if (status === 0) {
     fail(`❌ Request failed before HTTP response: ${response.body}`, 5);
