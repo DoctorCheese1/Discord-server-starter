@@ -253,7 +253,7 @@ function inferFilenameFromHeaders(headers) {
   return simpleMatch?.[1] || '';
 }
 
-async function fetchBinary(url, { xfUser = '', xfSession = '', xfTfaTrust = '' } = {}) {
+async function fetchBinary(url, { xfUser = '', xfSession = '', xfTfaTrust = '', cfClearance = '' } = {}) {
   const userInput = String(xfUser || '').trim();
   const fullCookieMode = userInput.includes('=') && userInput.includes(';');
   const cookieParts = [];
@@ -261,10 +261,12 @@ async function fetchBinary(url, { xfUser = '', xfSession = '', xfTfaTrust = '' }
     cookieParts.push(userInput);
     if (xfSession) cookieParts.push(String(xfSession).trim());
     if (xfTfaTrust) cookieParts.push(String(xfTfaTrust).trim());
+    if (cfClearance) cookieParts.push(`cf_clearance=${String(cfClearance).trim()}`);
   } else {
     if (xfUser) cookieParts.push(`xf_user=${xfUser}`);
     if (xfSession) cookieParts.push(`xf_session=${xfSession}`);
     if (xfTfaTrust) cookieParts.push(`xf_tfa_trust=${xfTfaTrust}`);
+    if (cfClearance) cookieParts.push(`cf_clearance=${cfClearance}`);
   }
   const cookieHeader = cookieParts.filter(Boolean).join('; ');
   const response = await fetch(url, {
@@ -374,6 +376,7 @@ export function startWebEditor() {
         const xfUser = String(body.xfUser || '').trim();
         const xfSession = String(body.xfSession || '').trim();
         const xfTfaTrust = String(body.xfTfaTrust || '').trim();
+        const cfClearance = String(body.cfClearance || '').trim();
 
         if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
         if (!query) return sendJson(res, 400, { error: 'Plugin query is required' });
@@ -383,13 +386,14 @@ export function startWebEditor() {
 
         try {
           const result = await getPluginDownloadLink({ source, query, platform, mcVersion });
-          if (result?.source === 'spigot' && result?.paid && (!xfUser || !xfSession)) {
+          const hasFullCookie = xfUser.includes('=') && xfUser.includes(';');
+          if (result?.source === 'spigot' && result?.paid && !hasFullCookie && (!xfUser || !xfSession)) {
             return sendJson(res, 400, {
-              error: 'This Spigot plugin is paid. Provide both xf_user and xf_session cookies to auto-install.',
+              error: 'This Spigot plugin is paid. Provide full cookie header, or both xf_user and xf_session cookies to auto-install.',
               result
             });
           }
-          const downloaded = await fetchBinary(result.url, { xfUser, xfSession, xfTfaTrust });
+          const downloaded = await fetchBinary(result.url, { xfUser, xfSession, xfTfaTrust, cfClearance });
           const pluginLabel = result.plugin || result.projectSlug || query;
           const versionSuffix = sanitizeVersionLabel(result.versionNumber || result.minecraftVersion || '');
           const preferredName = `${result.plugin || result.projectSlug || query}${versionSuffix ? `-${versionSuffix}` : ''}.jar`;
