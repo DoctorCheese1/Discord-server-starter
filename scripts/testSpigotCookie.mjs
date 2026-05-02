@@ -179,8 +179,14 @@ async function main() {
     'User-Agent': userAgent,
     Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
     Referer: `https://www.spigotmc.org/resources/${resourceId}/`,
     Origin: 'https://www.spigotmc.org',
+    'Sec-Fetch-Site': 'same-origin',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Dest': 'document',
+    'Upgrade-Insecure-Requests': '1',
     Cookie: cookieHeader
   };
 
@@ -206,6 +212,10 @@ ${resource.body}`);
   const baseCandidates = buildCandidateUrls(resourceId, resource.body, latestVersionId);
   if (latestSpigetPath) baseCandidates.unshift(`https://www.spigotmc.org${latestSpigetPath}`);
   const candidates = [...new Set(baseCandidates)].map((u) => addToken(u, token));
+  if (latestSpigetPath) {
+    const preferred = `https://www.spigotmc.org${latestSpigetPath}`;
+    candidates.sort((a, b) => Number(!a.includes(preferred)) - Number(!b.includes(preferred)));
+  }
   if (candidates.length) console.log(`ℹ️ Manual test command: ${buildCurlPreview(candidates[0], userAgent, cookieHeader)}`);
   for (const [i, url] of candidates.entries()) {
     const r = await request(url, headers);
