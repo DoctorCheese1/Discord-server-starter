@@ -253,27 +253,44 @@ function inferFilenameFromHeaders(headers) {
   return simpleMatch?.[1] || '';
 }
 
+function safeDecodeCookieValue(value) {
+  const input = String(value || '').trim();
+  if (!input) return '';
+  try {
+    return decodeURIComponent(input);
+  } catch {
+    return input;
+  }
+}
+
+function parseCookieHeaderPairs(header) {
+  return String(header || '')
+    .split(';')
+    .map(part => part.trim())
+    .filter(Boolean)
+    .map(part => {
+      const index = part.indexOf('=');
+      if (index <= 0) return null;
+      const key = part.slice(0, index).trim();
+      const value = safeDecodeCookieValue(part.slice(index + 1));
+      if (!key || !value) return null;
+      return [key, value];
+    })
+    .filter(Boolean);
+}
+
 async function fetchBinary(url, { xfUser = '', xfSession = '', xfTfaTrust = '', cfClearance = '' } = {}) {
-  const decodeCookieValue = value => {
-    const input = String(value || '').trim();
-    if (!input) return '';
-    try {
-      return decodeURIComponent(input);
-    } catch {
-      return input;
-    }
-  };
   const toCookieFragment = (key, value) => {
     const input = String(value || '').trim();
     if (!input) return '';
     if (input.includes('=')) return input;
-    return `${key}=${decodeCookieValue(input)}`;
+    return `${key}=${safeDecodeCookieValue(input)}`;
   };
   const userInput = String(xfUser || '').trim();
   const fullCookieMode = userInput.includes('=') && userInput.includes(';');
   const cookieParts = [];
   if (fullCookieMode) {
-    cookieParts.push(userInput);
+    cookieParts.push(...parseCookieHeaderPairs(userInput).map(([key, value]) => `${key}=${value}`));
     if (xfSession) cookieParts.push(toCookieFragment('xf_session', xfSession));
     if (xfTfaTrust) cookieParts.push(toCookieFragment('xf_tfa_trust', xfTfaTrust));
     if (cfClearance) cookieParts.push(toCookieFragment('cf_clearance', cfClearance));
