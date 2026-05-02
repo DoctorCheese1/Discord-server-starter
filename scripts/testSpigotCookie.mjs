@@ -106,7 +106,7 @@ async function requestWithFallback(url, headers) {
 
 function extractDownloadUrlsFromResourcePage(resourceId, html) {
   const text = String(html || '');
-  const pattern = new RegExp(`/resources/${resourceId}/download\\?version=[^"'\\s<]+`, 'ig');
+  const pattern = new RegExp(`/resources/(?:[^/]+\\.)?${resourceId}/download\\?version=[^"'\\s<]+`, 'ig');
   const matches = [...text.matchAll(pattern)];
   const urls = matches.map((m) => `https://www.spigotmc.org${m[0].replace(/&amp;/g, '&')}`);
   return [...new Set(urls)];
