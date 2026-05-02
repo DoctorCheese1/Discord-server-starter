@@ -177,6 +177,16 @@ function inferAuthState(body = '') {
   return 'unknown';
 }
 
+
+function inferResourceAccessState(body = '') {
+  const text = String(body || '');
+  if (!text) return 'unknown';
+  if (/You do not have permission|insufficient permission|must purchase|buy this resource|purchase this resource/i.test(text)) return 'no_access';
+  if (/resource is no longer available|removed from listing|deleted/i.test(text)) return 'unavailable';
+  if (/downloadButton|download\?version|fa-download|Download/i.test(text)) return 'download_visible';
+  return 'unknown';
+}
+
 async function main() {
   if (!resourceArg || !cookieOrXfUser) {
     fail('Usage: node scripts/testSpigotCookie.mjs <resourceIdOrUrl> <full_cookie_header|xf_user> [xf_session] [xf_tfa_trust] [extra_cookie_header]');
@@ -207,12 +217,14 @@ async function main() {
   const preflight = await requestWithFallback('https://www.spigotmc.org/account/', headers);
   const preflightAuth = inferAuthState(preflight.body);
   const resourcePage = await requestWithFallback(`https://www.spigotmc.org/resources/${resourceId}/`, headers);
+  const resourceAccess = inferResourceAccessState(resourcePage.body);
   const xfToken = extractXfToken(resourcePage.body);
 
   const response = await requestWithFallback(withXfToken(downloadUrl, xfToken), headers);
   const { status, location, engine } = response;
   console.log(`ℹ️ Request engine: ${engine}`);
   console.log(`ℹ️ Account check: ${preflight.status} (${preflightAuth})`);
+  console.log(`ℹ️ Resource access hint: ${resourceAccess}`);
 
   if (status === 0) {
     fail(`❌ Request failed before HTTP response: ${response.body}`, 5);
@@ -237,6 +249,8 @@ async function main() {
     if (preflightAuth === 'logged_out') console.error('Hint: cookies are not logged in anymore (session expired).');
     if (preflightAuth === 'cloudflare_challenge') console.error('Hint: Cloudflare challenge detected; clearances may be bound to browser context.');
     if (preflightAuth === 'logged_in') console.error(`Hint: account is logged in, but direct download is denied and ${extractedDownloadUrls.length} page-derived links also failed.`);
+    if (resourceAccess === 'no_access') console.error('Hint: resource page indicates this account may not own/have permission for this resource.');
+    if (resourceAccess === 'unavailable') console.error('Hint: resource appears unavailable/removed on Spigot.');
     return;
   }
 
