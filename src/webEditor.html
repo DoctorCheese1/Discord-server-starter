@@ -96,6 +96,7 @@
             </select>
             <input id="pluginMcVersion" placeholder="Minecraft version (e.g. 1.21.1)" />
             <input id="pluginQuery" placeholder="Plugin name/slug (Modrinth) or resource URL/ID (Spigot)" />
+            <textarea id="spigotCookieHeader" rows="2" autocomplete="off" placeholder="Spigot full Cookie header (recommended for paid resources)"></textarea>
             <input id="spigotXfUser" type="password" autocomplete="off" placeholder="Spigot xf_user (optional)" />
             <input id="spigotXfSession" type="password" autocomplete="off" placeholder="Spigot xf_session (optional)" />
             <input id="spigotXfTfaTrust" type="password" autocomplete="off" placeholder="Spigot xf_tfa_trust (optional)" />
@@ -179,6 +180,7 @@
     const pluginPlatform = document.getElementById('pluginPlatform');
     const pluginMcVersion = document.getElementById('pluginMcVersion');
     const pluginQuery = document.getElementById('pluginQuery');
+    const spigotCookieHeader = document.getElementById('spigotCookieHeader');
     const spigotXfUser = document.getElementById('spigotXfUser');
     const spigotXfSession = document.getElementById('spigotXfSession');
     const spigotXfTfaTrust = document.getElementById('spigotXfTfaTrust');
@@ -246,18 +248,32 @@
 
     function restoreUiState() {
       const serverId = serverSel.value || '';
-      if (!serverId) return { expanded: [], currentFile: '', spigotXfUser: '', spigotXfSession: '', spigotXfTfaTrust: '', spigotCfClearance: '' };
+      if (!serverId) return { expanded: [], currentFile: '', spigotCookieHeader: '', spigotXfUser: '', spigotXfSession: '', spigotXfTfaTrust: '', spigotCfClearance: '' };
       const state = loadUiState();
-      return state[serverId] || { expanded: [], currentFile: '', spigotXfUser: '', spigotXfSession: '', spigotXfTfaTrust: '', spigotCfClearance: '' };
+      return state[serverId] || { expanded: [], currentFile: '', spigotCookieHeader: '', spigotXfUser: '', spigotXfSession: '', spigotXfTfaTrust: '', spigotCfClearance: '' };
     }
 
     function persistSpigotSessionState() {
       saveUiState({
+        spigotCookieHeader: spigotCookieHeader.value.trim(),
         spigotXfUser: spigotXfUser.value.trim(),
         spigotXfSession: spigotXfSession.value.trim(),
         spigotXfTfaTrust: spigotXfTfaTrust.value.trim(),
         spigotCfClearance: spigotCfClearance.value.trim()
       });
+    }
+
+    function getSpigotAuthPayload() {
+      const cookieHeader = spigotCookieHeader.value.trim();
+      if (cookieHeader) {
+        return { xfUser: cookieHeader, xfSession: '', xfTfaTrust: '', cfClearance: '' };
+      }
+      return {
+        xfUser: spigotXfUser.value.trim(),
+        xfSession: spigotXfSession.value.trim(),
+        xfTfaTrust: spigotXfTfaTrust.value.trim(),
+        cfClearance: spigotCfClearance.value.trim()
+      };
     }
 
     function captureExpandedFoldersFromDom() {
@@ -1048,6 +1064,7 @@
         expandedFolders.clear();
         const restored = restoreUiState();
         setActiveTopTab(restored.activeTopTab || 'file');
+        spigotCookieHeader.value = restored.spigotCookieHeader || '';
         spigotXfUser.value = restored.spigotXfUser || '';
         spigotXfSession.value = restored.spigotXfSession || '';
         spigotXfTfaTrust.value = restored.spigotXfTfaTrust || '';
@@ -1374,10 +1391,7 @@
             query,
             platform: pluginPlatform.value,
             mcVersion: pluginMcVersion.value.trim(),
-            xfUser: spigotXfUser.value.trim(),
-            xfSession: spigotXfSession.value.trim(),
-            xfTfaTrust: spigotXfTfaTrust.value.trim(),
-            cfClearance: spigotCfClearance.value.trim()
+            ...getSpigotAuthPayload()
           });
           pluginDownloadStatus.textContent = '✅ Updated ' + (response.plugin || query) + (response.version ? ' (' + response.version + ')' : '');
           await loadFiles();
@@ -1423,6 +1437,7 @@
       }
     });
 
+    spigotCookieHeader.addEventListener('input', persistSpigotSessionState);
     spigotXfUser.addEventListener('input', persistSpigotSessionState);
     spigotXfSession.addEventListener('input', persistSpigotSessionState);
     spigotXfTfaTrust.addEventListener('input', persistSpigotSessionState);
@@ -1433,10 +1448,6 @@
       const platform = pluginPlatform.value;
       const mcVersion = pluginMcVersion.value.trim();
       const query = pluginQuery.value.trim();
-      const xfUser = spigotXfUser.value.trim();
-      const xfSession = spigotXfSession.value.trim();
-      const xfTfaTrust = spigotXfTfaTrust.value.trim();
-      const cfClearance = spigotCfClearance.value.trim();
       if (!query) {
         pluginDownloadStatus.textContent = '❌ Enter a plugin query first.';
         return;
@@ -1450,10 +1461,7 @@
           platform,
           mcVersion,
           query,
-          xfUser,
-          xfSession,
-          xfTfaTrust,
-          cfClearance
+          ...getSpigotAuthPayload()
         });
         const r = response.result || {};
         const paidBadge = r.paid ? ' • 💰 Paid' : '';
@@ -1490,10 +1498,6 @@
       const platform = pluginPlatform.value;
       const mcVersion = pluginMcVersion.value.trim();
       const query = pluginQuery.value.trim();
-      const xfUser = spigotXfUser.value.trim();
-      const xfSession = spigotXfSession.value.trim();
-      const xfTfaTrust = spigotXfTfaTrust.value.trim();
-      const cfClearance = spigotCfClearance.value.trim();
       if (!query) {
         pluginDownloadStatus.textContent = '❌ Enter a plugin query first.';
         return;
@@ -1509,10 +1513,7 @@
           platform,
           mcVersion,
           query,
-          xfUser,
-          xfSession,
-          xfTfaTrust,
-          cfClearance
+          ...getSpigotAuthPayload()
         });
         const pluginLabel = response.plugin || query;
         const targetPath = response.path || 'plugins/plugin.jar';
@@ -1607,6 +1608,9 @@
       if (e.key === 'Escape') closeContextMenu();
     });
 
+    spigotCookieHeader.addEventListener('input', () => {
+      saveUiState({ spigotCookieHeader: spigotCookieHeader.value.trim() });
+    });
     spigotXfUser.addEventListener('input', () => {
       saveUiState({ spigotXfUser: spigotXfUser.value.trim() });
     });
@@ -1616,6 +1620,9 @@
     spigotXfTfaTrust.addEventListener('input', () => {
       saveUiState({ spigotXfTfaTrust: spigotXfTfaTrust.value.trim(),
         spigotCfClearance: spigotCfClearance.value.trim() });
+    });
+    spigotCfClearance.addEventListener('input', () => {
+      saveUiState({ spigotCfClearance: spigotCfClearance.value.trim() });
     });
 
     const params = new URLSearchParams(window.location.search);

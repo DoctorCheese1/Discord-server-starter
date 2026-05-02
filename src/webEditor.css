@@ -95,7 +95,9 @@
     .plugin-download-title { font-size: 14px; color: #e6e6e6; margin-bottom: 8px; }
     .plugin-download-controls { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); gap: 8px; margin-bottom: 8px; }
     .plugin-download-controls select,
-    .plugin-download-controls input { background: #1a1d23; border: 1px solid #313846; color: #d4d4d4; border-radius: 4px; padding: 7px 8px; font-size: 12px; }
+    .plugin-download-controls input,
+    .plugin-download-controls textarea { background: #1a1d23; border: 1px solid #313846; color: #d4d4d4; border-radius: 4px; padding: 7px 8px; font-size: 12px; }
+    .plugin-download-controls textarea { grid-column: 1 / -1; min-height: 56px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
     .plugin-download-controls button { border: 1px solid #3f4656; border-radius: 4px; background: #2d2d30; color: #d4d4d4; padding: 6px 10px; cursor: pointer; font-size: 12px; }
     .plugin-download-controls button:hover:not(:disabled) { background: #094771; border-color: #0f5f92; color: #fff; }
     .plugin-download-controls button:disabled { opacity: .6; cursor: wait; }
