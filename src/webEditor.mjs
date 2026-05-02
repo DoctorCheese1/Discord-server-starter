@@ -302,32 +302,60 @@ async function fetchBinary(url, { cookieHeader = '', xfUser = '', xfSession = ''
     if (cfClearance) cookieParts.push(toCookieFragment('cf_clearance', cfClearance));
   }
   const cookieHeaderValue = cookieParts.filter(Boolean).join('; ');
-  const response = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.9',
-      'Cache-Control': 'no-cache',
-      Pragma: 'no-cache',
-      Referer: 'https://www.spigotmc.org/',
-      Origin: 'https://www.spigotmc.org',
-      'Sec-Fetch-Site': 'same-origin',
-      'Sec-Fetch-Mode': 'navigate',
-      'Sec-Fetch-Dest': 'document',
-      'Upgrade-Insecure-Requests': '1',
-      ...(cookieHeaderValue ? { Cookie: cookieHeaderValue } : {})
-    },
-    redirect: 'follow'
-  });
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+    Referer: 'https://www.spigotmc.org/',
+    Origin: 'https://www.spigotmc.org',
+    'Sec-Fetch-Site': 'same-origin',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Dest': 'document',
+    'Upgrade-Insecure-Requests': '1',
+    ...(cookieHeaderValue ? { Cookie: cookieHeaderValue } : {})
+  };
+  let response;
+  try {
+    const { default: cloudscraper } = await import('cloudscraper');
+    const cloudResponse = await cloudscraper.get({
+      url,
+      headers,
+      encoding: null,
+      simple: false,
+      resolveWithFullResponse: true,
+      followAllRedirects: true
+    });
+    const cloudHeaders = new Map(
+      Object.entries(cloudResponse?.headers || {}).map(([key, value]) => [String(key).toLowerCase(), String(value || '')])
+    );
+    response = {
+      ok: Number(cloudResponse?.statusCode || 0) >= 200 && Number(cloudResponse?.statusCode || 0) < 300,
+      status: Number(cloudResponse?.statusCode || 0),
+      bytes: Buffer.isBuffer(cloudResponse?.body) ? cloudResponse.body : Buffer.from(String(cloudResponse?.body || '')),
+      headers: {
+        get: name => cloudHeaders.get(String(name || '').toLowerCase()) || ''
+      }
+    };
+  } catch {
+    const fetchResponse = await fetch(url, { headers, redirect: 'follow' });
+    const arrayBuffer = await fetchResponse.arrayBuffer();
+    response = {
+      ok: fetchResponse.ok,
+      status: fetchResponse.status,
+      bytes: Buffer.from(arrayBuffer),
+      headers: fetchResponse.headers
+    };
+  }
   if (!response.ok) {
     if (response.status === 403 && cookieHeaderValue) {
       throw new Error('Download failed (403). Spigot rejected the session context. Paste your full browser Cookie header into the "Spigot full Cookie header" field (recommended), or provide fresh xf_user + xf_session + xf_tfa_trust + cf_clearance values from a logged-in browser session.');
     }
     throw new Error(`Download failed (${response.status})`);
   }
-  const arrayBuffer = await response.arrayBuffer();
   return {
-    bytes: Buffer.from(arrayBuffer),
+    bytes: response.bytes,
     filenameFromHeader: inferFilenameFromHeaders(response.headers)
   };
 }
