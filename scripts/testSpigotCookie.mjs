@@ -149,6 +149,7 @@ function extractDownloadUrlsFromResourcePage(resourceId, html) {
     .filter(Boolean);
 
   // Add non-versioned fallback endpoints in case HTML contains no explicit links.
+  normalized.push(`https://www.spigotmc.org/resources/${resourceId}/download?version=633090`);
   normalized.push(`https://www.spigotmc.org/resources/${resourceId}/download`);
   normalized.push(`https://www.spigotmc.org/resources/${resourceId}/download?version=latest`);
   normalized.push(`https://www.spigotmc.org/resources/${resourceId}/download?version=0`);
@@ -205,7 +206,7 @@ async function main() {
     return;
   }
 
-  const downloadUrl = `https://www.spigotmc.org/resources/${resourceId}/download`; 
+  const downloadUrl = `https://www.spigotmc.org/resources/${resourceId}/download?version=633090`; 
   const userAgent = userAgentArg || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
   const headers = {
