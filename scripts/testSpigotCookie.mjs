@@ -112,6 +112,19 @@ function extractDownloadUrlsFromResourcePage(resourceId, html) {
   return [...new Set(urls)];
 }
 
+
+function extractXfToken(html) {
+  const text = String(html || '');
+  const m = text.match(/name=["']_xfToken["']\s+value=["']([^"']+)["']/i);
+  return m?.[1] || '';
+}
+
+function withXfToken(url, xfToken) {
+  if (!xfToken) return url;
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}_xfToken=${encodeURIComponent(xfToken)}`;
+}
+
 function inferAuthState(body = '') {
   const text = String(body || '');
   if (!text) return 'unknown';
@@ -150,18 +163,19 @@ async function main() {
 
   const preflight = await requestWithFallback('https://www.spigotmc.org/account/', headers);
   const preflightAuth = inferAuthState(preflight.body);
+  const resourcePage = await requestWithFallback(`https://www.spigotmc.org/resources/${resourceId}/`, headers);
+  const xfToken = extractXfToken(resourcePage.body);
 
-  const response = await requestWithFallback(downloadUrl, headers);
+  const response = await requestWithFallback(withXfToken(downloadUrl, xfToken), headers);
   const { status, location, engine } = response;
   console.log(`ℹ️ Request engine: ${engine}`);
   console.log(`ℹ️ Account check: ${preflight.status} (${preflightAuth})`);
 
   if (status === 403) {
-    const resourcePage = await requestWithFallback(`https://www.spigotmc.org/resources/${resourceId}/`, headers);
     const extractedDownloadUrls = extractDownloadUrlsFromResourcePage(resourceId, resourcePage.body);
 
     for (const [index, extractedDownloadUrl] of extractedDownloadUrls.entries()) {
-      const retry = await requestWithFallback(extractedDownloadUrl, headers);
+      const retry = await requestWithFallback(withXfToken(extractedDownloadUrl, xfToken), headers);
       if (retry.status >= 300 && retry.status < 400 && retry.location) {
         console.log('✅ Cookie test looks valid: page-derived download link worked.');
         console.log(`Attempt: ${index + 1}/${extractedDownloadUrls.length}`);
