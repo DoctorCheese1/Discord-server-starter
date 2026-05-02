@@ -106,12 +106,39 @@ async function requestWithFallback(url, headers) {
 
 function extractDownloadUrlsFromResourcePage(resourceId, html) {
   const text = String(html || '');
-  const pattern = new RegExp(`/resources/(?:[^/]+\\.)?${resourceId}/download\\?version=[^"'\\s<]+`, 'ig');
-  const matches = [...text.matchAll(pattern)];
-  const urls = matches.map((m) => `https://www.spigotmc.org${m[0].replace(/&amp;/g, '&')}`);
-  return [...new Set(urls)];
-}
+  const patterns = [
+    new RegExp(`/resources/(?:[^/]+\.)?${resourceId}/download\?version=[^"'\s<]+`, 'ig'),
+    new RegExp(`/resources/(?:[^/]+\.)?${resourceId}/download[^"'\s<]*`, 'ig'),
+    /href=["']([^"']*download[^"']*)["']/ig
+  ];
 
+  const urls = [];
+  for (const pattern of patterns) {
+    if (pattern.source.startsWith('href=')) {
+      for (const m of text.matchAll(pattern)) {
+        const href = m[1];
+        if (!href || !href.includes('/download')) continue;
+        urls.push(href);
+      }
+      continue;
+    }
+
+    for (const m of text.matchAll(pattern)) {
+      urls.push(m[0]);
+    }
+  }
+
+  const normalized = urls
+    .map((u) => u.replace(/&amp;/g, '&'))
+    .map((u) => (u.startsWith('http') ? u : `https://www.spigotmc.org${u}`));
+
+  // Add non-versioned fallback endpoints in case HTML contains no explicit links.
+  normalized.push(`https://www.spigotmc.org/resources/${resourceId}/download`);
+  normalized.push(`https://www.spigotmc.org/resources/${resourceId}/download?version=latest`);
+  normalized.push(`https://www.spigotmc.org/resources/${resourceId}/download?version=0`);
+
+  return [...new Set(normalized)];
+}
 
 function extractXfToken(html) {
   const text = String(html || '');
@@ -152,7 +179,7 @@ async function main() {
     return;
   }
 
-  const downloadUrl = `https://www.spigotmc.org/resources/${resourceId}/download?version=latest`;
+  const downloadUrl = `https://www.spigotmc.org/resources/${resourceId}/download`; 
   const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -188,7 +215,7 @@ async function main() {
     fail('❌ Cookie test failed: 403 Forbidden (session/cookies not accepted).', 2);
     if (preflightAuth === 'logged_out') console.error('Hint: cookies are not logged in anymore (session expired).');
     if (preflightAuth === 'cloudflare_challenge') console.error('Hint: Cloudflare challenge detected; clearances may be bound to browser context.');
-    if (preflightAuth === 'logged_in') console.error(`Hint: account is logged in, but direct latest download is denied and ${extractedDownloadUrls.length} page-derived links also failed.`);
+    if (preflightAuth === 'logged_in') console.error(`Hint: account is logged in, but direct download is denied and ${extractedDownloadUrls.length} page-derived links also failed.`);
     return;
   }
 
