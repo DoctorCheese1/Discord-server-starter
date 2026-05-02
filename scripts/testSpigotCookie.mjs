@@ -105,6 +105,14 @@ async function requestWithFallback(url, headers) {
 }
 
 
+
+function extractDownloadUrlFromResourcePage(resourceId, html) {
+  const text = String(html || '');
+  const directMatch = text.match(new RegExp(`/resources/${resourceId}/download\?version=[^"'\s<]+`, 'i'));
+  if (!directMatch) return '';
+  return `https://www.spigotmc.org${directMatch[0].replace(/&amp;/g, '&')}`;
+}
+
 function inferAuthState(body = '') {
   const text = String(body || '');
   if (!text) return 'unknown';
@@ -150,10 +158,23 @@ async function main() {
   console.log(`ℹ️ Account check: ${preflight.status} (${preflightAuth})`);
 
   if (status === 403) {
+    const resourcePage = await requestWithFallback(`https://www.spigotmc.org/resources/${resourceId}/`, headers);
+    const extractedDownloadUrl = extractDownloadUrlFromResourcePage(resourceId, resourcePage.body);
+
+    if (extractedDownloadUrl) {
+      const retry = await requestWithFallback(extractedDownloadUrl, headers);
+      if (retry.status >= 300 && retry.status < 400 && retry.location) {
+        console.log('✅ Cookie test looks valid: page-derived download link worked.');
+        console.log(`Status: ${retry.status}`);
+        console.log(`Location: ${retry.location}`);
+        return;
+      }
+    }
+
     fail('❌ Cookie test failed: 403 Forbidden (session/cookies not accepted).', 2);
     if (preflightAuth === 'logged_out') console.error('Hint: cookies are not logged in anymore (session expired).');
     if (preflightAuth === 'cloudflare_challenge') console.error('Hint: Cloudflare challenge detected; clearances may be bound to browser context.');
-    if (preflightAuth === 'logged_in') console.error('Hint: account appears logged in, but this resource/version may not be accessible to this account.');
+    if (preflightAuth === 'logged_in') console.error('Hint: account is logged in, but direct latest download is denied and no usable page-derived link succeeded.');
     return;
   }
 
