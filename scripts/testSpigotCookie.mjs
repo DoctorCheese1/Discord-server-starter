@@ -97,7 +97,8 @@ function extractLatestVersionId(resourceId, body = '') {
 function buildCandidateUrls(resourceId, html, latestVersionId = '') {
   const out = new Set([
     `https://www.spigotmc.org/resources/${resourceId}/download?version=${TEST_VERSION}`,
-    `https://www.spigotmc.org/resources/${resourceId}/download`
+    `https://www.spigotmc.org/resources/${resourceId}/download`,
+    `https://api.spiget.org/v2/resources/${resourceId}/download`
   ]);
   if (latestVersionId) out.add(`https://www.spigotmc.org/resources/${resourceId}/download?version=${latestVersionId}`);
   const patterns = [
@@ -191,7 +192,10 @@ ${resource.body}`);
 
   fail('❌ Cookie test failed: no candidate download URL succeeded.', 2);
   if (authState === 'logged_out') console.error('Hint: cookies are not logged in anymore (session expired).');
-  if (authState === 'cloudflare_challenge') console.error('Hint: Cloudflare challenge detected; clearance may be browser-bound.');
+  if (authState === 'cloudflare_challenge') {
+    console.error('Hint: Cloudflare challenge detected; clearance may be browser-bound.');
+    console.error('Hint: rerun with your exact browser User-Agent as arg 6 and fresh cf_clearance cookie.');
+  }
   if (resourceState === 'no_access') console.error('Hint: account may not own/have access to this resource.');
   if (resourceState === 'unavailable') console.error('Hint: resource appears unavailable/removed on Spigot.');
 }
