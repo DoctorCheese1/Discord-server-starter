@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+const DEFAULT_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+const TEST_VERSION = '633090';
+
 const [, , resourceArg = '', cookieOrXfUser = '', xfSession = '', xfTfaTrust = '', extraCookieHeader = '', userAgentArg = ''] = process.argv;
 
 function fail(message, code = 1) {
@@ -7,16 +10,11 @@ function fail(message, code = 1) {
   process.exitCode = code;
 }
 
-function decodeCookieValue(value) {
-  const raw = String(value || '').trim();
-  try {
-    return decodeURIComponent(raw);
-  } catch {
-    return raw;
-  }
-}
+const safeDecode = (value) => {
+  try { return decodeURIComponent(String(value || '').trim()); } catch { return String(value || '').trim(); }
+};
 
-function parseSpigotResourceId(input) {
+function parseResourceId(input) {
   const raw = String(input || '').trim();
   if (/^\d+$/.test(raw)) return raw;
   const match = raw.match(/spigotmc\.org\/resources\/[^./]+\.([0-9]+)\//i)
@@ -25,262 +23,147 @@ function parseSpigotResourceId(input) {
   return match?.[1] || '';
 }
 
-function normalizeCookieParts(input) {
-  const raw = String(input || '').trim();
-  if (!raw) return [];
-  return raw.split(';').map((part) => part.trim()).filter(Boolean).filter((part) => part.includes('='));
-}
-
-function parseCookieHeader(header) {
-  return normalizeCookieParts(header)
+function parseCookieParts(header) {
+  return String(header || '')
+    .split(';')
+    .map((p) => p.trim())
+    .filter(Boolean)
     .map((part) => {
       const idx = part.indexOf('=');
       if (idx <= 0) return null;
-      const key = part.slice(0, idx).trim();
-      const value = decodeCookieValue(part.slice(idx + 1));
-      if (!key) return null;
-      return [key, value];
+      return [part.slice(0, idx).trim(), safeDecode(part.slice(idx + 1))];
     })
     .filter(Boolean);
-}
-
-function formatCookieHeader(cookieEntries) {
-  return cookieEntries.map(([key, value]) => `${key}=${value}`).join('; ');
 }
 
 function buildCookieHeader() {
   if (cookieOrXfUser.includes('=') && cookieOrXfUser.includes(';')) {
-    const full = parseCookieHeader(cookieOrXfUser);
-    const extra = parseCookieHeader(extraCookieHeader);
-    return formatCookieHeader([...full, ...extra]);
+    const full = parseCookieParts(cookieOrXfUser);
+    const extra = parseCookieParts(extraCookieHeader);
+    return [...full, ...extra].map(([k, v]) => `${k}=${v}`).join('; ');
   }
-
   if (!cookieOrXfUser || !xfSession) return '';
-  const decodedXfUser = decodeCookieValue(cookieOrXfUser);
-  const decodedXfSession = decodeCookieValue(xfSession);
-  const decodedXfTfaTrust = decodeCookieValue(xfTfaTrust);
-  const extraCookieParts = parseCookieHeader(extraCookieHeader);
 
-  const cookieParts = [
-    ['xf_user', decodedXfUser],
-    ['xf_session', decodedXfSession]
+  const parts = [
+    ['xf_user', safeDecode(cookieOrXfUser)],
+    ['xf_session', safeDecode(xfSession)]
   ];
-  if (decodedXfTfaTrust) cookieParts.push(['xf_tfa_trust', decodedXfTfaTrust]);
-  cookieParts.push(...extraCookieParts);
-  return formatCookieHeader(cookieParts);
+  const decodedTfa = safeDecode(xfTfaTrust);
+  if (decodedTfa) parts.push(['xf_tfa_trust', decodedTfa]);
+  parts.push(...parseCookieParts(extraCookieHeader));
+  return parts.map(([k, v]) => `${k}=${v}`).join('; ');
 }
 
-async function requestWithFallback(url, headers) {
+async function request(url, headers) {
   try {
     const { default: cloudscraper } = await import('cloudscraper');
-    const response = await cloudscraper.get({
-      url,
-      headers,
-      resolveWithFullResponse: true,
-      simple: false,
-      followAllRedirects: false
-    });
-
-    return {
-      status: response.statusCode || response.status || 0,
-      location: response.headers?.location || '',
-      body: typeof response.body === 'string' ? response.body : '',
-      engine: 'cloudscraper'
-    };
+    const r = await cloudscraper.get({ url, headers, resolveWithFullResponse: true, simple: false, followAllRedirects: false });
+    return { status: r.statusCode || 0, location: r.headers?.location || '', body: String(r.body || ''), engine: 'cloudscraper' };
   } catch {
     try {
-      const response = await fetch(url, {
-        method: 'GET',
-        redirect: 'manual',
-        headers
-      });
-
-      const body = await response.text();
-      return {
-        status: response.status,
-        location: response.headers.get('location') || '',
-        body,
-        engine: 'fetch'
-      };
-    } catch (error) {
-      return {
-        status: 0,
-        location: '',
-        body: String(error?.message || error || ''),
-        engine: 'fetch-error'
-      };
+      const r = await fetch(url, { method: 'GET', redirect: 'manual', headers });
+      return { status: r.status, location: r.headers.get('location') || '', body: await r.text(), engine: 'fetch' };
+    } catch (e) {
+      return { status: 0, location: '', body: String(e?.message || e || ''), engine: 'fetch-error' };
     }
   }
-}
-
-function extractDownloadUrlsFromResourcePage(resourceId, html) {
-  const text = String(html || '');
-  const patterns = [
-    new RegExp(`/resources/(?:[^/]+\.)?${resourceId}/download\?version=[^"'\s<]+`, 'ig'),
-    new RegExp(`/resources/(?:[^/]+\.)?${resourceId}/download[^"'\s<]*`, 'ig'),
-    /href=["']([^"']*download[^"']*)["']/ig
-  ];
-
-  const urls = [];
-  for (const pattern of patterns) {
-    if (pattern.source.startsWith('href=')) {
-      for (const m of text.matchAll(pattern)) {
-        const href = m[1];
-        if (!href || !href.includes('/download')) continue;
-        urls.push(href);
-      }
-      continue;
-    }
-
-    for (const m of text.matchAll(pattern)) {
-      urls.push(m[0]);
-    }
-  }
-
-  const normalized = urls
-    .map((u) => u.replace(/&amp;/g, '&'))
-    .map((u) => {
-      try {
-        return new URL(u, 'https://www.spigotmc.org/').toString();
-      } catch {
-        return '';
-      }
-    })
-    .filter(Boolean);
-
-  // Add non-versioned fallback endpoints in case HTML contains no explicit links.
-  normalized.push(`https://www.spigotmc.org/resources/${resourceId}/download?version=633090`);
-  normalized.push(`https://www.spigotmc.org/resources/${resourceId}/download`);
-  normalized.push(`https://www.spigotmc.org/resources/${resourceId}/download?version=latest`);
-  normalized.push(`https://www.spigotmc.org/resources/${resourceId}/download?version=0`);
-
-  return [...new Set(normalized)];
-}
-
-function extractXfToken(html) {
-  const text = String(html || '');
-  const m = text.match(/name=["']_xfToken["']\s+value=["']([^"']+)["']/i);
-  return m?.[1] || '';
-}
-
-function withXfToken(url, xfToken) {
-  if (!xfToken) return url;
-  const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}_xfToken=${encodeURIComponent(xfToken)}`;
 }
 
 function inferAuthState(body = '') {
-  const text = String(body || '');
-  if (!text) return 'unknown';
-  if (/Log Out|data-logout-url|account\/logout/i.test(text)) return 'logged_in';
-  if (/Log in|Register|Forgot your password\?/i.test(text)) return 'logged_out';
-  if (/cf-browser-verification|Attention Required|Cloudflare/i.test(text)) return 'cloudflare_challenge';
+  if (/Log Out|data-logout-url|account\/logout/i.test(body)) return 'logged_in';
+  if (/Log in|Register|Forgot your password\?/i.test(body)) return 'logged_out';
+  if (/cf-browser-verification|Attention Required|Cloudflare/i.test(body)) return 'cloudflare_challenge';
   return 'unknown';
 }
 
-
-function inferResourceAccessState(body = '') {
-  const text = String(body || '');
-  if (!text) return 'unknown';
-  if (/You do not have permission|insufficient permission|must purchase|buy this resource|purchase this resource/i.test(text)) return 'no_access';
-  if (/resource is no longer available|removed from listing|deleted/i.test(text)) return 'unavailable';
-  if (/downloadButton|download\?version|fa-download|Download/i.test(text)) return 'download_visible';
+function inferResourceState(body = '') {
+  if (/You do not have permission|must purchase|buy this resource/i.test(body)) return 'no_access';
+  if (/resource is no longer available|removed from listing|deleted/i.test(body)) return 'unavailable';
+  if (/download\?version|downloadButton|fa-download/i.test(body)) return 'download_visible';
   return 'unknown';
+}
+
+function extractXfToken(body = '') {
+  return body.match(/name=["']_xfToken["']\s+value=["']([^"']+)["']/i)?.[1] || '';
+}
+
+function buildCandidateUrls(resourceId, html) {
+  const out = new Set([
+    `https://www.spigotmc.org/resources/${resourceId}/download?version=${TEST_VERSION}`,
+    `https://www.spigotmc.org/resources/${resourceId}/download`,
+    `https://www.spigotmc.org/resources/${resourceId}/download?version=latest`
+  ]);
+  const patterns = [
+    new RegExp(`/resources/(?:[^/]+\\.)?${resourceId}/download[^"'\\s<]*`, 'ig'),
+    /href=["']([^"']*download[^"']*)["']/ig
+  ];
+  for (const p of patterns) {
+    for (const m of html.matchAll(p)) {
+      const raw = (m[1] || m[0] || '').replace(/&amp;/g, '&');
+      try { out.add(new URL(raw, 'https://www.spigotmc.org/').toString()); } catch {}
+    }
+  }
+  return [...out];
+}
+
+function addToken(url, token) {
+  if (!token) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}_xfToken=${encodeURIComponent(token)}`;
 }
 
 async function main() {
-  if (!resourceArg || !cookieOrXfUser) {
-    fail('Usage: node scripts/testSpigotCookie.mjs <resourceIdOrUrl> <full_cookie_header|xf_user> [xf_session] [xf_tfa_trust] [extra_cookie_header] [user_agent]');
-    return;
-  }
+  if (!resourceArg || !cookieOrXfUser) return fail('Usage: node scripts/testSpigotCookie.mjs <resourceIdOrUrl> <full_cookie_header|xf_user> [xf_session] [xf_tfa_trust] [extra_cookie_header] [user_agent]');
 
-  const resourceId = parseSpigotResourceId(resourceArg);
-  if (!resourceId) {
-    fail(`Could not parse Spigot resource ID from input: ${resourceArg}`);
-    return;
-  }
+  const resourceId = parseResourceId(resourceArg);
+  if (!resourceId) return fail(`Could not parse Spigot resource ID from input: ${resourceArg}`);
 
   const cookieHeader = buildCookieHeader();
-  if (!cookieHeader) {
-    fail('Missing cookie info. Provide a full cookie header string, or xf_user + xf_session.', 1);
-    return;
-  }
+  if (!cookieHeader) return fail('Missing cookie info. Provide full cookie header, or xf_user + xf_session.');
 
-  const downloadUrl = `https://www.spigotmc.org/resources/${resourceId}/download?version=633090`; 
-  const userAgent = userAgentArg || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
-
+  const userAgent = userAgentArg || DEFAULT_UA;
   const headers = {
     'User-Agent': userAgent,
     Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
-    'Cache-Control': 'no-cache',
-    Pragma: 'no-cache',
     Referer: `https://www.spigotmc.org/resources/${resourceId}/`,
     Origin: 'https://www.spigotmc.org',
-    'Sec-Fetch-Site': 'same-origin',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Dest': 'document',
-    'Upgrade-Insecure-Requests': '1',
-    Connection: 'keep-alive',
     Cookie: cookieHeader
   };
 
-  const preflight = await requestWithFallback('https://www.spigotmc.org/account/', headers);
-  const preflightAuth = inferAuthState(preflight.body);
-  const resourcePage = await requestWithFallback(`https://www.spigotmc.org/resources/${resourceId}/`, headers);
-  const resourceAccess = inferResourceAccessState(resourcePage.body);
-  const xfToken = extractXfToken(resourcePage.body);
+  const account = await request('https://www.spigotmc.org/account/', headers);
+  const resource = await request(`https://www.spigotmc.org/resources/${resourceId}/`, headers);
+  const authState = inferAuthState(account.body);
+  const resourceState = inferResourceState(resource.body);
+  const token = extractXfToken(resource.body);
 
-  const response = await requestWithFallback(withXfToken(downloadUrl, xfToken), headers);
-  const { status, location, engine } = response;
-  console.log(`ℹ️ Request engine: ${engine}`);
-  console.log(`ℹ️ Account check: ${preflight.status} (${preflightAuth})`);
-  console.log(`ℹ️ Resource access hint: ${resourceAccess}`);
+  console.log(`ℹ️ Request engine: ${resource.engine}`);
+  console.log(`ℹ️ Account check: ${account.status} (${authState})`);
+  console.log(`ℹ️ Resource access hint: ${resourceState}`);
   console.log(`ℹ️ User-Agent: ${userAgent}`);
 
-  if (status === 0) {
-    fail(`❌ Request failed before HTTP response: ${response.body}`, 5);
-    return;
-  }
-
-  if (status === 403) {
-    const extractedDownloadUrls = extractDownloadUrlsFromResourcePage(resourceId, resourcePage.body);
-
-    for (const [index, extractedDownloadUrl] of extractedDownloadUrls.entries()) {
-      const retry = await requestWithFallback(withXfToken(extractedDownloadUrl, xfToken), headers);
-      if (retry.status >= 300 && retry.status < 400 && retry.location) {
-        console.log('✅ Cookie test looks valid: page-derived download link worked.');
-        console.log(`Attempt: ${index + 1}/${extractedDownloadUrls.length}`);
-        console.log(`Status: ${retry.status}`);
-        console.log(`Location: ${retry.location}`);
-        return;
-      }
+  const candidates = buildCandidateUrls(resourceId, resource.body).map((u) => addToken(u, token));
+  for (const [i, url] of candidates.entries()) {
+    const r = await request(url, headers);
+    if (r.status >= 300 && r.status < 400 && r.location) {
+      console.log('✅ Cookie test looks valid: received redirect to download target.');
+      console.log(`Attempt: ${i + 1}/${candidates.length}`);
+      console.log(`Status: ${r.status}`);
+      console.log(`Location: ${r.location}`);
+      return;
     }
-
-    fail('❌ Cookie test failed: 403 Forbidden (session/cookies not accepted).', 2);
-    if (preflightAuth === 'logged_out') console.error('Hint: cookies are not logged in anymore (session expired).');
-    if (preflightAuth === 'cloudflare_challenge') console.error('Hint: Cloudflare challenge detected; clearances may be bound to browser context.');
-    if (preflightAuth === 'logged_in') console.error(`Hint: account is logged in, but direct download is denied and ${extractedDownloadUrls.length} page-derived links also failed.`);
-    if (resourceAccess === 'no_access') console.error('Hint: resource page indicates this account may not own/have permission for this resource.');
-    if (resourceAccess === 'unavailable') console.error('Hint: resource appears unavailable/removed on Spigot.');
-    return;
+    if (r.status >= 200 && r.status < 300) {
+      console.log('✅ Cookie test succeeded: direct downloadable response returned.');
+      console.log(`Attempt: ${i + 1}/${candidates.length}`);
+      console.log(`Status: ${r.status}`);
+      return;
+    }
   }
 
-  if (status >= 300 && status < 400 && location) {
-    console.log('✅ Cookie test looks valid: received redirect to download target.');
-    console.log(`Status: ${status}`);
-    console.log(`Location: ${location}`);
-    return;
-  }
-
-  if (status >= 200 && status < 300) {
-    console.log('✅ Cookie test succeeded: direct downloadable response returned.');
-    console.log(`Status: ${status}`);
-    return;
-  }
-
-  fail(`⚠️ Unexpected response: HTTP ${status}`, 3);
-  if (location) console.error(`Location: ${location}`);
+  fail('❌ Cookie test failed: no candidate download URL succeeded.', 2);
+  if (authState === 'logged_out') console.error('Hint: cookies are not logged in anymore (session expired).');
+  if (authState === 'cloudflare_challenge') console.error('Hint: Cloudflare challenge detected; clearance may be browser-bound.');
+  if (resourceState === 'no_access') console.error('Hint: account may not own/have access to this resource.');
+  if (resourceState === 'unavailable') console.error('Hint: resource appears unavailable/removed on Spigot.');
 }
 
 await main();
