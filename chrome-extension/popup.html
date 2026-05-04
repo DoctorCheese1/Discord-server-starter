@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Spigot Cookie Autofill</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 12px;
+        width: 360px;
+      }
+      pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 280px;
+        overflow: auto;
+        background: #f6f8fa;
+        border: 1px solid #d0d7de;
+        padding: 8px;
+      }
+      button { margin-right: 8px; }
+      .meta { color: #555; font-size: 12px; margin-bottom: 8px; }
+    </style>
+  </head>
+  <body>
+    <h3>Spigot Cookie Autofill</h3>
+    <div class="meta" id="meta">Loading…</div>
+    <p>
+      <button id="refresh">Manual refresh</button>
+      <button id="copy">Copy JSON</button>
+    </p>
+    <pre id="output">No data yet.</pre>
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>
