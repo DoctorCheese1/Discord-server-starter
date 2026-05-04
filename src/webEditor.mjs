@@ -279,16 +279,16 @@ function parseCookieHeaderPairs(header) {
     .filter(Boolean);
 }
 
-async function fetchBinary(url, { cookieHeader = '', xfUser = '', xfSession = '', xfTfaTrust = '', cfClearance = '' } = {}) {
+function buildSpigotCookieHeader({ cookieHeader = '', xfUser = '', xfSession = '', xfTfaTrust = '', cfClearance = '' } = {}) {
+  const explicitCookieHeader = String(cookieHeader || '').trim();
+  const userInput = explicitCookieHeader || String(xfUser || '').trim();
+  const fullCookieMode = userInput.includes('=') && userInput.includes(';');
   const toCookieFragment = (key, value) => {
     const input = String(value || '').trim();
     if (!input) return '';
     if (input.includes('=')) return input;
     return `${key}=${safeDecodeCookieValue(input)}`;
   };
-  const explicitCookieHeader = String(cookieHeader || '').trim();
-  const userInput = explicitCookieHeader || String(xfUser || '').trim();
-  const fullCookieMode = userInput.includes('=') && userInput.includes(';');
   const cookieParts = [];
   if (fullCookieMode) {
     cookieParts.push(...parseCookieHeaderPairs(userInput).map(([key, value]) => `${key}=${value}`));
@@ -301,7 +301,37 @@ async function fetchBinary(url, { cookieHeader = '', xfUser = '', xfSession = ''
     if (xfTfaTrust) cookieParts.push(toCookieFragment('xf_tfa_trust', xfTfaTrust));
     if (cfClearance) cookieParts.push(toCookieFragment('cf_clearance', cfClearance));
   }
-  const cookieHeaderValue = cookieParts.filter(Boolean).join('; ');
+  return cookieParts.filter(Boolean).join('; ');
+}
+
+async function tryAppendSpigotToken(url, auth = {}, resourceUrl = '') {
+  const base = String(url || '').trim();
+  if (!base || !/spigotmc\.org\/resources\//i.test(base) || /[?&]_xfToken=/i.test(base)) return base;
+  const cookieHeader = buildSpigotCookieHeader(auth);
+  if (!cookieHeader) return base;
+  const pageUrl = String(resourceUrl || '').trim() || base.replace(/\/download(?:\?.*)?$/i, '/');
+  try {
+    const response = await fetch(pageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        Referer: 'https://www.spigotmc.org/',
+        Cookie: cookieHeader
+      }
+    });
+    const html = await response.text();
+    const token = html.match(/name=["']_xfToken["']\s+value=["']([^"']+)["']/i)?.[1] || '';
+    if (!token) return base;
+    const sep = base.includes('?') ? '&' : '?';
+    return `${base}${sep}_xfToken=${encodeURIComponent(token)}`;
+  } catch {
+    return base;
+  }
+}
+
+async function fetchBinary(url, { cookieHeader = '', xfUser = '', xfSession = '', xfTfaTrust = '', cfClearance = '' } = {}) {
+  const cookieHeaderValue = buildSpigotCookieHeader({ cookieHeader, xfUser, xfSession, xfTfaTrust, cfClearance });
+  const fullCookieMode = String(cookieHeader || '').trim().includes(';') || String(xfUser || '').trim().includes(';');
   const headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
     Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
@@ -462,7 +492,8 @@ export function startWebEditor() {
               result
             });
           }
-          const downloaded = await fetchBinary(result.url, { cookieHeader, xfUser, xfSession, xfTfaTrust, cfClearance });
+          const tokenizedUrl = await tryAppendSpigotToken(result.url, { cookieHeader, xfUser, xfSession, xfTfaTrust, cfClearance }, result.resourceUrl || '');
+          const downloaded = await fetchBinary(tokenizedUrl, { cookieHeader, xfUser, xfSession, xfTfaTrust, cfClearance });
           const pluginLabel = result.plugin || result.projectSlug || query;
           const versionSuffix = sanitizeVersionLabel(result.versionNumber || result.minecraftVersion || '');
           const preferredName = `${result.plugin || result.projectSlug || query}${versionSuffix ? `-${versionSuffix}` : ''}.jar`;
