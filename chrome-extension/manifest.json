@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Spigot Cookie Auto Detector",
+  "version": "1.0.1",
+  "description": "Auto-detects cookie data for spigot.org and stores it locally.",
+  "permissions": ["cookies", "tabs", "storage"],
+  "host_permissions": ["https://*.spigot.org/*", "https://spigot.org/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Spigot Cookie Auto Detector",
+    "default_popup": "popup.html"
+  }
+}
