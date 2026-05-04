@@ -1,4 +1,5 @@
 const STORAGE_KEY = "cookieSnapshots";
+const TARGET_DOMAIN = "spigot.org";
 
 function getDomainFromUrl(url) {
   try {
@@ -8,42 +9,43 @@ function getDomainFromUrl(url) {
   }
 }
 
-async function snapshotCookiesForUrl(url) {
-  const domain = getDomainFromUrl(url);
-  if (!domain) return;
+function isSpigotDomain(hostname) {
+  return hostname === TARGET_DOMAIN || hostname.endsWith(`.${TARGET_DOMAIN}`);
+}
 
-  const cookies = await chrome.cookies.getAll({ domain });
+async function snapshotSpigotCookies(url) {
+  const hostname = getDomainFromUrl(url);
+  if (!hostname || !isSpigotDomain(hostname)) return;
+
+  const cookies = await chrome.cookies.getAll({ domain: TARGET_DOMAIN });
   const snapshot = {
-    domain,
+    domain: TARGET_DOMAIN,
+    sourceHost: hostname,
     url,
     capturedAt: new Date().toISOString(),
     count: cookies.length,
     cookies,
   };
 
-  const existing = await chrome.storage.local.get(STORAGE_KEY);
-  const map = existing[STORAGE_KEY] || {};
-  map[domain] = snapshot;
-
-  await chrome.storage.local.set({ [STORAGE_KEY]: map });
+  await chrome.storage.local.set({ [STORAGE_KEY]: snapshot });
 }
 
 async function processActiveTab(tabId) {
   const tab = await chrome.tabs.get(tabId);
   if (!tab?.url || !/^https?:/i.test(tab.url)) return;
-  await snapshotCookiesForUrl(tab.url);
+  await snapshotSpigotCookies(tab.url);
 }
 
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   await processActiveTab(tabId);
 });
 
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, tab) => {
   if (changeInfo.status !== "complete") return;
   if (!tab?.active) return;
   if (!tab.url || !/^https?:/i.test(tab.url)) return;
 
-  await snapshotCookiesForUrl(tab.url);
+  await snapshotSpigotCookies(tab.url);
 });
 
 chrome.runtime.onInstalled.addListener(async () => {
