@@ -101,6 +101,7 @@
             <input id="spigotXfSession" type="password" autocomplete="off" placeholder="Spigot xf_session (optional)" />
             <input id="spigotXfTfaTrust" type="password" autocomplete="off" placeholder="Spigot xf_tfa_trust (optional)" />
             <input id="spigotCfClearance" type="password" autocomplete="off" placeholder="Spigot cf_clearance (optional)" />
+            <div id="spigotCookieHints" class="plugin-cookie-hints">Cookie hints: waiting for input.</div>
             <button id="pluginResolveBtn" type="button">Get Link</button>
             <button id="pluginInstallBtn" type="button">Install to /plugins</button>
           </div>
@@ -185,6 +186,7 @@
     const spigotXfSession = document.getElementById('spigotXfSession');
     const spigotXfTfaTrust = document.getElementById('spigotXfTfaTrust');
     const spigotCfClearance = document.getElementById('spigotCfClearance');
+    const spigotCookieHints = document.getElementById('spigotCookieHints');
     const pluginResolveBtn = document.getElementById('pluginResolveBtn');
     const pluginInstallBtn = document.getElementById('pluginInstallBtn');
     const pluginDownloadStatus = document.getElementById('pluginDownloadStatus');
@@ -271,6 +273,45 @@
         xfTfaTrust: spigotXfTfaTrust.value.trim(),
         cfClearance: spigotCfClearance.value.trim()
       };
+    }
+
+    function extractCookieValue(cookieHeader, key) {
+      const safeKey = String(key || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const m = String(cookieHeader || '').match(new RegExp(`(?:^|;\\s*)${safeKey}=([^;]+)`, 'i'));
+      return m?.[1] || '';
+    }
+
+    function inferCfClearanceAgeMinutes(value) {
+      const cf = String(value || '').trim();
+      if (!cf) return null;
+      const m = cf.match(/-(\d{10})-/);
+      if (!m) return null;
+      const issuedMs = Number(m[1]) * 1000;
+      const ageMinutes = Math.floor((Date.now() - issuedMs) / 60000);
+      if (!Number.isFinite(ageMinutes)) return null;
+      return ageMinutes;
+    }
+
+    function refreshSpigotCookieHints() {
+      const full = spigotCookieHeader.value.trim();
+      const xfSession = spigotXfSession.value.trim();
+      const cfFromHeader = extractCookieValue(full, 'cf_clearance');
+      const cfValue = cfFromHeader || spigotCfClearance.value.trim();
+      const cfAge = inferCfClearanceAgeMinutes(cfValue);
+      const hasXfSession = Boolean(extractCookieValue(full, 'xf_session') || xfSession);
+      const hasXfUser = Boolean(extractCookieValue(full, 'xf_user') || spigotXfUser.value.trim());
+      const hasTfa = Boolean(extractCookieValue(full, 'xf_tfa_trust') || spigotXfTfaTrust.value.trim());
+
+      const hints = [];
+      hints.push(hasXfUser && hasXfSession ? 'Session cookies detected.' : 'Missing xf_user or xf_session.');
+      if (hasTfa) hints.push('xf_tfa_trust present.');
+      if (cfAge === null) {
+        hints.push(cfValue ? 'cf_clearance found (age unknown).' : 'cf_clearance missing.');
+      } else {
+        hints.push(`cf_clearance age: ${cfAge}m.`);
+        if (cfAge > 30) hints.push('cf_clearance may be stale.');
+      }
+      spigotCookieHints.textContent = `Cookie hints: ${hints.join(' ')}`;
     }
 
     function captureExpandedFoldersFromDom() {
@@ -1066,6 +1107,7 @@
         spigotXfSession.value = restored.spigotXfSession || '';
         spigotXfTfaTrust.value = restored.spigotXfTfaTrust || '';
         spigotCfClearance.value = restored.spigotCfClearance || '';
+        refreshSpigotCookieHints();
         for (const folder of restored.expanded || []) {
           expandedFolders.add(folder);
         }
@@ -1439,6 +1481,11 @@
     spigotXfSession.addEventListener('input', persistSpigotSessionState);
     spigotXfTfaTrust.addEventListener('input', persistSpigotSessionState);
     spigotCfClearance.addEventListener('input', persistSpigotSessionState);
+    spigotCookieHeader.addEventListener('input', refreshSpigotCookieHints);
+    spigotXfUser.addEventListener('input', refreshSpigotCookieHints);
+    spigotXfSession.addEventListener('input', refreshSpigotCookieHints);
+    spigotXfTfaTrust.addEventListener('input', refreshSpigotCookieHints);
+    spigotCfClearance.addEventListener('input', refreshSpigotCookieHints);
 
     pluginResolveBtn.addEventListener('click', async () => {
       const source = pluginSource.value;
@@ -1645,6 +1692,10 @@
     spigotCfClearance.addEventListener('input', () => {
       saveUiState({ spigotCfClearance: spigotCfClearance.value.trim() });
     });
+    spigotCfClearance.addEventListener('input', () => {
+      saveUiState({ spigotCfClearance: spigotCfClearance.value.trim() });
+    });
+    refreshSpigotCookieHints();
 
     const params = new URLSearchParams(window.location.search);
     const keyFromUrl = params.get('key');
