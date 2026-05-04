@@ -253,31 +253,199 @@ function inferFilenameFromHeaders(headers) {
   return simpleMatch?.[1] || '';
 }
 
-async function fetchBinary(url, { xfUser = '', xfSession = '', xfTfaTrust = '' } = {}) {
+function safeDecodeCookieValue(value) {
+  const input = String(value || '').trim();
+  if (!input) return '';
+  try {
+    return decodeURIComponent(input);
+  } catch {
+    return input;
+  }
+}
+
+function parseCookieHeaderPairs(header) {
+  return String(header || '')
+    .split(';')
+    .map(part => part.trim())
+    .filter(Boolean)
+    .map(part => {
+      const index = part.indexOf('=');
+      if (index <= 0) return null;
+      const key = part.slice(0, index).trim();
+      const value = safeDecodeCookieValue(part.slice(index + 1));
+      if (!key || !value) return null;
+      return [key, value];
+    })
+    .filter(Boolean);
+}
+
+function buildSpigotCookieHeader({ cookieHeader = '', xfUser = '', xfSession = '', xfTfaTrust = '', cfClearance = '' } = {}) {
+  const explicitCookieHeader = String(cookieHeader || '').trim();
+  const userInput = explicitCookieHeader || String(xfUser || '').trim();
+  const fullCookieMode = userInput.includes('=') && userInput.includes(';');
+  const toCookieFragment = (key, value) => {
+    const input = String(value || '').trim();
+    if (!input) return '';
+    if (input.includes('=')) return input;
+    return `${key}=${safeDecodeCookieValue(input)}`;
+  };
   const cookieParts = [];
-  if (xfUser) cookieParts.push(`xf_user=${xfUser}`);
-  if (xfSession) cookieParts.push(`xf_session=${xfSession}`);
-  if (xfTfaTrust) cookieParts.push(`xf_tfa_trust=${xfTfaTrust}`);
-  const cookieHeader = cookieParts.join('; ');
-  const response = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (compatible; ServerControlBot/2.0; +https://spigotmc.org)',
-      Accept: '*/*',
-      Referer: 'https://www.spigotmc.org/',
-      Origin: 'https://www.spigotmc.org',
-      ...(cookieHeader ? { Cookie: cookieHeader } : {})
-    },
-    redirect: 'follow'
-  });
+  if (fullCookieMode) {
+    cookieParts.push(...parseCookieHeaderPairs(userInput).map(([key, value]) => `${key}=${value}`));
+    if (xfSession) cookieParts.push(toCookieFragment('xf_session', xfSession));
+    if (xfTfaTrust) cookieParts.push(toCookieFragment('xf_tfa_trust', xfTfaTrust));
+    if (cfClearance) cookieParts.push(toCookieFragment('cf_clearance', cfClearance));
+  } else {
+    if (xfUser) cookieParts.push(toCookieFragment('xf_user', xfUser));
+    if (xfSession) cookieParts.push(toCookieFragment('xf_session', xfSession));
+    if (xfTfaTrust) cookieParts.push(toCookieFragment('xf_tfa_trust', xfTfaTrust));
+    if (cfClearance) cookieParts.push(toCookieFragment('cf_clearance', cfClearance));
+  }
+  return cookieParts.filter(Boolean).join('; ');
+}
+
+async function tryAppendSpigotToken(url, auth = {}, resourceUrl = '') {
+  const base = String(url || '').trim();
+  if (!base || !/spigotmc\.org\/resources\//i.test(base) || /[?&]_xfToken=/i.test(base)) return base;
+  const cookieHeader = buildSpigotCookieHeader(auth);
+  if (!cookieHeader) return base;
+  const pageUrl = String(resourceUrl || '').trim() || base.replace(/\/download(?:\?.*)?$/i, '/');
+  try {
+    const response = await fetch(pageUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        Referer: 'https://www.spigotmc.org/',
+        Cookie: cookieHeader
+      }
+    });
+    const html = await response.text();
+    const token = html.match(/name=["']_xfToken["']\s+value=["']([^"']+)["']/i)?.[1] || '';
+    if (!token) return base;
+    const sep = base.includes('?') ? '&' : '?';
+    return `${base}${sep}_xfToken=${encodeURIComponent(token)}`;
+  } catch {
+    return base;
+  }
+}
+
+function parseSpigotResourceId(input = '') {
+  const raw = String(input || '').trim();
+  if (/^\d+$/.test(raw)) return raw;
+  const m = raw.match(/spigotmc\.org\/resources\/[^./]+\.([0-9]+)\//i)
+    || raw.match(/spigotmc\.org\/resources\/([0-9]+)/i)
+    || raw.match(/spiget\.org\/resources\/([0-9]+)/i);
+  return m?.[1] || '';
+}
+
+async function resolveSpigotCandidates(baseUrl, resourceUrl = '', auth = {}) {
+  const candidates = new Set([String(baseUrl || '').trim()]);
+  const resourceId = parseSpigotResourceId(resourceUrl || baseUrl);
+  const cookieHeader = buildSpigotCookieHeader(auth);
+  const headers = cookieHeader ? { Cookie: cookieHeader } : {};
+  if (resourceId) {
+    candidates.add(`https://www.spigotmc.org/resources/${resourceId}/download`);
+    candidates.add(`https://www.spigotmc.org/resources/${resourceId}/download?version=latest`);
+    try {
+      const spiget = await fetch(`https://api.spiget.org/v2/resources/${resourceId}`);
+      if (spiget.ok) {
+        const data = await spiget.json();
+        const pathValue = String(data?.file?.url || '').trim();
+        if (pathValue) candidates.add(`https://www.spigotmc.org${pathValue.startsWith('/') ? pathValue : `/${pathValue}`}`);
+      }
+    } catch {}
+  }
+  try {
+    const pageUrl = String(resourceUrl || '').trim() || (resourceId ? `https://www.spigotmc.org/resources/${resourceId}/` : '');
+    if (pageUrl) {
+      const page = await fetch(pageUrl, { headers });
+      const html = await page.text();
+      for (const match of html.matchAll(/href=["']([^"']*download[^"']*)["']/ig)) {
+        const raw = String(match[1] || '').replace(/&amp;/g, '&');
+        try { candidates.add(new URL(raw, 'https://www.spigotmc.org/').toString()); } catch {}
+      }
+    }
+  } catch {}
+  return [...candidates].filter(Boolean);
+}
+
+async function fetchBinary(url, { cookieHeader = '', xfUser = '', xfSession = '', xfTfaTrust = '', cfClearance = '' } = {}) {
+  const cookieHeaderValue = buildSpigotCookieHeader({ cookieHeader, xfUser, xfSession, xfTfaTrust, cfClearance });
+  const fullCookieMode = String(cookieHeader || '').trim().includes(';') || String(xfUser || '').trim().includes(';');
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Cache-Control': 'no-cache',
+    Pragma: 'no-cache',
+    Referer: 'https://www.spigotmc.org/',
+    Origin: 'https://www.spigotmc.org',
+    'Sec-Fetch-Site': 'same-origin',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Dest': 'document',
+    'Upgrade-Insecure-Requests': '1',
+    ...(cookieHeaderValue ? { Cookie: cookieHeaderValue } : {})
+  };
+  let response;
+  let requestEngine = 'fetch';
+  try {
+    const { default: cloudscraper } = await import('cloudscraper');
+    const cloudResponse = await cloudscraper.get({
+      url,
+      headers,
+      encoding: null,
+      simple: false,
+      resolveWithFullResponse: true,
+      followAllRedirects: true
+    });
+    const cloudHeaders = new Map(
+      Object.entries(cloudResponse?.headers || {}).map(([key, value]) => [String(key).toLowerCase(), String(value || '')])
+    );
+    response = {
+      ok: Number(cloudResponse?.statusCode || 0) >= 200 && Number(cloudResponse?.statusCode || 0) < 300,
+      status: Number(cloudResponse?.statusCode || 0),
+      bytes: Buffer.isBuffer(cloudResponse?.body) ? cloudResponse.body : Buffer.from(String(cloudResponse?.body || '')),
+      headers: {
+        get: name => cloudHeaders.get(String(name || '').toLowerCase()) || ''
+      }
+    };
+    requestEngine = 'cloudscraper';
+    if (response.status === 403) {
+      const fetchResponse = await fetch(url, { headers, redirect: 'follow' });
+      const arrayBuffer = await fetchResponse.arrayBuffer();
+      if (fetchResponse.ok) {
+        response = {
+          ok: true,
+          status: fetchResponse.status,
+          bytes: Buffer.from(arrayBuffer),
+          headers: fetchResponse.headers
+        };
+        requestEngine = 'fetch';
+      }
+    }
+  } catch {
+    const fetchResponse = await fetch(url, { headers, redirect: 'follow' });
+    const arrayBuffer = await fetchResponse.arrayBuffer();
+    response = {
+      ok: fetchResponse.ok,
+      status: fetchResponse.status,
+      bytes: Buffer.from(arrayBuffer),
+      headers: fetchResponse.headers
+    };
+    requestEngine = 'fetch';
+  }
   if (!response.ok) {
-    if (response.status === 403 && cookieHeader) {
-      throw new Error('Download failed (403). Spigot rejected the session cookies. Re-copy xf_user + xf_session (and xf_tfa_trust if your account uses 2FA trust) from a logged-in Spigot browser session.');
+    if (response.status === 403 && cookieHeaderValue) {
+      const usingFullCookieHeader = fullCookieMode;
+      if (usingFullCookieHeader) {
+        throw new Error(`Download failed (403) via ${requestEngine}. Spigot rejected the provided browser cookie context. Refresh cookies from an active logged-in browser tab (including fresh cf_clearance) and paste the full value into "Spigot full Cookie header".`);
+      }
+      throw new Error(`Download failed (403) via ${requestEngine}. Spigot rejected the session context. Paste your full browser Cookie header into the "Spigot full Cookie header" field (recommended), or provide fresh xf_user + xf_session + xf_tfa_trust + cf_clearance values from a logged-in browser session.`);
     }
     throw new Error(`Download failed (${response.status})`);
   }
-  const arrayBuffer = await response.arrayBuffer();
   return {
-    bytes: Buffer.from(arrayBuffer),
+    bytes: response.bytes,
     filenameFromHeader: inferFilenameFromHeaders(response.headers)
   };
 }
@@ -356,9 +524,11 @@ export function startWebEditor() {
         const query = String(body.query || '').trim();
         const platform = String(body.platform || '').trim().toLowerCase();
         const mcVersion = String(body.mcVersion || '').trim();
+        const cookieHeader = String(body.cookieHeader || '').trim();
         const xfUser = String(body.xfUser || '').trim();
         const xfSession = String(body.xfSession || '').trim();
         const xfTfaTrust = String(body.xfTfaTrust || '').trim();
+        const cfClearance = String(body.cfClearance || '').trim();
 
         if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
         if (!query) return sendJson(res, 400, { error: 'Plugin query is required' });
@@ -368,13 +538,28 @@ export function startWebEditor() {
 
         try {
           const result = await getPluginDownloadLink({ source, query, platform, mcVersion });
-          if (result?.source === 'spigot' && result?.paid && (!xfUser || !xfSession)) {
+          const hasFullCookie = cookieHeader.includes('=') && cookieHeader.includes(';');
+          if (result?.source === 'spigot' && result?.paid && !hasFullCookie && (!xfUser || !xfSession)) {
             return sendJson(res, 400, {
-              error: 'This Spigot plugin is paid. Provide both xf_user and xf_session cookies to auto-install.',
+              error: 'This Spigot plugin is paid. Provide cookieHeader, or both xf_user and xf_session cookies to auto-install.',
               result
             });
           }
-          const downloaded = await fetchBinary(result.url, { xfUser, xfSession, xfTfaTrust });
+          const authPayload = { cookieHeader, xfUser, xfSession, xfTfaTrust, cfClearance };
+          const baseDownloadUrl = await tryAppendSpigotToken(result.url, authPayload, result.resourceUrl || '');
+          const spigotCandidates = await resolveSpigotCandidates(baseDownloadUrl, result.resourceUrl || '', authPayload);
+          let downloaded = null;
+          let lastDownloadError = null;
+          for (const candidate of spigotCandidates) {
+            const tokenizedCandidate = await tryAppendSpigotToken(candidate, authPayload, result.resourceUrl || '');
+            try {
+              downloaded = await fetchBinary(tokenizedCandidate, authPayload);
+              break;
+            } catch (error) {
+              lastDownloadError = error;
+            }
+          }
+          if (!downloaded) throw lastDownloadError || new Error('Unable to download plugin');
           const pluginLabel = result.plugin || result.projectSlug || query;
           const versionSuffix = sanitizeVersionLabel(result.versionNumber || result.minecraftVersion || '');
           const preferredName = `${result.plugin || result.projectSlug || query}${versionSuffix ? `-${versionSuffix}` : ''}.jar`;
