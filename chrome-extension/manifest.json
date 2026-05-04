@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Cookie Auto Detector",
+  "version": "1.0.0",
+  "description": "Auto-detects cookie data for the active tab and stores it locally.",
+  "permissions": ["cookies", "tabs", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Cookie Auto Detector",
+    "default_popup": "popup.html"
+  }
+}
