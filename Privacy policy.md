@@ -1,59 +1,89 @@
-Privacy Policy for Spigot Cookie Auto Detector
+# Privacy Policy for Spigot Cookie Auto Detector
 
-Last updated: May 4, 2026
+**Last updated:** May 4, 2026
 
-Spigot Cookie Auto Detector is a Chrome extension that captures and displays cookie snapshots for spigot.org pages the user visits.
+Spigot Cookie Auto Detector is a Chrome extension that captures and displays cookie snapshots for `spigot.org` pages visited by the user.
 
-1. Data We Collect
+---
 
-When enabled and used, the extension may collect and store the following data locally in your browser:
+## 1. Data We Collect
 
-Page URL on spigot.org or its subdomains
+When enabled and in use, the extension may collect and store the following data locally in your browser:
 
-Hostname/subdomain
+- Page URL on `spigot.org` or its subdomains  
+- Hostname / subdomain  
+- Timestamp of snapshot  
+- Cookie count  
+- Cookie data returned by the Chrome Cookies API  
+  - This may include cookie names, values, and attributes  
 
-Timestamp of snapshot
+---
 
-Cookie count
+## 2. How We Use Data
 
-Cookie data returned by the Chrome Cookies API (including cookie names/values and attributes)
+The collected data is used solely to:
 
-2. How We Use Data
+- Create a local snapshot of `spigot.org` cookie state  
+- Display snapshot data in the extension popup  
+- Allow the user to manually copy the snapshot as JSON  
 
-We use this data solely to:
+---
 
-Create a local snapshot of spigot.org cookie state
+## 3. Data Storage
 
-Display snapshot JSON in the extension popup
+All data is stored locally using:
 
-Let the user copy the snapshot text manually
+- `chrome.storage.local`
 
-3. Data Storage
+No external databases or cloud storage are used.
 
-Data is stored locally using chrome.storage.local on your device/browser profile.
+---
 
-4. Data Sharing and Selling
+## 4. Data Sharing and Selling
 
-We do not sell, rent, or transfer your data to third parties.
-We do not send extension-collected data to remote servers.
+We **do not**:
 
-5. Remote Code
+- Sell your data  
+- Rent your data  
+- Transfer your data to third parties  
+- Send extension-collected data to any remote servers  
 
-The extension does not load or execute remote code. All logic is packaged within the extension.
+All data remains on your device.
 
-6. Permissions Justification
+---
 
-cookies: Read spigot.org cookies for snapshotting.
+## 5. Remote Code
 
-tabs: Detect active tab and updates to trigger snapshots.
+This extension does **not** load or execute any remote code.
 
-storage: Save snapshots locally for display and copy.
+All functionality is fully packaged within the extension.
 
-7. Your Choices
+---
 
-You can:
+## 6. Permissions Justification
 
-Remove snapshots by clearing extension storage or uninstalling the extension.
+The extension requests the following permissions:
 
-Stop all collection by disabling/uninstalling the extension.
+- **`cookies`**  
+  Used to read `spigot.org` cookies for snapshot creation  
 
+- **`tabs`**  
+  Used to detect the active tab and trigger snapshots  
+
+- **`storage`**  
+  Used to store snapshot data locally  
+
+---
+
+## 7. Your Choices
+
+You have full control over your data:
+
+- You can delete stored snapshots by clearing extension storage  
+- You can stop all data collection by disabling or uninstalling the extension  
+
+---
+
+## Contact
+
+If you have any questions about this Privacy Policy, please open an issue on this repository.
