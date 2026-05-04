@@ -1,16 +1,16 @@
 {
   "manifest_version": 3,
-  "name": "Spigot Cookie Auto Detector",
-  "version": "1.0.1",
-  "description": "Auto-detects cookie data for spigot.org and stores it locally.",
-  "permissions": ["cookies", "tabs", "storage"],
+  "name": "Spigot Cookie Autofill Detector",
+  "version": "1.1.0",
+  "description": "Auto-refreshes spigot.org cookies every 30 minutes and on popup open, with manual refresh and xf/cf entity grouping.",
+  "permissions": ["cookies", "tabs", "storage", "alarms"],
   "host_permissions": ["https://*.spigot.org/*", "https://spigot.org/*"],
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
   "action": {
-    "default_title": "Spigot Cookie Auto Detector",
+    "default_title": "Spigot Cookie Autofill Detector",
     "default_popup": "popup.html"
   }
 }

@@ -1,4 +1,5 @@
 const STORAGE_KEY = "cookieSnapshots";
+const ENTITY_STORAGE_KEY = "spigotCookieEntities";
 const TARGET_DOMAIN = "spigot.org";
 
 function getDomainFromUrl(url) {
@@ -18,25 +19,21 @@ async function getCurrentTab() {
   return tab;
 }
 
-async function requestRefresh(tab) {
-  if (!tab?.url) return { ok: false, reason: "No active tab URL." };
-  const hostname = getDomainFromUrl(tab.url);
-  if (!hostname || !isSpigotDomain(hostname)) {
-    return { ok: false, reason: "Open a spigot.org tab first." };
-  }
+async function requestRefresh() {
+  const response = await chrome.runtime.sendMessage({ type: "refresh-spigot-cookies" });
+  return !!response?.ok;
+}
 
-  const cookies = await chrome.cookies.getAll({ domain: TARGET_DOMAIN });
-  const snapshot = {
-    domain: TARGET_DOMAIN,
-    sourceHost: hostname,
-    url: tab.url,
-    capturedAt: new Date().toISOString(),
-    count: cookies.length,
-    cookies,
-  };
-
-  await chrome.storage.local.set({ [STORAGE_KEY]: snapshot });
-  return { ok: true };
+function renderSnapshot(metaEl, outputEl, snapshot, entities) {
+  metaEl.textContent = `${snapshot.domain} • ${snapshot.count} cookies • xf:${entities?.xfCount ?? 0} • cf:${entities?.cfCount ?? 0} • captured ${snapshot.capturedAt}`;
+  outputEl.textContent = JSON.stringify(
+    {
+      snapshot,
+      entities,
+    },
+    null,
+    2,
+  );
 }
 
 async function render(message = "") {
@@ -51,23 +48,22 @@ async function render(message = "") {
     return;
   }
 
-  const store = await chrome.storage.local.get(STORAGE_KEY);
+  const store = await chrome.storage.local.get([STORAGE_KEY, ENTITY_STORAGE_KEY]);
   const snapshot = store[STORAGE_KEY];
+  const entities = store[ENTITY_STORAGE_KEY];
 
   if (!snapshot) {
     meta.textContent = "No spigot cookie snapshot yet.";
-    output.textContent = "Click Refresh current tab.";
+    output.textContent = "Click Manual refresh.";
     return;
   }
 
-  meta.textContent = `${snapshot.domain} • ${snapshot.count} cookies • captured ${snapshot.capturedAt}`;
-  output.textContent = JSON.stringify(snapshot, null, 2);
+  renderSnapshot(meta, output, snapshot, entities);
 }
 
 document.getElementById("refresh").addEventListener("click", async () => {
-  const tab = await getCurrentTab();
-  const result = await requestRefresh(tab);
-  await render(result.ok ? "" : result.reason);
+  const refreshed = await requestRefresh();
+  await render(refreshed ? "" : "Refresh failed. Ensure a spigot.org tab is active.");
 });
 
 document.getElementById("copy").addEventListener("click", async () => {
@@ -75,4 +71,7 @@ document.getElementById("copy").addEventListener("click", async () => {
   await navigator.clipboard.writeText(text);
 });
 
-render();
+(async () => {
+  await requestRefresh();
+  await render();
+})();
