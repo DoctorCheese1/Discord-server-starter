@@ -370,6 +370,19 @@ async function fetchBinary(url, { cookieHeader = '', xfUser = '', xfSession = ''
       }
     };
     requestEngine = 'cloudscraper';
+    if (response.status === 403) {
+      const fetchResponse = await fetch(url, { headers, redirect: 'follow' });
+      const arrayBuffer = await fetchResponse.arrayBuffer();
+      if (fetchResponse.ok) {
+        response = {
+          ok: true,
+          status: fetchResponse.status,
+          bytes: Buffer.from(arrayBuffer),
+          headers: fetchResponse.headers
+        };
+        requestEngine = 'fetch';
+      }
+    }
   } catch {
     const fetchResponse = await fetch(url, { headers, redirect: 'follow' });
     const arrayBuffer = await fetchResponse.arrayBuffer();
