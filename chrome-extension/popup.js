@@ -1,6 +1,6 @@
 const STORAGE_KEY = "cookieSnapshots";
 const ENTITY_STORAGE_KEY = "spigotCookieEntities";
-const TARGET_DOMAIN = "spigot.org";
+const TARGET_DOMAINS = ["spigot.org", "spigotmc.org", "spoigot.org"];
 
 function getDomainFromUrl(url) {
   try {
@@ -11,7 +11,7 @@ function getDomainFromUrl(url) {
 }
 
 function isSpigotDomain(hostname) {
-  return hostname === TARGET_DOMAIN || hostname.endsWith(`.${TARGET_DOMAIN}`);
+  return TARGET_DOMAINS.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
 }
 
 async function getCurrentTab() {
@@ -43,8 +43,8 @@ async function render(message = "") {
   const output = document.getElementById("output");
 
   if (!hostname || !isSpigotDomain(hostname)) {
-    meta.textContent = "Open a spigot.org page (https://spigot.org or subdomains).";
-    output.textContent = message || "No spigot.org tab detected.";
+    meta.textContent = "Open a supported tab (spigot.org, spigotmc.org, or spoigot.org).";
+    output.textContent = message || "No supported Spigot tab detected.";
     return;
   }
 
@@ -63,7 +63,7 @@ async function render(message = "") {
 
 document.getElementById("refresh").addEventListener("click", async () => {
   const refreshed = await requestRefresh();
-  await render(refreshed ? "" : "Refresh failed. Ensure a spigot.org tab is active.");
+  await render(refreshed ? "" : "Refresh failed. Ensure a supported Spigot tab is active.");
 });
 
 document.getElementById("copy").addEventListener("click", async () => {

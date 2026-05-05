@@ -1,6 +1,6 @@
 const STORAGE_KEY = "cookieSnapshots";
 const ENTITY_STORAGE_KEY = "spigotCookieEntities";
-const TARGET_DOMAIN = "spigot.org";
+const TARGET_DOMAINS = ["spigot.org", "spigotmc.org", "spoigot.org"];
 const AUTO_REFRESH_MINUTES = 30;
 
 function getDomainFromUrl(url) {
@@ -12,7 +12,11 @@ function getDomainFromUrl(url) {
 }
 
 function isSpigotDomain(hostname) {
-  return hostname === TARGET_DOMAIN || hostname.endsWith(`.${TARGET_DOMAIN}`);
+  return TARGET_DOMAINS.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
+}
+
+function getCookieQueryDomain(hostname) {
+  return TARGET_DOMAINS.find((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
 }
 
 function toEntityPayload(cookies) {
@@ -42,12 +46,15 @@ async function snapshotSpigotCookies(url, reason = "auto") {
   const hostname = getDomainFromUrl(url);
   if (!hostname || !isSpigotDomain(hostname)) return null;
 
-  const cookies = await chrome.cookies.getAll({ domain: TARGET_DOMAIN });
+  const cookieDomain = getCookieQueryDomain(hostname);
+  if (!cookieDomain) return null;
+
+  const cookies = await chrome.cookies.getAll({ domain: cookieDomain });
   const entities = toEntityPayload(cookies);
   const capturedAt = new Date().toISOString();
 
   const snapshot = {
-    domain: TARGET_DOMAIN,
+    domain: cookieDomain,
     sourceHost: hostname,
     url,
     capturedAt,
@@ -59,7 +66,7 @@ async function snapshotSpigotCookies(url, reason = "auto") {
   await chrome.storage.local.set({
     [STORAGE_KEY]: snapshot,
     [ENTITY_STORAGE_KEY]: {
-      domain: TARGET_DOMAIN,
+      domain: cookieDomain,
       sourceHost: hostname,
       url,
       capturedAt,
