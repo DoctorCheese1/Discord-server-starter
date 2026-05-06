@@ -1,16 +1,28 @@
 {
   "manifest_version": 3,
-  "name": "Spigot Cookie Autofill Detector",
-  "version": "1.1.0",
-  "description": "Auto-refreshes Spigot cookies every 30 minutes and on popup open, with manual refresh and xf/cf entity grouping.",
-  "permissions": ["cookies", "tabs", "storage", "alarms"],
-  "host_permissions": ["https://*.spigot.org/*", "https://spigot.org/*", "https://*.spigotmc.org/*", "https://spigotmc.org/*", "https://*.spoigot.org/*", "https://spoigot.org/*"],
+  "name": "Cookie Autofill Detector",
+  "version": "1.1.2,
+  "description": "Captures Spigot cookies only (spigot.org/spigotmc.org) every 30 minutes and on popup open, viewable from any site.",
+  "permissions": [
+    "cookies",
+    "tabs",
+    "storage",
+    "alarms",
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://*.spigot.org/*",
+    "https://spigot.org/*",
+    "https://*.spigotmc.org/*",
+    "https://spigotmc.org/*"
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
   "action": {
-    "default_title": "Spigot Cookie Autofill Detector",
+    "default_title": "Cookie Autofill Detector",
     "default_popup": "popup.html"
   }
 }

@@ -1,74 +1,88 @@
-const STORAGE_KEY = "cookieSnapshots";
-const ENTITY_STORAGE_KEY = "spigotCookieEntities";
-const TARGET_DOMAINS = ["spigot.org", "spigotmc.org", "spoigot.org"];
-
-function getDomainFromUrl(url) {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return null;
-  }
-}
-
-function isSpigotDomain(hostname) {
-  return TARGET_DOMAINS.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
-}
-
-async function getCurrentTab() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  return tab;
-}
+const SNAPSHOT_KEY = "cookieSnapshot";
+const ENTITY_KEY = "cookieEntities";
 
 async function requestRefresh() {
-  const response = await chrome.runtime.sendMessage({ type: "refresh-spigot-cookies" });
+  const response = await chrome.runtime.sendMessage({ type: "refresh-cookies" });
   return !!response?.ok;
 }
 
-function renderSnapshot(metaEl, outputEl, snapshot, entities) {
-  metaEl.textContent = `${snapshot.domain} • ${snapshot.count} cookies • xf:${entities?.xfCount ?? 0} • cf:${entities?.cfCount ?? 0} • captured ${snapshot.capturedAt}`;
-  outputEl.textContent = JSON.stringify(
-    {
-      snapshot,
-      entities,
-    },
-    null,
-    2,
-  );
+function cookieRow(cookieKey, record) {
+  const row = document.createElement("div");
+  row.className = "cookie-row";
+
+  const name = document.createElement("div");
+  name.className = "cookie-name";
+  name.textContent = `${record.name}:`;
+
+  const input = document.createElement("input");
+  input.type = record.hidden ? "password" : "text";
+  input.value = record.value || "";
+  input.readOnly = true;
+
+  const toggleWrap = document.createElement("label");
+  toggleWrap.className = "small";
+  const toggle = document.createElement("input");
+  toggle.type = "checkbox";
+  toggle.checked = !record.hidden;
+  toggle.addEventListener("change", async () => {
+    const hidden = !toggle.checked;
+    input.type = hidden ? "password" : "text";
+    await chrome.runtime.sendMessage({
+      type: "set-cookie-hidden",
+      cookieKey,
+      hidden,
+    });
+  });
+
+  toggleWrap.append(toggle, document.createTextNode(` hidden/non-hidden (${record.domain})`));
+  row.append(name, input, toggleWrap);
+  return row;
 }
 
 async function render(message = "") {
-  const tab = await getCurrentTab();
-  const hostname = getDomainFromUrl(tab?.url || "");
   const meta = document.getElementById("meta");
-  const output = document.getElementById("output");
+  const list = document.getElementById("cookieList");
+  list.innerHTML = "";
 
-  if (!hostname || !isSpigotDomain(hostname)) {
-    meta.textContent = "Open a supported tab (spigot.org, spigotmc.org, or spoigot.org).";
-    output.textContent = message || "No supported Spigot tab detected.";
+  const store = await chrome.storage.local.get([SNAPSHOT_KEY, ENTITY_KEY]);
+  const snapshot = store[SNAPSHOT_KEY];
+  const payload = store[ENTITY_KEY];
+
+  if (!snapshot || !payload?.entities) {
+    meta.textContent = message || "No cookie snapshot yet.";
     return;
   }
 
-  const store = await chrome.storage.local.get([STORAGE_KEY, ENTITY_STORAGE_KEY]);
-  const snapshot = store[STORAGE_KEY];
-  const entities = store[ENTITY_STORAGE_KEY];
+  meta.textContent = `${snapshot.hostname} • ${snapshot.count} cookies • captured ${snapshot.capturedAt}`;
 
-  if (!snapshot) {
-    meta.textContent = "No spigot cookie snapshot yet.";
-    output.textContent = "Click Manual refresh.";
+  const entries = Object.entries(payload.entities);
+  if (entries.length === 0) {
+    list.textContent = "No cookies captured for this page.";
     return;
   }
 
-  renderSnapshot(meta, output, snapshot, entities);
+  entries.sort(([a], [b]) => a.localeCompare(b));
+  for (const [cookieKey, record] of entries) {
+    list.appendChild(cookieRow(cookieKey, record));
+  }
 }
 
 document.getElementById("refresh").addEventListener("click", async () => {
-  const refreshed = await requestRefresh();
-  await render(refreshed ? "" : "Refresh failed. Ensure a supported Spigot tab is active.");
+  const ok = await requestRefresh();
+  document.getElementById("status").textContent = ok ? " Refreshed" : " Refresh failed";
+  await render(ok ? "" : "Refresh failed.");
+});
+
+document.getElementById("autofill").addEventListener("click", async () => {
+  const result = await chrome.runtime.sendMessage({ type: "autofill-editor" });
+  document.getElementById("status").textContent = result?.ok
+    ? ` Autofilled ${result.filled} field(s)`
+    : ` Autofill failed${result?.reason ? `: ${result.reason}` : ""}`;
 });
 
 document.getElementById("copy").addEventListener("click", async () => {
-  const text = document.getElementById("output").textContent;
-  await navigator.clipboard.writeText(text);
+  const store = await chrome.storage.local.get([SNAPSHOT_KEY, ENTITY_KEY]);
+  await navigator.clipboard.writeText(JSON.stringify(store, null, 2));
 });
 
 (async () => {

@@ -1,9 +1,9 @@
-const STORAGE_KEY = "cookieSnapshots";
-const ENTITY_STORAGE_KEY = "spigotCookieEntities";
-const TARGET_DOMAINS = ["spigot.org", "spigotmc.org", "spoigot.org"];
+const SNAPSHOT_KEY = "cookieSnapshot";
+const ENTITY_KEY = "cookieEntities";
 const AUTO_REFRESH_MINUTES = 30;
+const TARGET_COOKIE_DOMAINS = ["spigot.org", ".spigot.org", "spigotmc.org", ".spigotmc.org"];
 
-function getDomainFromUrl(url) {
+function getHostFromUrl(url) {
   try {
     return new URL(url).hostname;
   } catch {
@@ -11,20 +11,12 @@ function getDomainFromUrl(url) {
   }
 }
 
-function isSpigotDomain(hostname) {
-  return TARGET_DOMAINS.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
-}
-
-function getCookieQueryDomain(hostname) {
-  return TARGET_DOMAINS.find((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
-}
-
 function toEntityPayload(cookies) {
-  const xf = [];
-  const cf = [];
+  const map = {};
 
   for (const cookie of cookies) {
-    const record = {
+    const key = cookie.name.toLowerCase();
+    map[key] = {
       name: cookie.name,
       value: cookie.value,
       domain: cookie.domain,
@@ -33,104 +25,180 @@ function toEntityPayload(cookies) {
       secure: cookie.secure,
       httpOnly: cookie.httpOnly,
       sameSite: cookie.sameSite,
+      hidden: true,
     };
-
-    if (/^xf_/i.test(cookie.name) || /^xf/i.test(cookie.name)) xf.push(record);
-    if (/^(cf_|__cf)/i.test(cookie.name) || /^cf/i.test(cookie.name)) cf.push(record);
   }
 
-  return { xf, cf };
+  return map;
 }
 
-async function snapshotSpigotCookies(url, reason = "auto") {
-  const hostname = getDomainFromUrl(url);
-  if (!hostname || !isSpigotDomain(hostname)) return null;
+async function getSpigotCookies() {
+  const all = [];
+  for (const domain of TARGET_COOKIE_DOMAINS) {
+    const cookies = await chrome.cookies.getAll({ domain });
+    all.push(...cookies);
+  }
 
-  const cookieDomain = getCookieQueryDomain(hostname);
-  if (!cookieDomain) return null;
+  const deduped = new Map();
+  for (const c of all) {
+    deduped.set(`${c.domain}|${c.path}|${c.name}`, c);
+  }
 
-  const cookies = await chrome.cookies.getAll({ domain: cookieDomain });
-  const entities = toEntityPayload(cookies);
+  return [...deduped.values()];
+}
+
+async function snapshotSpigotCookies(sourceUrl, reason = "auto") {
+  const cookies = await getSpigotCookies();
   const capturedAt = new Date().toISOString();
+  const entities = toEntityPayload(cookies);
 
   const snapshot = {
-    domain: cookieDomain,
-    sourceHost: hostname,
-    url,
-    capturedAt,
+    sourceHost: getHostFromUrl(sourceUrl || ""),
+    sourceUrl: sourceUrl || null,
+    target: "spigot-only",
     reason,
+    capturedAt,
     count: cookies.length,
     cookies,
   };
 
   await chrome.storage.local.set({
-    [STORAGE_KEY]: snapshot,
-    [ENTITY_STORAGE_KEY]: {
-      domain: cookieDomain,
-      sourceHost: hostname,
-      url,
-      capturedAt,
+    [SNAPSHOT_KEY]: snapshot,
+    [ENTITY_KEY]: {
+      sourceHost: snapshot.sourceHost,
+      sourceUrl: snapshot.sourceUrl,
+      target: snapshot.target,
       reason,
-      xf: entities.xf,
-      cf: entities.cf,
-      xfCount: entities.xf.length,
-      cfCount: entities.cf.length,
+      capturedAt,
+      entities,
     },
   });
 
   return snapshot;
 }
 
-async function processActiveTab(tabId, reason = "auto") {
-  const tab = await chrome.tabs.get(tabId);
-  if (!tab?.url || !/^https?:/i.test(tab.url)) return null;
-  return snapshotSpigotCookies(tab.url, reason);
-}
-
 async function captureFromActiveTab(reason = "auto") {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) return null;
-  return processActiveTab(tab.id, reason);
+  return snapshotSpigotCookies(tab?.url ?? null, reason);
 }
 
-chrome.tabs.onActivated.addListener(async ({ tabId }) => {
-  await processActiveTab(tabId, "tab_activated");
+chrome.tabs.onActivated.addListener(async () => {
+  await captureFromActiveTab("tab_activated");
 });
 
 chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, tab) => {
   if (changeInfo.status !== "complete") return;
-  if (!tab?.active) return;
-  if (!tab.url || !/^https?:/i.test(tab.url)) return;
-
-  await snapshotSpigotCookies(tab.url, "tab_updated");
+  await snapshotSpigotCookies(tab?.url ?? null, "tab_updated");
 });
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name !== "spigot-cookie-refresh") return;
+  if (alarm.name !== "cookie-refresh") return;
   await captureFromActiveTab("alarm_30m");
 });
 
+function ensureAlarm() {
+  chrome.alarms.create("cookie-refresh", { periodInMinutes: AUTO_REFRESH_MINUTES });
+}
+
 chrome.runtime.onStartup.addListener(async () => {
-  chrome.alarms.create("spigot-cookie-refresh", {
-    periodInMinutes: AUTO_REFRESH_MINUTES,
-  });
+  ensureAlarm();
   await captureFromActiveTab("startup");
 });
 
 chrome.runtime.onInstalled.addListener(async () => {
-  chrome.alarms.create("spigot-cookie-refresh", {
-    periodInMinutes: AUTO_REFRESH_MINUTES,
-  });
+  ensureAlarm();
   await captureFromActiveTab("installed");
 });
 
+
+async function autofillEditorInActiveTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) return { ok: false, reason: "No active tab." };
+
+  const store = await chrome.storage.local.get(ENTITY_KEY);
+  const entities = store[ENTITY_KEY]?.entities || {};
+
+  const result = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: (cookieEntities) => {
+      const normalize = (v) => (v || "").toString().trim().toLowerCase();
+      const byName = cookieEntities || {};
+      let filled = 0;
+
+      const elements = Array.from(
+        document.querySelectorAll("input[type='text'], input:not([type]), textarea, [contenteditable='true']"),
+      );
+
+      for (const el of elements) {
+        const candidates = [
+          el.name,
+          el.id,
+          el.getAttribute("data-cookie"),
+          el.getAttribute("placeholder"),
+          el.getAttribute("aria-label"),
+        ]
+          .map(normalize)
+          .filter(Boolean);
+
+        let matched = null;
+        for (const candidate of candidates) {
+          if (byName[candidate]) {
+            matched = byName[candidate];
+            break;
+          }
+        }
+
+        if (!matched) continue;
+        const value = matched.value || "";
+
+        if (el.isContentEditable) {
+          el.textContent = value;
+        } else {
+          el.value = value;
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        filled += 1;
+      }
+
+      return { filled };
+    },
+    args: [entities],
+  });
+
+  return { ok: true, filled: result?.[0]?.result?.filled || 0 };
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "refresh-spigot-cookies") return;
+  if (message?.type === "refresh-cookies") {
+    (async () => {
+      const snapshot = await captureFromActiveTab("manual_popup_refresh");
+      sendResponse({ ok: !!snapshot });
+    })();
+    return true;
+  }
 
-  (async () => {
-    const snapshot = await captureFromActiveTab("manual_popup_refresh");
-    sendResponse({ ok: !!snapshot });
-  })();
+  if (message?.type === "autofill-editor") {
+    (async () => {
+      const result = await autofillEditorInActiveTab();
+      sendResponse(result);
+    })();
+    return true;
+  }
 
-  return true;
+  if (message?.type === "set-cookie-hidden") {
+    (async () => {
+      const store = await chrome.storage.local.get(ENTITY_KEY);
+      const payload = store[ENTITY_KEY];
+      if (!payload?.entities?.[message.cookieKey]) {
+        sendResponse({ ok: false });
+        return;
+      }
+
+      payload.entities[message.cookieKey].hidden = !!message.hidden;
+      await chrome.storage.local.set({ [ENTITY_KEY]: payload });
+      sendResponse({ ok: true });
+    })();
+    return true;
+  }
 });
