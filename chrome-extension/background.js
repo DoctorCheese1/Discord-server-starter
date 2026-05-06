@@ -110,11 +110,78 @@ chrome.runtime.onInstalled.addListener(async () => {
   await captureFromActiveTab("installed");
 });
 
+
+async function autofillEditorInActiveTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) return { ok: false, reason: "No active tab." };
+
+  const store = await chrome.storage.local.get(ENTITY_KEY);
+  const entities = store[ENTITY_KEY]?.entities || {};
+
+  const result = await chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: (cookieEntities) => {
+      const normalize = (v) => (v || "").toString().trim().toLowerCase();
+      const byName = cookieEntities || {};
+      let filled = 0;
+
+      const elements = Array.from(
+        document.querySelectorAll("input[type='text'], input:not([type]), textarea, [contenteditable='true']"),
+      );
+
+      for (const el of elements) {
+        const candidates = [
+          el.name,
+          el.id,
+          el.getAttribute("data-cookie"),
+          el.getAttribute("placeholder"),
+          el.getAttribute("aria-label"),
+        ]
+          .map(normalize)
+          .filter(Boolean);
+
+        let matched = null;
+        for (const candidate of candidates) {
+          if (byName[candidate]) {
+            matched = byName[candidate];
+            break;
+          }
+        }
+
+        if (!matched) continue;
+        const value = matched.value || "";
+
+        if (el.isContentEditable) {
+          el.textContent = value;
+        } else {
+          el.value = value;
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+        filled += 1;
+      }
+
+      return { filled };
+    },
+    args: [entities],
+  });
+
+  return { ok: true, filled: result?.[0]?.result?.filled || 0 };
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "refresh-cookies") {
     (async () => {
       const snapshot = await captureFromActiveTab("manual_popup_refresh");
       sendResponse({ ok: !!snapshot });
+    })();
+    return true;
+  }
+
+  if (message?.type === "autofill-editor") {
+    (async () => {
+      const result = await autofillEditorInActiveTab();
+      sendResponse(result);
     })();
     return true;
   }

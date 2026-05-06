@@ -73,6 +73,13 @@ document.getElementById("refresh").addEventListener("click", async () => {
   await render(ok ? "" : "Refresh failed.");
 });
 
+document.getElementById("autofill").addEventListener("click", async () => {
+  const result = await chrome.runtime.sendMessage({ type: "autofill-editor" });
+  document.getElementById("status").textContent = result?.ok
+    ? ` Autofilled ${result.filled} field(s)`
+    : ` Autofill failed${result?.reason ? `: ${result.reason}` : ""}`;
+});
+
 document.getElementById("copy").addEventListener("click", async () => {
   const store = await chrome.storage.local.get([SNAPSHOT_KEY, ENTITY_KEY]);
   await navigator.clipboard.writeText(JSON.stringify(store, null, 2));
