@@ -1,6 +1,7 @@
 const SNAPSHOT_KEY = "cookieSnapshot";
 const ENTITY_KEY = "cookieEntities";
 const AUTO_REFRESH_MINUTES = 30;
+const TARGET_COOKIE_DOMAINS = ["spigot.org", ".spigot.org", "spigotmc.org", ".spigotmc.org"];
 
 function getHostFromUrl(url) {
   try {
@@ -31,17 +32,30 @@ function toEntityPayload(cookies) {
   return map;
 }
 
-async function snapshotCookiesForUrl(url, reason = "auto") {
-  const hostname = getHostFromUrl(url);
-  if (!hostname) return null;
+async function getSpigotCookies() {
+  const all = [];
+  for (const domain of TARGET_COOKIE_DOMAINS) {
+    const cookies = await chrome.cookies.getAll({ domain });
+    all.push(...cookies);
+  }
 
-  const cookies = await chrome.cookies.getAll({ url });
+  const deduped = new Map();
+  for (const c of all) {
+    deduped.set(`${c.domain}|${c.path}|${c.name}`, c);
+  }
+
+  return [...deduped.values()];
+}
+
+async function snapshotSpigotCookies(sourceUrl, reason = "auto") {
+  const cookies = await getSpigotCookies();
   const capturedAt = new Date().toISOString();
   const entities = toEntityPayload(cookies);
 
   const snapshot = {
-    hostname,
-    url,
+    sourceHost: getHostFromUrl(sourceUrl || ""),
+    sourceUrl: sourceUrl || null,
+    target: "spigot-only",
     reason,
     capturedAt,
     count: cookies.length,
@@ -51,8 +65,9 @@ async function snapshotCookiesForUrl(url, reason = "auto") {
   await chrome.storage.local.set({
     [SNAPSHOT_KEY]: snapshot,
     [ENTITY_KEY]: {
-      hostname,
-      url,
+      sourceHost: snapshot.sourceHost,
+      sourceUrl: snapshot.sourceUrl,
+      target: snapshot.target,
       reason,
       capturedAt,
       entities,
@@ -64,8 +79,7 @@ async function snapshotCookiesForUrl(url, reason = "auto") {
 
 async function captureFromActiveTab(reason = "auto") {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.url || !/^https?:/i.test(tab.url)) return null;
-  return snapshotCookiesForUrl(tab.url, reason);
+  return snapshotSpigotCookies(tab?.url ?? null, reason);
 }
 
 chrome.tabs.onActivated.addListener(async () => {
@@ -74,8 +88,7 @@ chrome.tabs.onActivated.addListener(async () => {
 
 chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, tab) => {
   if (changeInfo.status !== "complete") return;
-  if (!tab?.active || !tab.url || !/^https?:/i.test(tab.url)) return;
-  await snapshotCookiesForUrl(tab.url, "tab_updated");
+  await snapshotSpigotCookies(tab?.url ?? null, "tab_updated");
 });
 
 chrome.alarms.onAlarm.addListener(async (alarm) => {
