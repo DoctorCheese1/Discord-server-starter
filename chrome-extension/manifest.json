@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Cookie Autofill Detector",
+  "version": "1.3.0",
+  "description": "Captures Spigot cookies only (spigot.org/spigotmc.org) every 30 minutes and on popup open, viewable from any site.",
+  "permissions": [
+    "cookies",
+    "tabs",
+    "storage",
+    "alarms",
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://*.spigot.org/*",
+    "https://spigot.org/*",
+    "https://*.spigotmc.org/*",
+    "https://spigotmc.org/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Cookie Autofill Detector",
+    "default_popup": "popup.html"
+  }
+}
