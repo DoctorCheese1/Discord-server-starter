@@ -229,6 +229,9 @@
     let lastEditorFindIndex = -1;
     let lastEditorFindQuery = '';
     let pluginSearchFilter = '';
+    let selectedServerType = 'generic';
+    let selectedServerIsJava = false;
+    let selectedServerHasPluginsDir = false;
     const expandedFolders = new Set();
 
     function loadUiState() {
@@ -602,8 +605,24 @@
       }).join('');
     }
 
+    function isPluginsTabEnabled() {
+      return (selectedServerType === 'minecraft' || selectedServerIsJava) && selectedServerHasPluginsDir;
+    }
+
+    function updatePluginsTabState() {
+      const enabled = isPluginsTabEnabled();
+      pluginsTab.disabled = !enabled;
+      pluginsTab.hidden = !enabled;
+      pluginsTab.title = enabled ? 'Plugin Manager' : 'Plugin Manager is only available for servers with Java/Minecraft type and a plugins folder.';
+      if (!enabled && activeTopTab === 'plugins') {
+        activeTopTab = 'file';
+      }
+    }
+
     function setActiveTopTab(tabName) {
-      activeTopTab = tabName === 'plugins' ? 'plugins' : 'file';
+      const wantsPlugins = tabName === 'plugins';
+      activeTopTab = wantsPlugins && isPluginsTabEnabled() ? 'plugins' : 'file';
+      updatePluginsTabState();
       const showPlugins = activeTopTab === 'plugins';
       fileTab.classList.toggle('active', !showPlugins);
       pluginsTab.classList.toggle('active', showPlugins);
@@ -1070,7 +1089,7 @@
 
     async function loadServers() {
       const data = await fetchJson('/api/servers');
-      serverSel.innerHTML = data.servers.map(s => '<option value="' + s.id + '">' + s.name + ' (' + s.id + ')</option>').join('');
+      serverSel.innerHTML = data.servers.map(s => '<option value="' + s.id + '" data-type="' + (s.type || 'generic') + '" data-java="' + (s.java === true ? 'true' : 'false') + '" data-has-plugins-dir="' + (s.hasPluginsDir === true ? 'true' : 'false') + '">' + s.name + ' (' + s.id + ')</option>').join('');
       if (data.servers.length) {
         const savedServerId = localStorage.getItem(SERVER_STORAGE_NAME);
         const exists = data.servers.some(s => s.id === savedServerId);
@@ -1091,7 +1110,12 @@
         const latestExpanded = currentExpandedFolders.length ? currentExpandedFolders : Array.from(expandedFolders);
         saveUiState({ expanded: latestExpanded.sort() });
       }
-      const serverLabel = serverSel.options[serverSel.selectedIndex]?.text || id;
+      const selectedOption = serverSel.options[serverSel.selectedIndex];
+      selectedServerType = selectedOption?.dataset?.type || 'generic';
+      selectedServerIsJava = selectedOption?.dataset?.java === 'true';
+      selectedServerHasPluginsDir = selectedOption?.dataset?.hasPluginsDir === 'true';
+      const serverLabel = selectedOption?.text || id;
+      updatePluginsTabState();
       const started = performance.now();
       status.textContent = '⏳ Loading files for ' + serverLabel + '...';
       serverSel.disabled = true;
@@ -1402,6 +1426,7 @@
 
     fileTab.addEventListener('click', () => setActiveTopTab('file'));
     pluginsTab.addEventListener('click', () => {
+      if (!isPluginsTabEnabled()) return;
       renderPluginsPanel();
       setActiveTopTab('plugins');
     });
