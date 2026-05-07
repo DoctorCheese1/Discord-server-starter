@@ -780,8 +780,10 @@ export function startWebEditor() {
         if (!relPath) return sendJson(res, 400, { error: 'Path is required' });
 
         if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
-        if (!isSafePath(serverConfig.cwd, relPath)) return sendJson(res, 400, { error: 'Invalid path' });
-        const fullPath = path.resolve(serverConfig.cwd, relPath);
+        const normalizedPath = relPath.replace(/\\+/g, '/').replace(/^\/+/, '');
+        if (!normalizedPath) return sendJson(res, 400, { error: 'Path is required' });
+        if (!isSafePath(serverConfig.cwd, normalizedPath)) return sendJson(res, 400, { error: 'Invalid path' });
+        const fullPath = path.resolve(serverConfig.cwd, normalizedPath);
         if (!fs.existsSync(fullPath)) return sendJson(res, 404, { error: 'Path not found' });
         fs.rmSync(fullPath, { recursive: true, force: false });
         return sendJson(res, 200, { ok: true });
@@ -900,7 +902,7 @@ export function startWebEditor() {
         for (const item of items) {
           const relPath = String(item.path || '').replace(/^\/+/, '').trim();
           if (!relPath) continue;
-          const targetRelPath = path.posix.join(targetDir.replace(/\\/g, '/'), relPath);
+          const targetRelPath = path.posix.join(targetDir.replace(/\+/g, '/'), relPath);
           if (!isSafePath(serverConfig.cwd, targetRelPath)) return sendJson(res, 400, { error: 'Invalid upload path: ' + relPath });
           const targetFull = path.resolve(serverConfig.cwd, targetRelPath);
           const bytes = Buffer.from(String(item.contentBase64 || ''), 'base64');
