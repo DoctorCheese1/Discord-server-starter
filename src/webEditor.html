@@ -77,33 +77,51 @@
         <div class="plugin-download-card">
           <div class="plugin-download-title">Plugin Download Link</div>
           <div class="plugin-download-controls">
-            <select id="pluginSource">
-              <option value="modrinth">Modrinth</option>
-              <option value="spigot">Spigot</option>
-            </select>
-            <select id="pluginPlatform">
-              <option value="paper">paper</option>
-              <option value="purpur">purpur</option>
-              <option value="folia">folia</option>
-              <option value="spigot">spigot</option>
-              <option value="bukkit">bukkit</option>
-              <option value="velocity">velocity</option>
-              <option value="waterfall">waterfall</option>
-              <option value="bungeecord">bungeecord</option>
-              <option value="sponge">sponge</option>
-              <option value="fabric">fabric</option>
-              <option value="quilt">quilt</option>
-              <option value="forge">forge</option>
-              <option value="neoforge">neoforge</option>
-            </select>
-            <input id="pluginMcVersion" placeholder="Minecraft version (e.g. 1.21.1)" />
-            <input id="pluginQuery" placeholder="Plugin slug, resource ID, or URL" />
+            <div class="plugin-control-field">
+              <div class="plugin-field-title">Source</div>
+              <select id="pluginSource">
+                <option value="modrinth">Modrinth</option>
+                <option value="spigot">Spigot</option>
+              </select>
+            </div>
+            <div class="plugin-control-field">
+              <div class="plugin-field-title">Platform</div>
+              <select id="pluginPlatform">
+                <option value="paper">paper</option>
+                <option value="purpur">purpur</option>
+                <option value="folia">folia</option>
+                <option value="spigot">spigot</option>
+                <option value="bukkit">bukkit</option>
+                <option value="velocity">velocity</option>
+                <option value="waterfall">waterfall</option>
+                <option value="bungeecord">bungeecord</option>
+                <option value="sponge">sponge</option>
+                <option value="fabric">fabric</option>
+                <option value="quilt">quilt</option>
+                <option value="forge">forge</option>
+                <option value="neoforge">neoforge</option>
+              </select>
+            </div>
+            <div class="plugin-control-field">
+              <div class="plugin-field-title">Minecraft Version</div>
+              <input id="pluginMcVersion" placeholder="Minecraft version (e.g. 1.21.1)" />
+            </div>
+            <div class="plugin-control-field">
+              <div class="plugin-field-title">Plugin Identifier</div>
+              <input id="pluginQuery" placeholder="Plugin slug, resource ID, or URL" />
+            </div>
             <input id="spigotCookieHeader" type="hidden" value="" />
-            <input id="spigotXfUser" type="password" autocomplete="off" placeholder="Spigot xf_user (optional)" />
-            <input id="spigotXfSession" type="password" autocomplete="off" placeholder="Spigot xf_session (optional)" />
-            <input id="spigotXfTfaTrust" type="password" autocomplete="off" placeholder="Spigot xf_tfa_trust (optional)" />
+            <details class="plugin-cookie-details">
+              <summary>Spigot Cookie Fields</summary>
+              <div class="plugin-cookie-fields">
+                <div class="plugin-cookie-field"><div class="plugin-field-title">xf_user</div><input id="spigotXfUser" type="password" autocomplete="off" placeholder="Spigot xf_user (optional)" /></div>
+                <div class="plugin-cookie-field"><div class="plugin-field-title">xf_session</div><input id="spigotXfSession" type="password" autocomplete="off" placeholder="Spigot xf_session (optional)" /></div>
+                <div class="plugin-cookie-field"><div class="plugin-field-title">xf_tfa_trust</div><input id="spigotXfTfaTrust" type="password" autocomplete="off" placeholder="Spigot xf_tfa_trust (optional)" /></div>
+              </div>
+              <div id="spigotCookieHints" class="plugin-cookie-hints">Cookie hints: waiting for input.</div>
+              <button id="spigotCookieTestBtn" type="button">Test Spigot Cookies</button>
+            </details>
             <input id="spigotCfClearance" type="hidden" value="" />
-            <div id="spigotCookieHints" class="plugin-cookie-hints">Cookie hints: waiting for input.</div>
             <button id="pluginResolveBtn" type="button">Get Link</button>
             <button id="pluginInstallBtn" type="button">Install to /plugins</button>
           </div>
@@ -189,6 +207,7 @@
     const spigotXfTfaTrust = document.getElementById('spigotXfTfaTrust');
     const spigotCfClearance = document.getElementById('spigotCfClearance');
     const spigotCookieHints = document.getElementById('spigotCookieHints');
+    const spigotCookieTestBtn = document.getElementById('spigotCookieTestBtn');
     const pluginResolveBtn = document.getElementById('pluginResolveBtn');
     const pluginInstallBtn = document.getElementById('pluginInstallBtn');
     const pluginDownloadStatus = document.getElementById('pluginDownloadStatus');
@@ -332,10 +351,7 @@
       hints.push(hasXfUser && hasXfSession ? 'Session cookies detected.' : 'Missing xf_user or xf_session.');
       if (hasTfa) hints.push('xf_tfa_trust present.');
       if (cfAge === null) {
-        hints.push(cfValue ? 'cf_clearance found (age unknown).' : 'cf_clearance missing.');
       } else {
-        hints.push(`cf_clearance age: ${cfAge}m.`);
-        if (cfAge > 30) hints.push('cf_clearance may be stale.');
       }
       spigotCookieHints.textContent = `Cookie hints: ${hints.join(' ')}`;
     }
@@ -1599,6 +1615,20 @@
     spigotXfSession.addEventListener('input', refreshSpigotCookieHints);
     spigotXfTfaTrust.addEventListener('input', refreshSpigotCookieHints);
     spigotCfClearance.addEventListener('input', refreshSpigotCookieHints);
+    spigotCookieTestBtn.addEventListener('click', async () => {
+      spigotCookieTestBtn.disabled = true;
+      pluginDownloadStatus.textContent = '⏳ Validating Spigot cookies...';
+      try {
+        const response = await postJson('/api/plugins/validate-cookies', getSpigotAuthPayload());
+        pluginDownloadStatus.textContent = response?.ok
+          ? `✅ ${response.message || 'Spigot cookies look valid.'}`
+          : `❌ ${response?.message || 'Spigot cookies look invalid.'}`;
+      } catch (err) {
+        pluginDownloadStatus.textContent = '❌ ' + err.message;
+      } finally {
+        spigotCookieTestBtn.disabled = false;
+      }
+    });
 
     pluginResolveBtn.addEventListener('click', async () => {
       let source = pluginSource.value;

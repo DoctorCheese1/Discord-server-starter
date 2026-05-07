@@ -461,6 +461,30 @@ async function fetchBinary(url, { cookieHeader = '', xfUser = '', xfSession = ''
   };
 }
 
+async function validateSpigotCookies({ cookieHeader = '', xfUser = '', xfSession = '', xfTfaTrust = '', cfClearance = '' } = {}) {
+  const combinedCookie = buildSpigotCookieHeader({ cookieHeader, xfUser, xfSession, xfTfaTrust, cfClearance });
+  if (!combinedCookie) {
+    return { ok: false, message: 'Missing cookie values. Provide xf_user + xf_session at minimum.' };
+  }
+  const response = await fetch('https://www.spigotmc.org/', {
+    headers: {
+      'User-Agent': DEFAULT_UA,
+      Cookie: combinedCookie,
+      Referer: 'https://www.spigotmc.org/'
+    },
+    redirect: 'follow'
+  });
+  const text = await response.text();
+  const looksLoggedIn = /Log Out|account\/upgrades|account\/details/i.test(text);
+  if (!response.ok) {
+    return { ok: false, message: `Spigot returned HTTP ${response.status}.` };
+  }
+  if (!looksLoggedIn) {
+    return { ok: false, message: 'Cookies were accepted but session does not look logged in.' };
+  }
+  return { ok: true, message: 'Logged-in Spigot session detected.' };
+}
+
 
 function editorPage(prefilledApiKey = '') {
   const template = fs.readFileSync(WEB_EDITOR_TEMPLATE_FILE, 'utf8');
@@ -530,6 +554,23 @@ export function startWebEditor() {
           return sendJson(res, 200, { result });
         } catch (error) {
           return sendJson(res, 400, { error: error?.message || 'Unable to resolve plugin download link' });
+        }
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/plugins/validate-cookies') {
+        const raw = await readBody(req);
+        const body = JSON.parse(raw || '{}');
+        try {
+          const result = await validateSpigotCookies({
+            cookieHeader: String(body.cookieHeader || '').trim(),
+            xfUser: String(body.xfUser || '').trim(),
+            xfSession: String(body.xfSession || '').trim(),
+            xfTfaTrust: String(body.xfTfaTrust || '').trim(),
+            cfClearance: String(body.cfClearance || '').trim()
+          });
+          return sendJson(res, 200, result);
+        } catch (error) {
+          return sendJson(res, 400, { ok: false, message: error?.message || 'Unable to validate cookies' });
         }
       }
 
