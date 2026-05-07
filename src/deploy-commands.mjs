@@ -64,8 +64,22 @@ export function buildCommands() {
 
     new SlashCommandBuilder()
       .setName('webeditor')
-      .setDescription('Show web editor status and URL')
-      .setDMPermission(true),
+      .setDescription('Web editor utilities')
+      .setDMPermission(true)
+      .addSubcommand(sc =>
+        sc.setName('status')
+          .setDescription('Show web editor status and URL')
+      )
+      .addSubcommand(sc =>
+        sc.setName('open')
+          .setDescription('Build a deep link to open Web Editor on a server')
+          .addStringOption(o =>
+            o.setName('id')
+              .setDescription('Server id')
+              .setRequired(true)
+              .setAutocomplete(true)
+          )
+      ),
 
     new SlashCommandBuilder()
       .setName('info')
@@ -198,6 +212,63 @@ export function buildCommands() {
               .setRequired(false)
               .setAutocomplete(true)
           )
+      )
+      .addSubcommand(sc =>
+        sc.setName('health')
+          .setDescription('Show health summary for a group')
+          .addStringOption(o =>
+            o.setName('name')
+              .setDescription('Group name')
+              .setRequired(true)
+              .setAutocomplete(true)
+          )
+      )
+      .addSubcommand(sc =>
+        sc.setName('update')
+          .setDescription('Update Steam servers in a group')
+          .addStringOption(o =>
+            o.setName('name')
+              .setDescription('Group name')
+              .setRequired(true)
+              .setAutocomplete(true)
+          )
+      )
+      .addSubcommand(sc =>
+        sc.setName('schedule')
+          .setDescription('Schedule a group action after a delay')
+          .addStringOption(o =>
+            o.setName('name')
+              .setDescription('Group name')
+              .setRequired(true)
+              .setAutocomplete(true)
+          )
+          .addStringOption(o =>
+            o.setName('action')
+              .setDescription('Action to run')
+              .setRequired(true)
+              .addChoices(
+                { name: 'start', value: 'start' },
+                { name: 'stop', value: 'stop' },
+                { name: 'restart', value: 'restart' },
+                { name: 'update', value: 'update' }
+              )
+          )
+          .addIntegerOption(o =>
+            o.setName('delay-minutes')
+              .setDescription('Delay before execution')
+              .setRequired(true)
+              .setMinValue(1)
+              .setMaxValue(1440)
+          )
+      ),
+
+    new SlashCommandBuilder()
+      .setName('audit')
+      .setDescription('Audit trail utilities')
+      .setDMPermission(true)
+      .addSubcommand(sc =>
+        sc.setName('recent')
+          .setDescription('Show recent bot control actions')
       ),
 
     /* ===== CONFIG ===== */

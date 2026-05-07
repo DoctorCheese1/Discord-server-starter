@@ -105,11 +105,36 @@ function isMutatingConfigSubcommand(sub) {
 
 const DISCORD_MESSAGE_LIMIT = 2000;
 const SAFE_PAGE_LIMIT = 1800;
+const AUDIT_LOG_LIMIT = 200;
+const auditTrail = [];
+const scheduledGroupActions = new Map();
 
-function searchScore(game, query) {
-  const q = String(query || '').trim().toLowerCase();
-  if (!q) return 0;
+function addAuditEntry(interaction, action, details = '') {
+  auditTrail.unshift({
+    at: new Date().toISOString(),
+    user: interaction?.user?.tag || interaction?.user?.id || 'unknown',
+    action,
+    details
+  });
+  if (auditTrail.length > AUDIT_LOG_LIMIT) auditTrail.length = AUDIT_LOG_LIMIT;
+}
 
+function buildSearchQuery(query) {
+  const normalized = String(query || '').trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  return {
+    q: normalized,
+    tokens: normalized.split(/\s+/).filter(Boolean)
+  };
+}
+
+function searchScore(game, searchQuery) {
+  if (!searchQuery) return 0;
+
+  const { q, tokens } = searchQuery;
   const name = String(game.name || '').toLowerCase();
   const appid = String(game.appid || '');
 
@@ -117,9 +142,7 @@ function searchScore(game, query) {
   if (name === q) return 950;
   if (name.startsWith(q)) return 900;
 
-  const tokens = q.split(/\s+/).filter(Boolean);
   const allTokensInName = tokens.length > 0 && tokens.every(token => name.includes(token));
-
   if (allTokensInName) {
     return 700 - Math.min(name.indexOf(tokens[0]), 200);
   }
@@ -305,9 +328,11 @@ export async function handleCommand(interaction) {
 
 
   if (cmd === 'webeditor') {
+    const sub = interaction.options.getSubcommand();
     const enabled = process.env.WEB_EDITOR_ENABLED === 'true';
     const port = process.env.WEB_EDITOR_PORT || '8787';
     const hasKey = Boolean(process.env.WEB_EDITOR_API_KEY);
+    const host = process.env.WEB_EDITOR_PUBLIC_HOST || '<host>';
 
     if (!enabled) {
       return interaction.editReply(
@@ -315,9 +340,26 @@ export async function handleCommand(interaction) {
       );
     }
 
+    if (sub === 'open') {
+      const id = interaction.options.getString('id', true);
+      const server = getServer(id, { includeDisabled: true });
+      if (!server) {
+        return interaction.editReply('❌ Server not found.');
+      }
+      const baseUrl = `http://${host}:${port}/`;
+      const params = new URLSearchParams({ serverId: id });
+      if (hasKey) {
+        params.set('key', process.env.WEB_EDITOR_API_KEY);
+      }
+      return interaction.editReply(
+        `🔗 Open Web Editor for **${server.name}** (\`${id}\`):\n${baseUrl}?${params.toString()}`
+      );
+    }
+    addAuditEntry(interaction, 'webeditor.status');
+
     return interaction.editReply(
       `🌐 Web editor is enabled.\n` +
-      `URL: **http://<host>:${port}/**\n` +
+      `URL: **http://${host}:${port}/**\n` +
       `API key required: **${hasKey ? 'yes' : 'no'}**`
     );
   }
@@ -360,6 +402,7 @@ export async function handleCommand(interaction) {
 
     try {
       const message = await runLifecycleCommand(server, cmd);
+      addAuditEntry(interaction, `server.${cmd}`, server.id);
       return interaction.editReply(message);
     } catch (error) {
       return interaction.editReply(`❌ ${cmd} failed: ${error?.message || 'unknown error'}`);
@@ -423,6 +466,93 @@ export async function handleCommand(interaction) {
       return interaction.editReply(`✅ Server **${id}** removed from its group.`);
     }
 
+    if (sub === 'health') {
+      const groupName = interaction.options.getString('name', true);
+      const normalizedGroup = groupName.toLowerCase();
+      const groupedServers = loadServers({ includeDisabled: true })
+        .filter(s => (s.group || '').toLowerCase() === normalizedGroup);
+
+      if (!groupedServers.length) {
+        return interaction.editReply(`❌ No servers found in group **${groupName}**.`);
+      }
+
+      const states = await Promise.all(groupedServers.map(async server => ({
+        server,
+        state: await getServerState(server)
+      })));
+
+      const counts = { running: 0, stopped: 0, disabled: 0, updating: 0 };
+      for (const { state } of states) {
+        if (state.label === 'Running') counts.running += 1;
+        else if (state.label === 'Stopped') counts.stopped += 1;
+        else if (state.label === 'Disabled') counts.disabled += 1;
+        else if (state.label === 'Updating') counts.updating += 1;
+      }
+
+      const details = states
+        .map(({ server, state }) => `${state.emoji} **${server.name}** (\`${server.id}\`) — ${state.label}`)
+        .join('\n');
+
+      return interaction.editReply([
+        `🩺 Group **${groupName}** health summary`,
+        `• Total: **${groupedServers.length}**`,
+        `• Running: **${counts.running}**`,
+        `• Updating: **${counts.updating}**`,
+        `• Stopped: **${counts.stopped}**`,
+        `• Disabled: **${counts.disabled}**`,
+        '',
+        details
+      ].join('\n'));
+    }
+    if (sub === 'update') {
+      const groupName = interaction.options.getString('name', true);
+      const normalizedGroup = groupName.toLowerCase();
+      const targets = loadServers({ includeDisabled: false })
+        .filter(s => (s.group || '').toLowerCase() === normalizedGroup && s.steam === true);
+      if (!targets.length) {
+        return interaction.editReply(`❌ No enabled Steam servers found in group **${groupName}**.`);
+      }
+      const ok = [];
+      const fail = [];
+      for (const server of targets) {
+        try {
+          const taskName = await runUpdateTask(server);
+          ok.push(`✅ **${server.name}** via \`${taskName}\``);
+        } catch (error) {
+          fail.push(`❌ **${server.name}**: ${error?.message || 'unknown error'}`);
+        }
+      }
+      addAuditEntry(interaction, 'group.update', `group=${groupName} ok=${ok.length}/${targets.length}`);
+      return interaction.editReply([`🔄 Group **${groupName}** update: ${ok.length}/${targets.length} started.`, ...ok, ...fail].join('\n'));
+    }
+    if (sub === 'schedule') {
+      const groupName = interaction.options.getString('name', true);
+      const action = interaction.options.getString('action', true);
+      const delayMinutes = interaction.options.getInteger('delay-minutes', true);
+      const runAt = Date.now() + delayMinutes * 60000;
+      const key = `${groupName.toLowerCase()}::${action}`;
+      if (scheduledGroupActions.has(key)) {
+        clearTimeout(scheduledGroupActions.get(key).timer);
+      }
+      const timer = setTimeout(async () => {
+        try {
+          const targets = loadServers({ includeDisabled: false })
+            .filter(s => (s.group || '').toLowerCase() === groupName.toLowerCase());
+          for (const server of targets) {
+            if (action === 'update') {
+              if (server.steam === true) await runUpdateTask(server);
+            } else {
+              await runLifecycleCommand(server, action);
+            }
+          }
+        } catch {}
+        scheduledGroupActions.delete(key);
+      }, delayMinutes * 60000);
+      scheduledGroupActions.set(key, { timer, runAt, groupName, action });
+      addAuditEntry(interaction, 'group.schedule', `${groupName} ${action} in ${delayMinutes}m`);
+      return interaction.editReply(`⏱ Scheduled group **${groupName}** action **${action}** for <t:${Math.floor(runAt / 1000)}:F>.`);
+    }
+
     const groupName = interaction.options.getString('name', true);
     const serverId = interaction.options.getString('id');
     const normalizedGroup = groupName.toLowerCase();
@@ -463,6 +593,15 @@ export async function handleCommand(interaction) {
       ].join('\n'));
     } catch (error) {
       return interaction.editReply(`❌ group ${sub} failed: ${error?.message || 'unknown error'}`);
+    }
+  }
+
+  if (cmd === 'audit') {
+    const sub = interaction.options.getSubcommand();
+    if (sub === 'recent') {
+      if (!auditTrail.length) return interaction.editReply('ℹ️ No audit entries yet.');
+      const lines = auditTrail.slice(0, 20).map(entry => `• [${entry.at}] **${entry.user}** — \`${entry.action}\`${entry.details ? ` (${entry.details})` : ''}`);
+      return replyWithPages(interaction, lines, 'Audit');
     }
   }
 
@@ -702,10 +841,11 @@ export async function handleCommand(interaction) {
   /* ---------- SEARCH REGISTRY ---------- */
     if (sub === 'search') {
       const query = interaction.options.getString('query', true).trim();
+      const searchQuery = buildSearchQuery(query);
       const games = listSteamGames();
 
       const scored = games
-        .map(game => ({ game, score: searchScore(game, query) }))
+        .map(game => ({ game, score: searchScore(game, searchQuery) }))
         .filter(entry => entry.score > 0)
         .sort((a, b) => {
           if (b.score !== a.score) return b.score - a.score;
