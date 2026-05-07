@@ -111,62 +111,66 @@ chrome.runtime.onInstalled.addListener(async () => {
 });
 
 
-async function autofillEditorInActiveTab() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) return { ok: false, reason: "No active tab." };
-
-  const store = await chrome.storage.local.get(ENTITY_KEY);
-  const entities = store[ENTITY_KEY]?.entities || {};
-
+async function autofillEditorInTab(tabId, entities) {
+  if (!tabId) return { ok: false, reason: "No target tab." };
+  const cookieEntities = entities || {};
   const result = await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
+    target: { tabId },
     func: (cookieEntities) => {
       const normalize = (v) => (v || "").toString().trim().toLowerCase();
       const byName = cookieEntities || {};
       let filled = 0;
-
-      const elements = Array.from(
-        document.querySelectorAll("input[type='text'], input:not([type]), textarea, [contenteditable='true']"),
-      );
-
-      for (const el of elements) {
-        const candidates = [
-          el.name,
-          el.id,
-          el.getAttribute("data-cookie"),
-          el.getAttribute("placeholder"),
-          el.getAttribute("aria-label"),
-        ]
-          .map(normalize)
-          .filter(Boolean);
-
-        let matched = null;
-        for (const candidate of candidates) {
-          if (byName[candidate]) {
-            matched = byName[candidate];
-            break;
-          }
+      const pick = (name) => byName[name]?.value || "";
+      const targets = [
+        { selectors: ["#spigotXfUser", "input[name='xf_user']"], value: pick("xf_user") },
+        { selectors: ["#spigotXfSession", "input[name='xf_session']"], value: pick("xf_session") },
+        { selectors: ["#spigotXfTfaTrust", "input[name='xf_tfa_trust']"], value: pick("xf_tfa_trust") },
+        { selectors: ["#spigotCfClearance", "input[name='cf_clearance']"], value: pick("cf_clearance") },
+      ];
+      for (const target of targets) {
+        if (!target.value) continue;
+        let el = null;
+        for (const selector of target.selectors) {
+          el = document.querySelector(selector);
+          if (el) break;
         }
-
-        if (!matched) continue;
-        const value = matched.value || "";
-
-        if (el.isContentEditable) {
-          el.textContent = value;
-        } else {
-          el.value = value;
-          el.dispatchEvent(new Event("input", { bubbles: true }));
-          el.dispatchEvent(new Event("change", { bubbles: true }));
-        }
+        if (!el) continue;
+        el.value = target.value;
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
         filled += 1;
       }
-
+      const elements = Array.from(document.querySelectorAll("input[type='text'], input[type='password'], input:not([type]), textarea, [contenteditable='true']"));
+      for (const el of elements) {
+        const candidates = [el.name, el.id, el.getAttribute("data-cookie"), el.getAttribute("placeholder"), el.getAttribute("aria-label")].map(normalize).filter(Boolean);
+        let matched = null;
+        for (const candidate of candidates) {
+          if (candidate.includes("xf_session") && byName["xf_session"]) { matched = byName["xf_session"]; break; }
+          if (candidate.includes("xf_user") && byName["xf_user"]) { matched = byName["xf_user"]; break; }
+          if (candidate.includes("xf_tfa_trust") && byName["xf_tfa_trust"]) { matched = byName["xf_tfa_trust"]; break; }
+          if (candidate.includes("cf_clearance") && byName["cf_clearance"]) { matched = byName["cf_clearance"]; break; }
+          if (byName[candidate]) { matched = byName[candidate]; break; }
+        }
+        if (!matched) continue;
+        const value = matched.value || "";
+        if (el.isContentEditable) el.textContent = value;
+        else { el.value = value; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); }
+        filled += 1;
+      }
       return { filled };
     },
-    args: [entities],
+    args: [cookieEntities],
   });
-
   return { ok: true, filled: result?.[0]?.result?.filled || 0 };
+}
+
+async function autofillEditorInActiveTab(entitiesOverride) {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) return { ok: false, reason: "No active tab." };
+
+  if (entitiesOverride) return autofillEditorInTab(tab.id, entitiesOverride);
+  const store = await chrome.storage.local.get(ENTITY_KEY);
+  return autofillEditorInTab(tab.id, store[ENTITY_KEY]?.entities || {});
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -182,6 +186,27 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     (async () => {
       const result = await autofillEditorInActiveTab();
       sendResponse(result);
+    })();
+    return true;
+  }
+  if (message?.type === "autofill-editor-with-payload") {
+    (async () => {
+      const result = await autofillEditorInActiveTab(message.entities || {});
+      sendResponse(result);
+    })();
+    return true;
+  }
+  if (message?.type === "open-editor-autofill") {
+    (async () => {
+      const created = await chrome.tabs.create({ url: message.editorUrl });
+      if (!created?.id) return sendResponse({ ok: false, reason: "Could not open editor tab." });
+      const listener = async (tabId, info) => {
+        if (tabId !== created.id || info.status !== "complete") return;
+        chrome.tabs.onUpdated.removeListener(listener);
+        const result = await autofillEditorInTab(created.id, message.entities || {});
+        sendResponse(result);
+      };
+      chrome.tabs.onUpdated.addListener(listener);
     })();
     return true;
   }
