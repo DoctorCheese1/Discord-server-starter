@@ -98,11 +98,11 @@
             </select>
             <input id="pluginMcVersion" placeholder="Minecraft version (e.g. 1.21.1)" />
             <input id="pluginQuery" placeholder="Plugin slug, resource ID, or URL" />
-            <textarea id="spigotCookieHeader" rows="2" autocomplete="off" placeholder="Cookie header (optional)"></textarea>
+            <input id="spigotCookieHeader" type="hidden" value="" />
             <input id="spigotXfUser" type="password" autocomplete="off" placeholder="Spigot xf_user (optional)" />
             <input id="spigotXfSession" type="password" autocomplete="off" placeholder="Spigot xf_session (optional)" />
             <input id="spigotXfTfaTrust" type="password" autocomplete="off" placeholder="Spigot xf_tfa_trust (optional)" />
-            <input id="spigotCfClearance" type="password" autocomplete="off" placeholder="Spigot cf_clearance (optional)" />
+            <input id="spigotCfClearance" type="hidden" value="" />
             <div id="spigotCookieHints" class="plugin-cookie-hints">Cookie hints: waiting for input.</div>
             <button id="pluginResolveBtn" type="button">Get Link</button>
             <button id="pluginInstallBtn" type="button">Install to /plugins</button>
