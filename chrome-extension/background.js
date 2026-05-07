@@ -120,12 +120,14 @@ async function autofillEditorInTab(tabId, entities) {
       const normalize = (v) => (v || "").toString().trim().toLowerCase();
       const byName = cookieEntities || {};
       let filled = 0;
+      const filledKeys = new Set();
+      const touchedElements = new Set();
       const pick = (name) => byName[name]?.value || "";
       const targets = [
-        { selectors: ["#spigotXfUser", "input[name='xf_user']"], value: pick("xf_user") },
-        { selectors: ["#spigotXfSession", "input[name='xf_session']"], value: pick("xf_session") },
-        { selectors: ["#spigotXfTfaTrust", "input[name='xf_tfa_trust']"], value: pick("xf_tfa_trust") },
-        { selectors: ["#spigotCfClearance", "input[name='cf_clearance']"], value: pick("cf_clearance") },
+        { key: "xf_user", selectors: ["#spigotXfUser", "input[name='xf_user']"], value: pick("xf_user") },
+        { key: "xf_session", selectors: ["#spigotXfSession", "input[name='xf_session']"], value: pick("xf_session") },
+        { key: "xf_tfa_trust", selectors: ["#spigotXfTfaTrust", "input[name='xf_tfa_trust']"], value: pick("xf_tfa_trust") },
+        { key: "cf_clearance", selectors: ["#spigotCfClearance", "input[name='cf_clearance']"], value: pick("cf_clearance") },
       ];
       for (const target of targets) {
         if (!target.value) continue;
@@ -138,7 +140,11 @@ async function autofillEditorInTab(tabId, entities) {
         el.value = target.value;
         el.dispatchEvent(new Event("input", { bubbles: true }));
         el.dispatchEvent(new Event("change", { bubbles: true }));
-        filled += 1;
+        touchedElements.add(el);
+        if (!filledKeys.has(target.key)) {
+          filledKeys.add(target.key);
+          filled += 1;
+        }
       }
       const elements = Array.from(document.querySelectorAll("input[type='text'], input[type='password'], input:not([type]), textarea, [contenteditable='true']"));
       for (const el of elements) {
@@ -151,11 +157,16 @@ async function autofillEditorInTab(tabId, entities) {
           if (candidate.includes("cf_clearance") && byName["cf_clearance"]) { matched = byName["cf_clearance"]; break; }
           if (byName[candidate]) { matched = byName[candidate]; break; }
         }
-        if (!matched) continue;
+        if (!matched || touchedElements.has(el)) continue;
         const value = matched.value || "";
         if (el.isContentEditable) el.textContent = value;
         else { el.value = value; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); }
-        filled += 1;
+        touchedElements.add(el);
+        const key = normalize(matched.name);
+        if (key && !filledKeys.has(key)) {
+          filledKeys.add(key);
+          filled += 1;
+        }
       }
       return { filled };
     },
@@ -196,21 +207,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     })();
     return true;
   }
-  if (message?.type === "open-editor-autofill") {
-    (async () => {
-      const created = await chrome.tabs.create({ url: message.editorUrl });
-      if (!created?.id) return sendResponse({ ok: false, reason: "Could not open editor tab." });
-      const listener = async (tabId, info) => {
-        if (tabId !== created.id || info.status !== "complete") return;
-        chrome.tabs.onUpdated.removeListener(listener);
-        const result = await autofillEditorInTab(created.id, message.entities || {});
-        sendResponse(result);
-      };
-      chrome.tabs.onUpdated.addListener(listener);
-    })();
-    return true;
-  }
-
   if (message?.type === "set-cookie-hidden") {
     (async () => {
       const store = await chrome.storage.local.get(ENTITY_KEY);
