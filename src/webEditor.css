@@ -93,7 +93,7 @@
     .plugins-panel-header { font-size: 18px; margin-bottom: 6px; color: #e6e6e6; }
     .plugin-download-card { border: 1px solid #2d2d30; border-radius: 6px; padding: 10px; margin-bottom: 10px; background: #252526; }
     .plugin-download-title { font-size: 14px; color: #e6e6e6; margin-bottom: 8px; }
-    .plugin-download-controls { display: grid; grid-template-columns: repeat(6, minmax(120px, 1fr)); gap: 8px; margin-bottom: 8px; }
+    .plugin-download-controls { display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 10px; margin-bottom: 8px; align-items: start; }
     .plugin-download-controls select,
     .plugin-download-controls input,
     .plugin-download-controls textarea { background: #1a1d23; border: 1px solid #313846; color: #d4d4d4; border-radius: 4px; padding: 7px 8px; font-size: 12px; }
@@ -305,3 +305,10 @@
     .context-menu-item:disabled { opacity: .45; cursor: not-allowed; }
     .context-menu-item.danger:hover:not(:disabled) { background: #7a2f2f; }
   
+
+.plugin-field-title { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+.plugin-control-field { display: grid; gap: 6px; }
+.plugin-cookie-details { grid-column: 1 / -1; border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; }
+.plugin-cookie-details > summary { cursor: pointer; color: var(--text-dim); font-size: 12px; }
+.plugin-cookie-fields { margin-top: 8px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: start; }
+.plugin-cookie-field { display: grid; gap: 6px; }
