@@ -571,8 +571,8 @@
     function renderOpenFileTabs() {
       if (!multiFileTabs) return;
       multiFileTabs.innerHTML = openFileTabs.map(path => {
-        const safePath = esc(path);
-        const label = esc(pathBase(path));
+        const safePath = escapeHtml(path);
+        const label = escapeHtml(pathBase(path));
         const active = path === currentFile ? ' active' : '';
         return `<button class="tab multi-file-tab${active}" data-open-file="${safePath}" title="${safePath}" type="button">${label}</button>`;
       }).join('');
