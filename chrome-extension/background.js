@@ -127,8 +127,7 @@ async function autofillEditorInTab(tabId, entities) {
         { key: "xf_user", selectors: ["#spigotXfUser", "input[name='xf_user']"], value: pick("xf_user") },
         { key: "xf_session", selectors: ["#spigotXfSession", "input[name='xf_session']"], value: pick("xf_session") },
         { key: "xf_tfa_trust", selectors: ["#spigotXfTfaTrust", "input[name='xf_tfa_trust']"], value: pick("xf_tfa_trust") },
-        { key: "cf_clearance", selectors: ["#spigotCfClearance", "input[name='cf_clearance']"], value: pick("cf_clearance") },
-      ];
+              ];
       for (const target of targets) {
         if (!target.value) continue;
         let el = null;
@@ -146,7 +145,7 @@ async function autofillEditorInTab(tabId, entities) {
           filled += 1;
         }
       }
-      const elements = Array.from(document.querySelectorAll("input[type='text'], input[type='password'], input:not([type]), textarea, [contenteditable='true']"));
+      const elements = Array.from(document.querySelectorAll("input[type='text'], input[type='password'], input:not([type]), [contenteditable='true']"));
       for (const el of elements) {
         const candidates = [el.name, el.id, el.getAttribute("data-cookie"), el.getAttribute("placeholder"), el.getAttribute("aria-label")].map(normalize).filter(Boolean);
         let matched = null;
@@ -154,7 +153,6 @@ async function autofillEditorInTab(tabId, entities) {
           if (candidate.includes("xf_session") && byName["xf_session"]) { matched = byName["xf_session"]; break; }
           if (candidate.includes("xf_user") && byName["xf_user"]) { matched = byName["xf_user"]; break; }
           if (candidate.includes("xf_tfa_trust") && byName["xf_tfa_trust"]) { matched = byName["xf_tfa_trust"]; break; }
-          if (candidate.includes("cf_clearance") && byName["cf_clearance"]) { matched = byName["cf_clearance"]; break; }
           if (byName[candidate]) { matched = byName[candidate]; break; }
         }
         if (!matched || touchedElements.has(el)) continue;

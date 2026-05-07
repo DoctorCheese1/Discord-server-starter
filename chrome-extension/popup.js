@@ -56,10 +56,10 @@ async function render(message = "") {
 
   meta.textContent = `Captured ${snapshot.capturedAt}`;
 
-  const wanted = new Set(["xf_user", "xf_session", "xf_tfa_trust", "cf_clearance"]);
+  const wanted = new Set(["xf_user", "xf_session", "xf_tfa_trust"]);
   const entries = Object.entries(payload.entities).filter(([key]) => wanted.has(String(key).toLowerCase()));
   if (entries.length === 0) {
-    list.textContent = "No xf_user / xf_session / xf_tfa_trust / cf_clearance cookies captured.";
+    list.textContent = "No xf_user / xf_session / xf_tfa_trust cookies captured.";
     return;
   }
 
@@ -92,7 +92,7 @@ document.getElementById("copy").addEventListener("click", async () => {
 document.getElementById("copyPayload").addEventListener("click", async () => {
   const store = await chrome.storage.local.get([ENTITY_KEY]);
   const entities = store[ENTITY_KEY]?.entities || {};
-  const wanted = ["xf_user", "xf_session", "xf_tfa_trust", "cf_clearance"];
+  const wanted = ["xf_user", "xf_session", "xf_tfa_trust"];
   const payload = {};
   for (const key of wanted) {
     if (entities[key]?.value) payload[key] = entities[key].value;
