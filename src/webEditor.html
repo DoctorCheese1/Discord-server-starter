@@ -61,6 +61,8 @@
     <input id="searchScope" placeholder="Folder scope (optional, e.g. plugins)" />
     <input id="fileSearch" placeholder="Web editor search files/folders..." />
     <button id="runSearchBtn" type="button">Search</button>
+    <button id="openEditorTabBtn" type="button">New File Tab</button>
+    <button id="exitEditorBtn" type="button">Exit Editor</button>
   </div>
   <div class="layout">
     <aside class="sidebar">
@@ -70,6 +72,7 @@
     <section class="editor-wrap">
       <div class="tabs">
         <button id="fileTab" class="tab active" type="button">No file open</button>
+        <div id="multiFileTabs" class="multi-file-tabs"></div>
         <button id="pluginsTab" class="tab" type="button">Plugins</button>
       </div>
       <section id="pluginsPanel" class="plugins-panel" hidden>
@@ -77,33 +80,51 @@
         <div class="plugin-download-card">
           <div class="plugin-download-title">Plugin Download Link</div>
           <div class="plugin-download-controls">
-            <select id="pluginSource">
-              <option value="modrinth">Modrinth</option>
-              <option value="spigot">Spigot</option>
-            </select>
-            <select id="pluginPlatform">
-              <option value="paper">paper</option>
-              <option value="purpur">purpur</option>
-              <option value="folia">folia</option>
-              <option value="spigot">spigot</option>
-              <option value="bukkit">bukkit</option>
-              <option value="velocity">velocity</option>
-              <option value="waterfall">waterfall</option>
-              <option value="bungeecord">bungeecord</option>
-              <option value="sponge">sponge</option>
-              <option value="fabric">fabric</option>
-              <option value="quilt">quilt</option>
-              <option value="forge">forge</option>
-              <option value="neoforge">neoforge</option>
-            </select>
-            <input id="pluginMcVersion" placeholder="Minecraft version (e.g. 1.21.1)" />
-            <input id="pluginQuery" placeholder="Plugin slug, resource ID, or URL" />
+            <div class="plugin-control-field">
+              <div class="plugin-field-title">Source</div>
+              <select id="pluginSource">
+                <option value="modrinth">Modrinth</option>
+                <option value="spigot">Spigot</option>
+              </select>
+            </div>
+            <div class="plugin-control-field">
+              <div class="plugin-field-title">Platform</div>
+              <select id="pluginPlatform">
+                <option value="paper">paper</option>
+                <option value="purpur">purpur</option>
+                <option value="folia">folia</option>
+                <option value="spigot">spigot</option>
+                <option value="bukkit">bukkit</option>
+                <option value="velocity">velocity</option>
+                <option value="waterfall">waterfall</option>
+                <option value="bungeecord">bungeecord</option>
+                <option value="sponge">sponge</option>
+                <option value="fabric">fabric</option>
+                <option value="quilt">quilt</option>
+                <option value="forge">forge</option>
+                <option value="neoforge">neoforge</option>
+              </select>
+            </div>
+            <div class="plugin-control-field">
+              <div class="plugin-field-title">Minecraft Version</div>
+              <input id="pluginMcVersion" placeholder="Minecraft version (e.g. 1.21.1)" />
+            </div>
+            <div class="plugin-control-field">
+              <div class="plugin-field-title">Plugin Identifier</div>
+              <input id="pluginQuery" placeholder="Plugin slug, resource ID, or URL" />
+            </div>
             <input id="spigotCookieHeader" type="hidden" value="" />
-            <input id="spigotXfUser" type="password" autocomplete="off" placeholder="Spigot xf_user (optional)" />
-            <input id="spigotXfSession" type="password" autocomplete="off" placeholder="Spigot xf_session (optional)" />
-            <input id="spigotXfTfaTrust" type="password" autocomplete="off" placeholder="Spigot xf_tfa_trust (optional)" />
+            <details class="plugin-cookie-details">
+              <summary>Spigot Cookie Fields</summary>
+              <div class="plugin-cookie-fields">
+                <div class="plugin-cookie-field"><div class="plugin-field-title">xf_user</div><input id="spigotXfUser" type="password" autocomplete="off" placeholder="Spigot xf_user (optional)" /></div>
+                <div class="plugin-cookie-field"><div class="plugin-field-title">xf_session</div><input id="spigotXfSession" type="password" autocomplete="off" placeholder="Spigot xf_session (optional)" /></div>
+                <div class="plugin-cookie-field"><div class="plugin-field-title">xf_tfa_trust</div><input id="spigotXfTfaTrust" type="password" autocomplete="off" placeholder="Spigot xf_tfa_trust (optional)" /></div>
+              </div>
+              <div id="spigotCookieHints" class="plugin-cookie-hints">Cookie hints: waiting for input.</div>
+              <button id="spigotCookieTestBtn" type="button">Test Spigot Cookies</button>
+            </details>
             <input id="spigotCfClearance" type="hidden" value="" />
-            <div id="spigotCookieHints" class="plugin-cookie-hints">Cookie hints: waiting for input.</div>
             <button id="pluginResolveBtn" type="button">Get Link</button>
             <button id="pluginInstallBtn" type="button">Install to /plugins</button>
           </div>
@@ -166,6 +187,8 @@
     const keyInput = document.getElementById('key');
     const fileSearchInput = document.getElementById('fileSearch');
     const runSearchBtn = document.getElementById('runSearchBtn');
+    const openEditorTabBtn = document.getElementById('openEditorTabBtn');
+    const exitEditorBtn = document.getElementById('exitEditorBtn');
     const searchModeInput = document.getElementById('searchMode');
     const searchScopeInput = document.getElementById('searchScope');
     const uploadSingleInput = document.getElementById('uploadSingleInput');
@@ -174,6 +197,7 @@
     const loadPopup = document.getElementById('loadPopup');
     const errorPopup = document.getElementById('errorPopup');
     const fileTab = document.getElementById('fileTab');
+    const multiFileTabs = document.getElementById('multiFileTabs');
     const pluginsTab = document.getElementById('pluginsTab');
     const pluginsPanel = document.getElementById('pluginsPanel');
     const pluginsSearchInput = document.getElementById('pluginsSearch');
@@ -189,6 +213,7 @@
     const spigotXfTfaTrust = document.getElementById('spigotXfTfaTrust');
     const spigotCfClearance = document.getElementById('spigotCfClearance');
     const spigotCookieHints = document.getElementById('spigotCookieHints');
+    const spigotCookieTestBtn = document.getElementById('spigotCookieTestBtn');
     const pluginResolveBtn = document.getElementById('pluginResolveBtn');
     const pluginInstallBtn = document.getElementById('pluginInstallBtn');
     const pluginDownloadStatus = document.getElementById('pluginDownloadStatus');
@@ -228,6 +253,7 @@
     let emptyFolders = [];
     let editorPluginEntries = {};
     let currentFile = '';
+    let openFileTabs = [];
     let originalContent = '';
     let popupTimer;
     let loadPopupTimer;
@@ -332,10 +358,7 @@
       hints.push(hasXfUser && hasXfSession ? 'Session cookies detected.' : 'Missing xf_user or xf_session.');
       if (hasTfa) hints.push('xf_tfa_trust present.');
       if (cfAge === null) {
-        hints.push(cfValue ? 'cf_clearance found (age unknown).' : 'cf_clearance missing.');
       } else {
-        hints.push(`cf_clearance age: ${cfAge}m.`);
-        if (cfAge > 30) hints.push('cf_clearance may be stale.');
       }
       spigotCookieHints.textContent = `Cookie hints: ${hints.join(' ')}`;
     }
@@ -542,6 +565,17 @@
       }
       const base = currentFile ? pathBase(currentFile) : 'No file open';
       fileTab.textContent = (currentFile && content.value !== originalContent) ? (base + ' *') : base;
+      renderOpenFileTabs();
+    }
+
+    function renderOpenFileTabs() {
+      if (!multiFileTabs) return;
+      multiFileTabs.innerHTML = openFileTabs.map(path => {
+        const safePath = escapeHtml(path);
+        const label = escapeHtml(pathBase(path));
+        const active = path === currentFile ? ' active' : '';
+        return `<button class="tab multi-file-tab${active}" data-open-file="${safePath}" title="${safePath}" type="button">${label}</button>`;
+      }).join('');
     }
 
     function parsePluginFromPath(filePath) {
@@ -1242,6 +1276,7 @@
         content.value = data.content;
         originalContent = data.content;
         currentFile = file;
+        if (file && !openFileTabs.includes(file)) openFileTabs.push(file);
         saveUiState({
           currentFile
         });
@@ -1345,6 +1380,19 @@
     };
     runSearchBtn.onclick = () => {
       runSmartSearch().catch(err => status.textContent = '❌ ' + err.message);
+    };
+    openEditorTabBtn.onclick = () => {
+      if (!currentFile) {
+        status.textContent = '❌ Open a file first to create an in-page tab.';
+        return;
+      }
+      if (!openFileTabs.includes(currentFile)) openFileTabs.push(currentFile);
+      renderOpenFileTabs();
+      status.textContent = '✅ Added in-page tab for ' + pathBase(currentFile);
+    };
+    exitEditorBtn.onclick = () => {
+      try { window.close(); } catch {}
+      setTimeout(() => { window.location.href = 'about:blank'; }, 120);
     };
     searchModeInput.onchange = () => scheduleSearch();
     searchScopeInput.oninput = () => scheduleSearch();
@@ -1505,6 +1553,14 @@
     };
 
     fileTab.addEventListener('click', () => setActiveTopTab('file'));
+    multiFileTabs.addEventListener('click', e => {
+      const btn = e.target.closest('[data-open-file]');
+      if (!btn) return;
+      const path = btn.getAttribute('data-open-file');
+      if (!path || path === currentFile) return;
+      if (!confirmDiscardChanges('switch tabs')) return;
+      loadFile(path).catch(err => status.textContent = '❌ ' + err.message);
+    });
     pluginsTab.addEventListener('click', () => {
       if (!isPluginsTabEnabled()) return;
       renderPluginsPanel();
@@ -1599,6 +1655,20 @@
     spigotXfSession.addEventListener('input', refreshSpigotCookieHints);
     spigotXfTfaTrust.addEventListener('input', refreshSpigotCookieHints);
     spigotCfClearance.addEventListener('input', refreshSpigotCookieHints);
+    spigotCookieTestBtn.addEventListener('click', async () => {
+      spigotCookieTestBtn.disabled = true;
+      pluginDownloadStatus.textContent = '⏳ Validating Spigot cookies...';
+      try {
+        const response = await postJson('/api/plugins/validate-cookies', getSpigotAuthPayload());
+        pluginDownloadStatus.textContent = response?.ok
+          ? `✅ ${response.message || 'Spigot cookies look valid.'}`
+          : `❌ ${response?.message || 'Spigot cookies look invalid.'}`;
+      } catch (err) {
+        pluginDownloadStatus.textContent = '❌ ' + err.message;
+      } finally {
+        spigotCookieTestBtn.disabled = false;
+      }
+    });
 
     pluginResolveBtn.addEventListener('click', async () => {
       let source = pluginSource.value;
