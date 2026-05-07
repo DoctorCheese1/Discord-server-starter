@@ -119,6 +119,7 @@
                 <div class="plugin-cookie-field"><div class="plugin-field-title">xf_tfa_trust</div><input id="spigotXfTfaTrust" type="password" autocomplete="off" placeholder="Spigot xf_tfa_trust (optional)" /></div>
               </div>
               <div id="spigotCookieHints" class="plugin-cookie-hints">Cookie hints: waiting for input.</div>
+              <button id="spigotCookieTestBtn" type="button">Test Spigot Cookies</button>
             </details>
             <input id="spigotCfClearance" type="hidden" value="" />
             <button id="pluginResolveBtn" type="button">Get Link</button>
@@ -206,6 +207,7 @@
     const spigotXfTfaTrust = document.getElementById('spigotXfTfaTrust');
     const spigotCfClearance = document.getElementById('spigotCfClearance');
     const spigotCookieHints = document.getElementById('spigotCookieHints');
+    const spigotCookieTestBtn = document.getElementById('spigotCookieTestBtn');
     const pluginResolveBtn = document.getElementById('pluginResolveBtn');
     const pluginInstallBtn = document.getElementById('pluginInstallBtn');
     const pluginDownloadStatus = document.getElementById('pluginDownloadStatus');
@@ -1613,6 +1615,20 @@
     spigotXfSession.addEventListener('input', refreshSpigotCookieHints);
     spigotXfTfaTrust.addEventListener('input', refreshSpigotCookieHints);
     spigotCfClearance.addEventListener('input', refreshSpigotCookieHints);
+    spigotCookieTestBtn.addEventListener('click', async () => {
+      spigotCookieTestBtn.disabled = true;
+      pluginDownloadStatus.textContent = '⏳ Validating Spigot cookies...';
+      try {
+        const response = await postJson('/api/plugins/validate-cookies', getSpigotAuthPayload());
+        pluginDownloadStatus.textContent = response?.ok
+          ? `✅ ${response.message || 'Spigot cookies look valid.'}`
+          : `❌ ${response?.message || 'Spigot cookies look invalid.'}`;
+      } catch (err) {
+        pluginDownloadStatus.textContent = '❌ ' + err.message;
+      } finally {
+        spigotCookieTestBtn.disabled = false;
+      }
+    });
 
     pluginResolveBtn.addEventListener('click', async () => {
       let source = pluginSource.value;
