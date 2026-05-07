@@ -208,9 +208,17 @@
     const editorFindNext = document.getElementById('editorFindNext');
     const editorReplaceOne = document.getElementById('editorReplaceOne');
     const editorReplaceAll = document.getElementById('editorReplaceAll');
-    const diffDialog = document.getElementById('diffDialog');
-    const diffDialogContent = document.getElementById('diffDialogContent');
-    const diffDialogClose = document.getElementById('diffDialogClose');
+    let diffDialog = document.getElementById('diffDialog');
+    let diffDialogContent = document.getElementById('diffDialogContent');
+    let diffDialogClose = document.getElementById('diffDialogClose');
+    if (!diffDialog || !diffDialogContent || !diffDialogClose) {
+      diffDialog = document.createElement('dialog');
+      diffDialog.id = 'diffDialog';
+      diffDialog.innerHTML = '<pre id=\"diffDialogContent\" style=\"max-height:60vh;overflow:auto;white-space:pre-wrap\"></pre><button id=\"diffDialogClose\" type=\"button\">Close</button>';
+      document.body.appendChild(diffDialog);
+      diffDialogContent = document.getElementById('diffDialogContent');
+      diffDialogClose = document.getElementById('diffDialogClose');
+    }
 
     const KEY_STORAGE_NAME = 'web_editor_api_key';
     const UI_STATE_STORAGE_NAME = 'web_editor_ui_state_v1';
