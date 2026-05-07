@@ -25,6 +25,8 @@
         <button class="menu-item" id="downloadFileBtn">Download File</button>
         <button class="menu-item" id="downloadFolderBtn">Download Folder</button>
         <button class="menu-item" id="save">Save</button>
+        <button class="menu-item" id="saveAll">Save All</button>
+        <button class="menu-item" id="diffPreview">Diff Preview</button>
         <button class="menu-item" id="revert">Revert File</button>
         <button class="menu-item" id="exit">Exit</button>
       </div>
@@ -206,6 +208,17 @@
     const editorFindNext = document.getElementById('editorFindNext');
     const editorReplaceOne = document.getElementById('editorReplaceOne');
     const editorReplaceAll = document.getElementById('editorReplaceAll');
+    let diffDialog = document.getElementById('diffDialog');
+    let diffDialogContent = document.getElementById('diffDialogContent');
+    let diffDialogClose = document.getElementById('diffDialogClose');
+    if (!diffDialog || !diffDialogContent || !diffDialogClose) {
+      diffDialog = document.createElement('dialog');
+      diffDialog.id = 'diffDialog';
+      diffDialog.innerHTML = '<pre id=\"diffDialogContent\" style=\"max-height:60vh;overflow:auto;white-space:pre-wrap\"></pre><button id=\"diffDialogClose\" type=\"button\">Close</button>';
+      document.body.appendChild(diffDialog);
+      diffDialogContent = document.getElementById('diffDialogContent');
+      diffDialogClose = document.getElementById('diffDialogClose');
+    }
 
     const KEY_STORAGE_NAME = 'web_editor_api_key';
     const UI_STATE_STORAGE_NAME = 'web_editor_ui_state_v1';
@@ -220,6 +233,7 @@
     let loadPopupTimer;
     let errorPopupTimer;
     let openMenu = null;
+    let pendingServerId = '';
     let activeFilesRequestId = 0;
     let contextTarget = { type: 'root', path: '' };
     let pendingPathActionResolver = null;
@@ -232,6 +246,7 @@
     let selectedServerType = 'generic';
     let selectedServerIsJava = false;
     let selectedServerHasPluginsDir = false;
+    let isReadOnlySession = false;
     const expandedFolders = new Set();
 
     function loadUiState() {
@@ -525,7 +540,8 @@
       for (const row of tree.querySelectorAll('.tree-row.file')) {
         row.classList.toggle('active', row.dataset.path === currentFile);
       }
-      fileTab.textContent = currentFile ? pathBase(currentFile) : 'No file open';
+      const base = currentFile ? pathBase(currentFile) : 'No file open';
+      fileTab.textContent = (currentFile && content.value !== originalContent) ? (base + ' *') : base;
     }
 
     function parsePluginFromPath(filePath) {
@@ -639,6 +655,50 @@
     function pathBase(p) {
       const parts = p.split('/');
       return parts[parts.length - 1];
+    }
+
+    function hasUnsavedChanges() {
+      return Boolean(currentFile) && content.value !== originalContent;
+    }
+
+    function confirmDiscardChanges(actionLabel) {
+      if (!hasUnsavedChanges()) return true;
+      return window.confirm('You have unsaved changes in "' + currentFile + '". Discard them and ' + actionLabel + '?');
+    }
+
+    function buildSimpleDiff(oldText, newText) {
+      const oldLines = String(oldText || '').split('\n');
+      const newLines = String(newText || '').split('\n');
+      const maxLines = Math.max(oldLines.length, newLines.length);
+      const out = [];
+      for (let i = 0; i < maxLines; i += 1) {
+        const a = oldLines[i];
+        const b = newLines[i];
+        if (a === b) continue;
+        if (typeof a !== 'undefined') out.push('- ' + a);
+        if (typeof b !== 'undefined') out.push('+ ' + b);
+      }
+      return out.length ? out.join('\n') : 'No changes.';
+    }
+
+    function showDiffPreview() {
+      if (!currentFile) {
+        status.textContent = '⚠️ No file selected';
+        return;
+      }
+      const diffText = buildSimpleDiff(originalContent, content.value);
+      diffDialogContent.textContent = 'Diff preview for ' + currentFile + '\n\n' + diffText.slice(0, 12000);
+      diffDialog.showModal();
+    }
+
+    function setReadOnlyUi(enabled) {
+      isReadOnlySession = enabled;
+      const writeIds = ['save', 'saveAll', 'revert', 'newFile', 'newFolder', 'deletePath', 'renamePath', 'movePath', 'duplicatePath', 'uploadFileBtn', 'uploadFolderBtn'];
+      for (const id of writeIds) {
+        const el = document.getElementById(id);
+        if (el) el.disabled = enabled;
+      }
+      if (enabled) status.textContent = '🔒 Read-only mode enabled for this API key';
     }
 
     function pathDirname(p) {
@@ -1088,13 +1148,21 @@
     }
 
     async function loadServers() {
+      const me = await fetchJson('/api/me').catch(() => ({ readOnly: false }));
+      setReadOnlyUi(me.readOnly === true);
       const data = await fetchJson('/api/servers');
       serverSel.innerHTML = data.servers.map(s => '<option value="' + s.id + '" data-type="' + (s.type || 'generic') + '" data-java="' + (s.java === true ? 'true' : 'false') + '" data-has-plugins-dir="' + (s.hasPluginsDir === true ? 'true' : 'false') + '">' + s.name + ' (' + s.id + ')</option>').join('');
       if (data.servers.length) {
-        const savedServerId = localStorage.getItem(SERVER_STORAGE_NAME);
-        const exists = data.servers.some(s => s.id === savedServerId);
-        if (exists) {
-          serverSel.value = savedServerId;
+        if (pendingServerId && data.servers.some(s => s.id === pendingServerId)) {
+          serverSel.value = pendingServerId;
+          localStorage.setItem(SERVER_STORAGE_NAME, pendingServerId);
+          pendingServerId = '';
+        } else {
+          const savedServerId = localStorage.getItem(SERVER_STORAGE_NAME);
+          const exists = data.servers.some(s => s.id === savedServerId);
+          if (exists) {
+            serverSel.value = savedServerId;
+          }
         }
         await loadFiles();
       }
@@ -1193,6 +1261,7 @@
 
     async function saveCurrentFile() {
       try {
+        if (isReadOnlySession) throw new Error('Read-only mode: save disabled');
         if (!currentFile) throw new Error('No file selected');
         const id = serverSel.value;
         await fetchJson('/api/file', {
@@ -1203,6 +1272,7 @@
         originalContent = content.value;
         status.textContent = '✅ Saved ' + currentFile;
         showSavePopup(currentFile);
+        markActiveFile();
       } catch (err) {
         status.textContent = '❌ ' + err.message;
       }
@@ -1229,6 +1299,7 @@
         return;
       }
       setActiveTopTab('file');
+      if (!confirmDiscardChanges('open another file')) return;
       loadFile(row.dataset.path);
     };
     tree.addEventListener('contextmenu', e => {
@@ -1257,6 +1328,11 @@
     });
 
     serverSel.onchange = () => {
+      if (!confirmDiscardChanges('switch servers')) {
+        const savedServerId = localStorage.getItem(SERVER_STORAGE_NAME);
+        if (savedServerId) serverSel.value = savedServerId;
+        return;
+      }
       localStorage.setItem(SERVER_STORAGE_NAME, serverSel.value);
       loadFiles();
     };
@@ -1303,6 +1379,7 @@
       renderHighlightedContent();
       lastEditorFindIndex = -1;
       lastEditorFindQuery = '';
+      markActiveFile();
     };
     content.onscroll = () => syncEditorScroll();
     lineNumbers.addEventListener('click', e => {
@@ -1318,6 +1395,9 @@
     });
 
     document.getElementById('save').onclick = saveCurrentFile;
+    document.getElementById('saveAll').onclick = saveCurrentFile;
+    document.getElementById('diffPreview').onclick = showDiffPreview;
+    diffDialogClose.onclick = () => diffDialog.close();
     document.getElementById('revert').onclick = () => {
       if (!currentFile) return;
       content.value = originalContent;
@@ -1748,6 +1828,7 @@
     refreshSpigotCookieHints();
 
     const params = new URLSearchParams(window.location.search);
+    pendingServerId = params.get('serverId') || '';
     const keyFromUrl = params.get('key');
     const storedKey = localStorage.getItem(KEY_STORAGE_NAME);
     const initialKey = keyFromUrl || storedKey || SERVER_PROVIDED_KEY || '';
@@ -1757,8 +1838,9 @@
       localStorage.setItem(KEY_STORAGE_NAME, initialKey);
     }
 
-    if (keyFromUrl) {
+    if (keyFromUrl || pendingServerId) {
       params.delete('key');
+      params.delete('serverId');
       const nextQuery = params.toString();
       const nextUrl = window.location.pathname + (nextQuery ? '?' + nextQuery : '') + window.location.hash;
       window.history.replaceState({}, '', nextUrl);
@@ -1770,5 +1852,6 @@
     renderHighlightedContent();
     syncEditorScroll();
   </script>
+  <dialog id="diffDialog"><pre id="diffDialogContent" style="max-height:60vh;overflow:auto;white-space:pre-wrap"></pre><button id="diffDialogClose" type="button">Close</button></dialog>
 </body>
 </html>

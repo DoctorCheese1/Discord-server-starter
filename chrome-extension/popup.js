@@ -53,11 +53,12 @@ async function render(message = "") {
     return;
   }
 
-  meta.textContent = `${snapshot.hostname} • ${snapshot.count} cookies • captured ${snapshot.capturedAt}`;
+  meta.textContent = `${snapshot.sourceHost || snapshot.sourceUrl || "unknown host"} • ${snapshot.count} cookies • captured ${snapshot.capturedAt}`;
 
-  const entries = Object.entries(payload.entities);
+  const wanted = new Set(["xf_user", "xf_session", "xf_tfa_trust", "cf_clearance"]);
+  const entries = Object.entries(payload.entities).filter(([key]) => wanted.has(String(key).toLowerCase()));
   if (entries.length === 0) {
-    list.textContent = "No cookies captured for this page.";
+    list.textContent = "No xf_user / xf_session / xf_tfa_trust / cf_clearance cookies captured.";
     return;
   }
 

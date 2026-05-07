@@ -55,6 +55,17 @@ function isAuthorized(req, apiKey) {
   return fromQuery === apiKey || fromHeader === apiKey;
 }
 
+function isReadOnlyRequest(req) {
+  const readOnlyKeys = String(process.env.WEB_EDITOR_READ_ONLY_KEYS || '')
+    .split(',')
+    .map(v => v.trim())
+    .filter(Boolean);
+  if (!readOnlyKeys.length) return false;
+  const url = new URL(req.url, 'http://localhost');
+  const key = url.searchParams.get('key') || req.headers['x-api-key'] || '';
+  return readOnlyKeys.includes(String(key));
+}
+
 
 function isEditorShellRequest(req, pathname) {
   return req.method === 'GET' && pathname === '/';
@@ -498,6 +509,9 @@ export function startWebEditor() {
         }));
         return sendJson(res, 200, { servers });
       }
+      if (req.method === 'GET' && url.pathname === '/api/me') {
+        return sendJson(res, 200, { readOnly: isReadOnlyRequest(req) });
+      }
 
       if (req.method === 'POST' && url.pathname === '/api/plugins/download-link') {
         const raw = await readBody(req);
@@ -651,6 +665,7 @@ export function startWebEditor() {
       }
 
       if (req.method === 'POST' && url.pathname === '/api/file') {
+        if (isReadOnlyRequest(req)) return sendJson(res, 403, { error: 'Read-only key cannot modify files' });
         const raw = await readBody(req);
         const body = JSON.parse(raw || '{}');
 
@@ -674,6 +689,7 @@ export function startWebEditor() {
       }
 
       if (req.method === 'POST' && url.pathname === '/api/file/create') {
+        if (isReadOnlyRequest(req)) return sendJson(res, 403, { error: 'Read-only key cannot create files' });
         const raw = await readBody(req);
         const body = JSON.parse(raw || '{}');
         const serverConfig = findServer(body.serverId);
@@ -695,6 +711,7 @@ export function startWebEditor() {
       }
 
       if (req.method === 'POST' && url.pathname === '/api/folder/create') {
+        if (isReadOnlyRequest(req)) return sendJson(res, 403, { error: 'Read-only key cannot create folders' });
         const raw = await readBody(req);
         const body = JSON.parse(raw || '{}');
         const serverConfig = findServer(body.serverId);
@@ -710,6 +727,7 @@ export function startWebEditor() {
       }
 
       if (req.method === 'POST' && url.pathname === '/api/file/duplicate') {
+        if (isReadOnlyRequest(req)) return sendJson(res, 403, { error: 'Read-only key cannot duplicate files' });
         const raw = await readBody(req);
         const body = JSON.parse(raw || '{}');
         const serverConfig = findServer(body.serverId);
@@ -736,6 +754,7 @@ export function startWebEditor() {
       }
 
       if (req.method === 'POST' && url.pathname === '/api/path/duplicate') {
+        if (isReadOnlyRequest(req)) return sendJson(res, 403, { error: 'Read-only key cannot duplicate paths' });
         const raw = await readBody(req);
         const body = JSON.parse(raw || '{}');
         const serverConfig = findServer(body.serverId);
@@ -756,6 +775,7 @@ export function startWebEditor() {
       }
 
       if (req.method === 'POST' && url.pathname === '/api/path/rename') {
+        if (isReadOnlyRequest(req)) return sendJson(res, 403, { error: 'Read-only key cannot rename paths' });
         const raw = await readBody(req);
         const body = JSON.parse(raw || '{}');
         const serverConfig = findServer(body.serverId);
@@ -776,6 +796,7 @@ export function startWebEditor() {
       }
 
       if (req.method === 'POST' && url.pathname === '/api/path/delete') {
+        if (isReadOnlyRequest(req)) return sendJson(res, 403, { error: 'Read-only key cannot delete paths' });
         const raw = await readBody(req);
         const body = JSON.parse(raw || '{}');
         const serverConfig = findServer(body.serverId);
@@ -889,6 +910,7 @@ export function startWebEditor() {
       }
 
       if (req.method === 'POST' && url.pathname === '/api/upload') {
+        if (isReadOnlyRequest(req)) return sendJson(res, 403, { error: 'Read-only key cannot upload files' });
         const raw = await readBody(req);
         const body = JSON.parse(raw || '{}');
         const serverConfig = findServer(body.serverId);
