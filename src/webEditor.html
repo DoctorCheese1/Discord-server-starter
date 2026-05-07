@@ -61,7 +61,7 @@
     <input id="searchScope" placeholder="Folder scope (optional, e.g. plugins)" />
     <input id="fileSearch" placeholder="Web editor search files/folders..." />
     <button id="runSearchBtn" type="button">Search</button>
-    <button id="openEditorTabBtn" type="button">New Editor Tab</button>
+    <button id="openEditorTabBtn" type="button">New File Tab</button>
     <button id="exitEditorBtn" type="button">Exit Editor</button>
   </div>
   <div class="layout">
@@ -72,6 +72,7 @@
     <section class="editor-wrap">
       <div class="tabs">
         <button id="fileTab" class="tab active" type="button">No file open</button>
+        <div id="multiFileTabs" class="multi-file-tabs"></div>
         <button id="pluginsTab" class="tab" type="button">Plugins</button>
       </div>
       <section id="pluginsPanel" class="plugins-panel" hidden>
@@ -196,6 +197,7 @@
     const loadPopup = document.getElementById('loadPopup');
     const errorPopup = document.getElementById('errorPopup');
     const fileTab = document.getElementById('fileTab');
+    const multiFileTabs = document.getElementById('multiFileTabs');
     const pluginsTab = document.getElementById('pluginsTab');
     const pluginsPanel = document.getElementById('pluginsPanel');
     const pluginsSearchInput = document.getElementById('pluginsSearch');
@@ -251,6 +253,7 @@
     let emptyFolders = [];
     let editorPluginEntries = {};
     let currentFile = '';
+    let openFileTabs = [];
     let originalContent = '';
     let popupTimer;
     let loadPopupTimer;
@@ -562,6 +565,17 @@
       }
       const base = currentFile ? pathBase(currentFile) : 'No file open';
       fileTab.textContent = (currentFile && content.value !== originalContent) ? (base + ' *') : base;
+      renderOpenFileTabs();
+    }
+
+    function renderOpenFileTabs() {
+      if (!multiFileTabs) return;
+      multiFileTabs.innerHTML = openFileTabs.map(path => {
+        const safePath = esc(path);
+        const label = esc(pathBase(path));
+        const active = path === currentFile ? ' active' : '';
+        return `<button class="tab multi-file-tab${active}" data-open-file="${safePath}" title="${safePath}" type="button">${label}</button>`;
+      }).join('');
     }
 
     function parsePluginFromPath(filePath) {
@@ -1262,6 +1276,7 @@
         content.value = data.content;
         originalContent = data.content;
         currentFile = file;
+        if (file && !openFileTabs.includes(file)) openFileTabs.push(file);
         saveUiState({
           currentFile
         });
@@ -1367,12 +1382,13 @@
       runSmartSearch().catch(err => status.textContent = '❌ ' + err.message);
     };
     openEditorTabBtn.onclick = () => {
-      const params = new URLSearchParams(window.location.search);
-      if (serverSel.value) params.set('serverId', serverSel.value);
-      const key = keyInput.value.trim();
-      if (key) params.set('key', key);
-      const url = `${window.location.pathname}?${params.toString()}`;
-      window.open(url, '_blank', 'noopener,noreferrer');
+      if (!currentFile) {
+        status.textContent = '❌ Open a file first to create an in-page tab.';
+        return;
+      }
+      if (!openFileTabs.includes(currentFile)) openFileTabs.push(currentFile);
+      renderOpenFileTabs();
+      status.textContent = '✅ Added in-page tab for ' + pathBase(currentFile);
     };
     exitEditorBtn.onclick = () => {
       try { window.close(); } catch {}
@@ -1537,6 +1553,14 @@
     };
 
     fileTab.addEventListener('click', () => setActiveTopTab('file'));
+    multiFileTabs.addEventListener('click', e => {
+      const btn = e.target.closest('[data-open-file]');
+      if (!btn) return;
+      const path = btn.getAttribute('data-open-file');
+      if (!path || path === currentFile) return;
+      if (!confirmDiscardChanges('switch tabs')) return;
+      loadFile(path).catch(err => status.textContent = '❌ ' + err.message);
+    });
     pluginsTab.addEventListener('click', () => {
       if (!isPluginsTabEnabled()) return;
       renderPluginsPanel();
