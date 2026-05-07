@@ -77,29 +77,39 @@
         <div class="plugin-download-card">
           <div class="plugin-download-title">Plugin Download Link</div>
           <div class="plugin-download-controls">
-            <select id="pluginSource">
-              <option value="modrinth">Modrinth</option>
-              <option value="spigot">Spigot</option>
-            </select>
-            <select id="pluginPlatform">
-              <option value="paper">paper</option>
-              <option value="purpur">purpur</option>
-              <option value="folia">folia</option>
-              <option value="spigot">spigot</option>
-              <option value="bukkit">bukkit</option>
-              <option value="velocity">velocity</option>
-              <option value="waterfall">waterfall</option>
-              <option value="bungeecord">bungeecord</option>
-              <option value="sponge">sponge</option>
-              <option value="fabric">fabric</option>
-              <option value="quilt">quilt</option>
-              <option value="forge">forge</option>
-              <option value="neoforge">neoforge</option>
-            </select>
-            <div class="plugin-field-title">Minecraft Version</div>
-            <input id="pluginMcVersion" placeholder="Minecraft version (e.g. 1.21.1)" />
-            <div class="plugin-field-title">Plugin Identifier</div>
-            <input id="pluginQuery" placeholder="Plugin slug, resource ID, or URL" />
+            <div class="plugin-control-field">
+              <div class="plugin-field-title">Source</div>
+              <select id="pluginSource">
+                <option value="modrinth">Modrinth</option>
+                <option value="spigot">Spigot</option>
+              </select>
+            </div>
+            <div class="plugin-control-field">
+              <div class="plugin-field-title">Platform</div>
+              <select id="pluginPlatform">
+                <option value="paper">paper</option>
+                <option value="purpur">purpur</option>
+                <option value="folia">folia</option>
+                <option value="spigot">spigot</option>
+                <option value="bukkit">bukkit</option>
+                <option value="velocity">velocity</option>
+                <option value="waterfall">waterfall</option>
+                <option value="bungeecord">bungeecord</option>
+                <option value="sponge">sponge</option>
+                <option value="fabric">fabric</option>
+                <option value="quilt">quilt</option>
+                <option value="forge">forge</option>
+                <option value="neoforge">neoforge</option>
+              </select>
+            </div>
+            <div class="plugin-control-field">
+              <div class="plugin-field-title">Minecraft Version</div>
+              <input id="pluginMcVersion" placeholder="Minecraft version (e.g. 1.21.1)" />
+            </div>
+            <div class="plugin-control-field">
+              <div class="plugin-field-title">Plugin Identifier</div>
+              <input id="pluginQuery" placeholder="Plugin slug, resource ID, or URL" />
+            </div>
             <input id="spigotCookieHeader" type="hidden" value="" />
             <details class="plugin-cookie-details">
               <summary>Spigot Cookie Fields</summary>
