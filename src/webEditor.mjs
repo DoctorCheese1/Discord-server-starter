@@ -570,7 +570,7 @@ export function startWebEditor() {
           });
           return sendJson(res, 200, result);
         } catch (error) {
-          return sendJson(res, 400, { ok: false, message: error?.message || 'Unable to validate cookies' });
+          return sendJson(res, 200, { ok: false, message: error?.message || 'Unable to validate cookies' });
         }
       }
 
