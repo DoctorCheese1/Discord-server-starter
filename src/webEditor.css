@@ -85,7 +85,10 @@
     .tab { background: #2d2d2d; color: #bbbbbb; border: 1px solid #3a3a3a; border-bottom: none; border-radius: 6px 6px 0 0; padding: 9px 14px; font-style: italic; min-width: 120px; cursor: pointer; }
     .tab.active { background: #1e1e1e; color: #ffffff; }
     .multi-file-tabs { display: flex; gap: 4px; overflow-x: auto; min-width: 0; }
-    .multi-file-tab { min-width: 110px; max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .multi-file-tab { min-width: 110px; max-width: 180px; display: inline-flex; align-items: center; gap: 8px; }
+    .multi-file-tab .tab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .multi-file-tab .tab-close { font-weight: 700; opacity: .7; cursor: pointer; line-height: 1; }
+    .multi-file-tab .tab-close:hover { opacity: 1; color: #fff; }
     .plugins-panel { display: none; flex: 1; min-height: 0; overflow: hidden; padding: 12px; background: #1e1e1e; }
     .editor-wrap.plugins-mode .plugins-panel { display: flex; flex-direction: column; }
     .editor-wrap.plugins-mode .editor-grid,

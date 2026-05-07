@@ -71,7 +71,7 @@
     </aside>
     <section class="editor-wrap">
       <div class="tabs">
-        <button id="fileTab" class="tab active" type="button">No file open</button>
+        <button id="fileTab" class="tab active" type="button">Editor</button>
         <div id="multiFileTabs" class="multi-file-tabs"></div>
         <button id="pluginsTab" class="tab" type="button">Plugins</button>
       </div>
@@ -563,8 +563,7 @@
       for (const row of tree.querySelectorAll('.tree-row.file')) {
         row.classList.toggle('active', row.dataset.path === currentFile);
       }
-      const base = currentFile ? pathBase(currentFile) : 'No file open';
-      fileTab.textContent = (currentFile && content.value !== originalContent) ? (base + ' *') : base;
+      fileTab.textContent = 'Editor';
       renderOpenFileTabs();
     }
 
@@ -574,7 +573,7 @@
         const safePath = escapeHtml(path);
         const label = escapeHtml(pathBase(path));
         const active = path === currentFile ? ' active' : '';
-        return `<button class="tab multi-file-tab${active}" data-open-file="${safePath}" title="${safePath}" type="button">${label}</button>`;
+        return `<button class="tab multi-file-tab${active}" data-open-file="${safePath}" title="${safePath}" type="button"><span class="tab-label">${label}</span><span class="tab-close" data-close-file="${safePath}" title="Close tab">×</span></button>`;
       }).join('');
     }
 
@@ -1554,6 +1553,29 @@
 
     fileTab.addEventListener('click', () => setActiveTopTab('file'));
     multiFileTabs.addEventListener('click', e => {
+      const closeBtn = e.target.closest('[data-close-file]');
+      if (closeBtn) {
+        const closingPath = closeBtn.getAttribute('data-close-file');
+        if (!closingPath) return;
+        if (closingPath === currentFile && hasUnsavedChanges() && !confirmDiscardChanges('close this tab')) return;
+        openFileTabs = openFileTabs.filter(path => path !== closingPath);
+        if (closingPath === currentFile) {
+          const nextPath = openFileTabs[openFileTabs.length - 1] || '';
+          if (nextPath) {
+            loadFile(nextPath).catch(err => status.textContent = '❌ ' + err.message);
+          } else {
+            currentFile = '';
+            originalContent = '';
+            content.value = '';
+            updateLineNumbers();
+            renderHighlightedContent();
+            markActiveFile();
+          }
+        } else {
+          renderOpenFileTabs();
+        }
+        return;
+      }
       const btn = e.target.closest('[data-open-file]');
       if (!btn) return;
       const path = btn.getAttribute('data-open-file');
