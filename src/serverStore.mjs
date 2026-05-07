@@ -159,7 +159,7 @@ function syncServersFolder(raw) {
       enabled: true,
       cwd,
       steam: type === 'steam',
-      java: type === 'minecraft'
+      java: type === 'minecraft' || type === 'proxy'
     });
 
     usedIds.add(id);
@@ -183,7 +183,7 @@ function normalizeServer(s) {
     cwd: s.cwd,
 
     steam: s.steam === true || s.type === 'steam',
-    java: s.java === true,
+    java: s.java === true || s.type === 'minecraft' || s.type === 'proxy',
     group: typeof s.group === 'string' ? s.group : '',
     processName: s.processName,
 

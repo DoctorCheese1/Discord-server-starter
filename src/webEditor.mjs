@@ -491,7 +491,10 @@ export function startWebEditor() {
         const servers = loadServers({ includeDisabled: true }).map(s => ({
           id: s.id,
           name: s.name,
-          cwd: s.cwd
+          cwd: s.cwd,
+          type: s.type,
+          java: s.java === true,
+          hasPluginsDir: fs.existsSync(path.resolve(s.cwd, 'plugins'))
         }));
         return sendJson(res, 200, { servers });
       }
