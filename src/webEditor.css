@@ -309,4 +309,5 @@
 .plugin-field-title { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
 .plugin-cookie-details { grid-column: 1 / -1; border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; }
 .plugin-cookie-details > summary { cursor: pointer; color: var(--text-dim); font-size: 12px; }
-.plugin-cookie-fields { margin-top: 8px; display: grid; gap: 6px; }
+.plugin-cookie-fields { margin-top: 8px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: start; }
+.plugin-cookie-field { display: grid; gap: 6px; }
