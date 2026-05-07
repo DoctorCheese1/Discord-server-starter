@@ -96,14 +96,21 @@
               <option value="forge">forge</option>
               <option value="neoforge">neoforge</option>
             </select>
+            <div class="plugin-field-title">Minecraft Version</div>
             <input id="pluginMcVersion" placeholder="Minecraft version (e.g. 1.21.1)" />
+            <div class="plugin-field-title">Plugin Identifier</div>
             <input id="pluginQuery" placeholder="Plugin slug, resource ID, or URL" />
             <input id="spigotCookieHeader" type="hidden" value="" />
-            <input id="spigotXfUser" type="password" autocomplete="off" placeholder="Spigot xf_user (optional)" />
-            <input id="spigotXfSession" type="password" autocomplete="off" placeholder="Spigot xf_session (optional)" />
-            <input id="spigotXfTfaTrust" type="password" autocomplete="off" placeholder="Spigot xf_tfa_trust (optional)" />
+            <details class="plugin-cookie-details">
+              <summary>Spigot Cookie Fields</summary>
+              <div class="plugin-cookie-fields">
+                <div class="plugin-cookie-field"><div class="plugin-field-title">xf_user</div><input id="spigotXfUser" type="password" autocomplete="off" placeholder="Spigot xf_user (optional)" /></div>
+                <div class="plugin-cookie-field"><div class="plugin-field-title">xf_session</div><input id="spigotXfSession" type="password" autocomplete="off" placeholder="Spigot xf_session (optional)" /></div>
+                <div class="plugin-cookie-field"><div class="plugin-field-title">xf_tfa_trust</div><input id="spigotXfTfaTrust" type="password" autocomplete="off" placeholder="Spigot xf_tfa_trust (optional)" /></div>
+              </div>
+              <div id="spigotCookieHints" class="plugin-cookie-hints">Cookie hints: waiting for input.</div>
+            </details>
             <input id="spigotCfClearance" type="hidden" value="" />
-            <div id="spigotCookieHints" class="plugin-cookie-hints">Cookie hints: waiting for input.</div>
             <button id="pluginResolveBtn" type="button">Get Link</button>
             <button id="pluginInstallBtn" type="button">Install to /plugins</button>
           </div>
@@ -332,10 +339,7 @@
       hints.push(hasXfUser && hasXfSession ? 'Session cookies detected.' : 'Missing xf_user or xf_session.');
       if (hasTfa) hints.push('xf_tfa_trust present.');
       if (cfAge === null) {
-        hints.push(cfValue ? 'cf_clearance found (age unknown).' : 'cf_clearance missing.');
       } else {
-        hints.push(`cf_clearance age: ${cfAge}m.`);
-        if (cfAge > 30) hints.push('cf_clearance may be stale.');
       }
       spigotCookieHints.textContent = `Cookie hints: ${hints.join(' ')}`;
     }
@@ -1855,3 +1859,4 @@
   <dialog id="diffDialog"><pre id="diffDialogContent" style="max-height:60vh;overflow:auto;white-space:pre-wrap"></pre><button id="diffDialogClose" type="button">Close</button></dialog>
 </body>
 </html>
+
