@@ -96,14 +96,24 @@
               <option value="forge">forge</option>
               <option value="neoforge">neoforge</option>
             </select>
+            <div class="plugin-field-title">Minecraft Version</div>
             <input id="pluginMcVersion" placeholder="Minecraft version (e.g. 1.21.1)" />
+            <div class="plugin-field-title">Plugin Identifier</div>
             <input id="pluginQuery" placeholder="Plugin slug, resource ID, or URL" />
             <input id="spigotCookieHeader" type="hidden" value="" />
-            <input id="spigotXfUser" type="password" autocomplete="off" placeholder="Spigot xf_user (optional)" />
-            <input id="spigotXfSession" type="password" autocomplete="off" placeholder="Spigot xf_session (optional)" />
-            <input id="spigotXfTfaTrust" type="password" autocomplete="off" placeholder="Spigot xf_tfa_trust (optional)" />
+            <details class="plugin-cookie-details">
+              <summary>Spigot Cookie Fields (xf_*)</summary>
+              <div class="plugin-cookie-fields">
+                <div class="plugin-field-title">xf_user</div>
+                <input id="spigotXfUser" type="password" autocomplete="off" placeholder="Spigot xf_user (optional)" />
+                <div class="plugin-field-title">xf_session</div>
+                <input id="spigotXfSession" type="password" autocomplete="off" placeholder="Spigot xf_session (optional)" />
+                <div class="plugin-field-title">xf_tfa_trust</div>
+                <input id="spigotXfTfaTrust" type="password" autocomplete="off" placeholder="Spigot xf_tfa_trust (optional)" />
+                <div id="spigotCookieHints" class="plugin-cookie-hints">Cookie hints: waiting for input.</div>
+              </div>
+            </details>
             <input id="spigotCfClearance" type="hidden" value="" />
-            <div id="spigotCookieHints" class="plugin-cookie-hints">Cookie hints: waiting for input.</div>
             <button id="pluginResolveBtn" type="button">Get Link</button>
             <button id="pluginInstallBtn" type="button">Install to /plugins</button>
           </div>
@@ -1855,3 +1865,4 @@
   <dialog id="diffDialog"><pre id="diffDialogContent" style="max-height:60vh;overflow:auto;white-space:pre-wrap"></pre><button id="diffDialogClose" type="button">Close</button></dialog>
 </body>
 </html>
+
