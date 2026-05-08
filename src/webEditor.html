@@ -1255,9 +1255,7 @@
         const elapsedMs = Math.round(performance.now() - started);
         showLoadPopup('📁 ' + serverLabel + ': ' + allFiles.length + ' files loaded in ' + elapsedMs + 'ms');
 
-        if (restored.currentFile && allFiles.some(file => file.path === restored.currentFile && file.editable)) {
-          await loadFile(restored.currentFile);
-        }
+        // Do not auto-open previously selected file on server load.
       } catch (err) {
         if (requestId !== activeFilesRequestId) return;
         renderPluginsPanel();
