@@ -566,6 +566,10 @@
 
     function renderOpenFileTabs() {
       if (!multiFileTabs) return;
+      if (openFileTabs.length === 0) {
+        multiFileTabs.innerHTML = '<button class="tab multi-file-tab active" type="button" data-empty-tab="true"><span class="tab-label">No file open</span></button>';
+        return;
+      }
       multiFileTabs.innerHTML = openFileTabs.map(path => {
         const safePath = escapeHtml(path);
         const unsavedMark = (path === currentFile && content.value !== originalContent) ? ' *' : '';
@@ -1934,6 +1938,7 @@
       window.history.replaceState({}, '', nextUrl);
     }
 
+    renderOpenFileTabs();
     loadServers().catch(err => status.textContent = '❌ ' + err.message);
     renderPluginsPanel();
     updateLineNumbers();
