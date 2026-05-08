@@ -61,6 +61,8 @@
     <input id="searchScope" placeholder="Folder scope (optional, e.g. plugins)" />
     <input id="fileSearch" placeholder="Web editor search files/folders..." />
     <button id="runSearchBtn" type="button">Search</button>
+    <button id="openEditorTabBtn" type="button">New File Tab</button>
+    <button id="exitEditorBtn" type="button">Exit Editor</button>
   </div>
   <div class="layout">
     <aside class="sidebar">
@@ -184,6 +186,8 @@
     const keyInput = document.getElementById('key');
     const fileSearchInput = document.getElementById('fileSearch');
     const runSearchBtn = document.getElementById('runSearchBtn');
+    const openEditorTabBtn = document.getElementById('openEditorTabBtn');
+    const exitEditorBtn = document.getElementById('exitEditorBtn');
     const searchModeInput = document.getElementById('searchMode');
     const searchScopeInput = document.getElementById('searchScope');
     const uploadSingleInput = document.getElementById('uploadSingleInput');
@@ -1382,6 +1386,19 @@
     runSearchBtn.onclick = () => {
       runSmartSearch().catch(err => status.textContent = '❌ ' + err.message);
     };
+    openEditorTabBtn.onclick = () => {
+      if (!currentFile) {
+        status.textContent = '❌ Open a file first to create an in-page tab.';
+        return;
+      }
+      if (!openFileTabs.includes(currentFile)) openFileTabs.push(currentFile);
+      renderOpenFileTabs();
+      status.textContent = '✅ Added in-page tab for ' + pathBase(currentFile);
+    };
+    exitEditorBtn.onclick = () => {
+      try { window.close(); } catch {}
+      setTimeout(() => { window.location.href = 'about:blank'; }, 120);
+    };
     searchModeInput.onchange = () => scheduleSearch();
     searchScopeInput.oninput = () => scheduleSearch();
     editorFindNext.onclick = () => findInEditor(1);
@@ -1941,3 +1958,4 @@
   <dialog id="diffDialog"><pre id="diffDialogContent" style="max-height:60vh;overflow:auto;white-space:pre-wrap"></pre><button id="diffDialogClose" type="button">Close</button></dialog>
 </body>
 </html>
+
