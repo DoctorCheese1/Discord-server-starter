@@ -71,7 +71,6 @@
     </aside>
     <section class="editor-wrap">
       <div class="tabs">
-        <button id="fileTab" class="tab active" type="button">Editor</button>
         <div id="multiFileTabs" class="multi-file-tabs"></div>
         <button id="pluginsTab" class="tab" type="button">Plugins</button>
       </div>
@@ -196,7 +195,6 @@
     const savePopup = document.getElementById('savePopup');
     const loadPopup = document.getElementById('loadPopup');
     const errorPopup = document.getElementById('errorPopup');
-    const fileTab = document.getElementById('fileTab');
     const multiFileTabs = document.getElementById('multiFileTabs');
     const pluginsTab = document.getElementById('pluginsTab');
     const pluginsPanel = document.getElementById('pluginsPanel');
@@ -563,7 +561,6 @@
       for (const row of tree.querySelectorAll('.tree-row.file')) {
         row.classList.toggle('active', row.dataset.path === currentFile);
       }
-      fileTab.textContent = 'Editor';
       renderOpenFileTabs();
     }
 
@@ -571,7 +568,8 @@
       if (!multiFileTabs) return;
       multiFileTabs.innerHTML = openFileTabs.map(path => {
         const safePath = escapeHtml(path);
-        const label = escapeHtml(pathBase(path));
+        const unsavedMark = (path === currentFile && content.value !== originalContent) ? ' *' : '';
+        const label = escapeHtml(pathBase(path) + unsavedMark);
         const active = path === currentFile ? ' active' : '';
         return `<button class="tab multi-file-tab${active}" data-open-file="${safePath}" title="${safePath}" type="button"><span class="tab-label">${label}</span><span class="tab-close" data-close-file="${safePath}" title="Close tab">×</span></button>`;
       }).join('');
@@ -673,7 +671,6 @@
       activeTopTab = wantsPlugins && isPluginsTabEnabled() ? 'plugins' : 'file';
       updatePluginsTabState();
       const showPlugins = activeTopTab === 'plugins';
-      fileTab.classList.toggle('active', !showPlugins);
       pluginsTab.classList.toggle('active', showPlugins);
       editorWrap.classList.toggle('plugins-mode', showPlugins);
       pluginsPanel.hidden = !showPlugins;
@@ -1551,7 +1548,6 @@
       downloadFolderByPath().catch(err => status.textContent = '❌ ' + err.message);
     };
 
-    fileTab.addEventListener('click', () => setActiveTopTab('file'));
     multiFileTabs.addEventListener('click', e => {
       const closeBtn = e.target.closest('[data-close-file]');
       if (closeBtn) {
