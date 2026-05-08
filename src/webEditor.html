@@ -676,6 +676,13 @@
       updatePluginsTabState();
       const showPlugins = activeTopTab === 'plugins';
       pluginsTab.classList.toggle('active', showPlugins);
+      if (showPlugins) {
+        for (const tabEl of multiFileTabs.querySelectorAll('.multi-file-tab')) {
+          tabEl.classList.remove('active');
+        }
+      } else {
+        renderOpenFileTabs();
+      }
       editorWrap.classList.toggle('plugins-mode', showPlugins);
       pluginsPanel.hidden = !showPlugins;
       pathActionBar.hidden = showPlugins || pathActionBar.hidden;
