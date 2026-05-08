@@ -657,14 +657,14 @@
     }
 
     function isPluginsTabEnabled() {
-      return (selectedServerType === 'minecraft' || selectedServerIsJava) && selectedServerHasPluginsDir;
+      return selectedServerHasPluginsDir;
     }
 
     function updatePluginsTabState() {
       const enabled = isPluginsTabEnabled();
       pluginsTab.disabled = !enabled;
       pluginsTab.hidden = !enabled;
-      pluginsTab.title = enabled ? 'Plugin Manager' : 'Plugin Manager is only available for servers with Java/Minecraft type and a plugins folder.';
+      pluginsTab.title = enabled ? 'Plugin Manager' : 'Plugin Manager is only available for servers with a plugins folder.';
       if (!enabled && activeTopTab === 'plugins') {
         activeTopTab = 'file';
       }
@@ -1230,9 +1230,12 @@
       serverSel.disabled = true;
 
       try {
+        const pluginStateRequest = selectedServerHasPluginsDir
+          ? fetchJson('/api/plugins/editor-state?serverId=' + encodeURIComponent(id)).catch(() => ({ entries: {} }))
+          : Promise.resolve({ entries: {} });
         const [data, pluginState] = await Promise.all([
           fetchJson('/api/files?serverId=' + encodeURIComponent(id)),
-          fetchJson('/api/plugins/editor-state?serverId=' + encodeURIComponent(id)).catch(() => ({ entries: {} }))
+          pluginStateRequest
         ]);
         if (requestId !== activeFilesRequestId) return;
 
