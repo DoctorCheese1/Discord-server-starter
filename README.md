@@ -310,6 +310,25 @@ When enabled, only `/idrac` commands are registered and startup skips server, St
 ---
 
 
+## Chrome Extension (Local / Unpacked)
+
+The extension in `chrome-extension/` is meant to be loaded directly from this repository as an **unpacked extension**.
+
+It is **not automatically hosted/published on the Google Chrome Web Store**.
+
+It is intended as a **Spigot premium plugins helper** to capture/use your own session cookies (`xf_user`, `xf_session`, optional `xf_tfa_trust`) so premium plugin download/install flows can authenticate with your account.
+
+### Load it manually in Chrome
+
+1. Open `chrome://extensions/`
+2. Enable **Developer mode**
+3. Click **Load unpacked**
+4. Choose the `chrome-extension/` folder from this repo
+
+After making local changes to extension files, click **Reload** on the extension card in `chrome://extensions/`.
+
+---
+
 ## Web File Editor (Optional)
 
 You can run a built-in browser editor to change text-based game/server files without building a separate website.
