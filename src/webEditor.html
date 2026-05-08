@@ -1551,6 +1551,11 @@
     };
 
     multiFileTabs.addEventListener('click', e => {
+      const emptyTab = e.target.closest('[data-empty-tab]');
+      if (emptyTab) {
+        setActiveTopTab('file');
+        return;
+      }
       const closeBtn = e.target.closest('[data-close-file]');
       if (closeBtn) {
         const closingPath = closeBtn.getAttribute('data-close-file');
