@@ -1645,6 +1645,7 @@
         try {
           actionButton.disabled = true;
           const currentVersion = String(metadata.version || '').trim();
+          const currentVersionId = String(metadata.versionId || '').trim();
           pluginDownloadStatus.textContent = '⏳ Checking for plugin updates...';
           const downloadMeta = await postJson('/api/plugins/download-link', {
             source,
@@ -1654,8 +1655,11 @@
             ...getSpigotAuthPayload()
           });
           const latestVersion = getPluginVersionLabel(downloadMeta);
-          if (currentVersion && latestVersion && normalizeVersionForCompare(currentVersion) === normalizeVersionForCompare(latestVersion)) {
-            pluginDownloadStatus.textContent = 'ℹ️ ' + (downloadMeta.plugin || query) + ' is already up to date (' + latestVersion + ').';
+          const latestVersionId = String(downloadMeta.versionId || '').trim();
+          const sameByVersionId = currentVersionId && latestVersionId && currentVersionId === latestVersionId;
+          const sameByLabel = currentVersion && latestVersion && normalizeVersionForCompare(currentVersion) === normalizeVersionForCompare(latestVersion);
+          if (sameByVersionId || sameByLabel) {
+            pluginDownloadStatus.textContent = 'ℹ️ ' + (downloadMeta.plugin || query) + ' is already up to date (' + (latestVersion || currentVersion) + ').';
             return;
           }
 

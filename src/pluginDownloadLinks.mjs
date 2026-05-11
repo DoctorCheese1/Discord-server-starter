@@ -117,6 +117,7 @@ async function resolveModrinthPlugin({ query, mcVersion, platform }) {
     projectId: project.id,
     projectSlug: project.slug || '',
     url: file.url,
+    versionId: String(selected.id || '').trim(),
     versionNumber: selected.version_number || 'unknown',
     minecraftVersion: (selected.game_versions || [mcVersion]).find(Boolean) || 'unknown',
     loader: (selected.loaders || [platform]).find(Boolean) || platform,
