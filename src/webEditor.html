@@ -567,14 +567,14 @@
     function renderOpenFileTabs() {
       if (!multiFileTabs) return;
       if (openFileTabs.length === 0) {
-        multiFileTabs.innerHTML = '<button class="tab multi-file-tab active" type="button" data-empty-tab="true"><span class="tab-label">No file open</span></button>';
+        multiFileTabs.innerHTML = '<button class="tab multi-file-tab' + (activeTopTab === 'file' ? ' active' : '') + '" type="button" data-empty-tab="true"><span class="tab-label">No file open</span></button>';
         return;
       }
       multiFileTabs.innerHTML = openFileTabs.map(path => {
         const safePath = escapeHtml(path);
         const unsavedMark = (path === currentFile && content.value !== originalContent) ? ' *' : '';
         const label = escapeHtml(pathBase(path) + unsavedMark);
-        const active = path === currentFile ? ' active' : '';
+        const active = (activeTopTab === 'file' && path === currentFile) ? ' active' : '';
         return `<button class="tab multi-file-tab${active}" data-open-file="${safePath}" title="${safePath}" type="button"><span class="tab-label">${label}</span><span class="tab-close" data-close-file="${safePath}" title="Close tab">×</span></button>`;
       }).join('');
     }
@@ -700,6 +700,16 @@
 
     function getPluginVersionLabel(data) {
       return String(data?.versionNumber || data?.minecraftVersion || data?.version || '').trim();
+    }
+
+
+    function normalizeVersionForCompare(value) {
+      return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^v(?=\d)/, '')
+        .replace(/\s+/g, '')
+        .replace(/[_-]+/g, '.');
     }
 
     function hasUnsavedChanges() {
@@ -1644,7 +1654,7 @@
             ...getSpigotAuthPayload()
           });
           const latestVersion = getPluginVersionLabel(downloadMeta);
-          if (currentVersion && latestVersion && currentVersion === latestVersion) {
+          if (currentVersion && latestVersion && normalizeVersionForCompare(currentVersion) === normalizeVersionForCompare(latestVersion)) {
             pluginDownloadStatus.textContent = 'ℹ️ ' + (downloadMeta.plugin || query) + ' is already up to date (' + latestVersion + ').';
             return;
           }
