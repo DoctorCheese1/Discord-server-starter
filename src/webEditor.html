@@ -698,6 +698,10 @@
       return parts[parts.length - 1];
     }
 
+    function getPluginVersionLabel(data) {
+      return String(data?.versionNumber || data?.minecraftVersion || data?.version || '').trim();
+    }
+
     function hasUnsavedChanges() {
       return Boolean(currentFile) && content.value !== originalContent;
     }
@@ -1564,6 +1568,7 @@
       const emptyTab = e.target.closest('[data-empty-tab]');
       if (emptyTab) {
         setActiveTopTab('file');
+        emptyTab.blur();
         return;
       }
       const closeBtn = e.target.closest('[data-close-file]');
@@ -1591,6 +1596,7 @@
       }
       const btn = e.target.closest('[data-open-file]');
       if (!btn) return;
+      btn.blur();
       const path = btn.getAttribute('data-open-file');
       if (!path || path === currentFile) return;
       if (!confirmDiscardChanges('switch tabs')) return;
@@ -1600,6 +1606,7 @@
       if (!isPluginsTabEnabled()) return;
       renderPluginsPanel();
       setActiveTopTab('plugins');
+      pluginsTab.blur();
     });
     pluginsSearchInput.addEventListener('input', () => {
       pluginSearchFilter = pluginsSearchInput.value || '';
@@ -1627,6 +1634,21 @@
         }
         try {
           actionButton.disabled = true;
+          const currentVersion = String(metadata.version || '').trim();
+          pluginDownloadStatus.textContent = '⏳ Checking for plugin updates...';
+          const downloadMeta = await postJson('/api/plugins/download-link', {
+            source,
+            query,
+            platform: pluginPlatform.value,
+            mcVersion: pluginMcVersion.value.trim(),
+            ...getSpigotAuthPayload()
+          });
+          const latestVersion = getPluginVersionLabel(downloadMeta);
+          if (currentVersion && latestVersion && currentVersion === latestVersion) {
+            pluginDownloadStatus.textContent = 'ℹ️ ' + (downloadMeta.plugin || query) + ' is already up to date (' + latestVersion + ').';
+            return;
+          }
+
           pluginDownloadStatus.textContent = '⏳ Updating plugin...';
           const response = await postJson('/api/plugins/install', {
             serverId,
@@ -1636,10 +1658,9 @@
             mcVersion: pluginMcVersion.value.trim(),
             ...getSpigotAuthPayload()
           });
-          pluginDownloadStatus.textContent = '✅ Updated ' + (response.plugin || query) + (response.version ? ' (' + response.version + ')' : '');
+          const updatedVersion = getPluginVersionLabel(response);
+          pluginDownloadStatus.textContent = '✅ Updated ' + (response.plugin || query) + (updatedVersion ? ' (' + updatedVersion + ')' : '');
           await loadFiles();
-          renderPluginsPanel();
-          setActiveTopTab('plugins');
         } catch (err) {
           pluginDownloadStatus.textContent = '❌ ' + err.message;
         } finally {
