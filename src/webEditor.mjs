@@ -641,6 +641,7 @@ export function startWebEditor() {
             projectSlug: String(result.projectSlug || '').trim(),
             query: String(query || '').trim(),
             plugin: String(pluginLabel || '').trim(),
+            versionId: String(result.versionId || result.versionNumber || result.minecraftVersion || '').trim(),
             version: String(result.versionNumber || result.minecraftVersion || 'latest').trim(),
             installedAt: new Date().toISOString()
           };
@@ -655,6 +656,7 @@ export function startWebEditor() {
             path: relPath,
             plugin: pluginLabel,
             source: result.source || source,
+            versionId: result.versionId || result.versionNumber || result.minecraftVersion || '',
             version: result.versionNumber || result.minecraftVersion || 'latest',
             replaced: removed
           });
