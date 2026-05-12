@@ -679,7 +679,43 @@
       const q = String(query || '').trim();
       if (q.length < 2) return [];
 
-      const [modrinthItems, spigotItems] = await Promise.all([
+      const looksLikeSpigotId = /^\d+$/.test(q);
+      const looksLikeModrinthId = /^[A-Za-z0-9_-]{6,16}$/.test(q) || q.includes('modrinth.com/');
+
+      const [modrinthDirect, spigotDirect, modrinthItems, spigotItems] = await Promise.all([
+        (async () => {
+          if (!looksLikeModrinthId) return null;
+          try {
+            const ref = q.includes('modrinth.com/') ? (q.match(/modrinth\.com\/(?:plugin|project)\/([^/?#]+)/i)?.[1] || q) : q;
+            const response = await fetch(`https://api.modrinth.com/v2/project/${encodeURIComponent(ref)}`, { headers: { Accept: 'application/json' } });
+            if (!response.ok) return null;
+            const hit = await response.json();
+            return {
+              source: 'modrinth',
+              value: hit.slug || hit.id || ref,
+              label: hit.title || hit.slug || hit.id || ref,
+              image: hit.icon_url || ''
+            };
+          } catch {
+            return null;
+          }
+        })(),
+        (async () => {
+          if (!looksLikeSpigotId) return null;
+          try {
+            const response = await fetch(`https://api.spiget.org/v2/resources/${encodeURIComponent(q)}`, { headers: { Accept: 'application/json' } });
+            if (!response.ok) return null;
+            const hit = await response.json();
+            return {
+              source: 'spigot',
+              value: String(hit?.id || q).trim(),
+              label: hit?.name || String(hit?.id || q).trim(),
+              image: ''
+            };
+          } catch {
+            return null;
+          }
+        })(),
         (async () => {
           try {
             const url = new URL('https://api.modrinth.com/v2/search');
@@ -719,7 +755,14 @@
         })()
       ]);
 
-      return [...modrinthItems, ...spigotItems];
+      const merged = [modrinthDirect, spigotDirect, ...modrinthItems, ...spigotItems].filter(Boolean);
+      const seen = new Set();
+      return merged.filter(item => {
+        const key = `${item.source}:${item.value}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
     }
 
     function renderPluginSuggestions(items) {
