@@ -114,6 +114,7 @@
     .plugin-cookie-hints { grid-column: 1 / -1; font-size: 11px; color: #8b8f99; margin-top: -2px; }
 
     .plugin-query-suggestions { position: absolute; top: calc(100% + 4px); left: 0; right: 0; display: grid; gap: 6px; max-height: 220px; overflow: auto; border: 1px solid #313846; border-radius: 6px; padding: 6px; background: #1a1d23; z-index: 30; box-shadow: 0 8px 18px rgba(0,0,0,.35); }
+    .plugin-query-suggestions[hidden] { display: none !important; }
     .plugin-suggestion-item { display: flex; gap: 8px; align-items: center; text-align: left; border: 1px solid #303744; background: #222933; color: #d4d4d4; border-radius: 6px; padding: 6px; cursor: pointer; }
     .plugin-suggestion-item:hover { border-color: #0f5f92; background: #203246; }
     .plugin-suggestion-image { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; background: #11161f; overflow: hidden; }

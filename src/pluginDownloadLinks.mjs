@@ -122,6 +122,7 @@ async function resolveModrinthPlugin({ query, mcVersion, platform }) {
     minecraftVersion: (selected.game_versions || [mcVersion]).find(Boolean) || 'unknown',
     loader: (selected.loaders || [platform]).find(Boolean) || platform,
     loaders: Array.isArray(selected.loaders) ? selected.loaders : [],
+    projectUrl: project.slug ? `https://modrinth.com/plugin/${project.slug}` : (project.id ? `https://modrinth.com/project/${project.id}` : ''),
     note: 'Result chosen from Modrinth plugin releases.'
   };
 }
