@@ -117,7 +117,7 @@ async function resolveModrinthPlugin({ query, mcVersion, platform }) {
     projectId: project.id,
     projectSlug: project.slug || '',
     url: file.url,
-    versionId: String(selected.id || '').trim(),
+    versionId: String(selected.id || selected.version_number || '').trim(),
     versionNumber: selected.version_number || 'unknown',
     minecraftVersion: (selected.game_versions || [mcVersion]).find(Boolean) || 'unknown',
     loader: (selected.loaders || [platform]).find(Boolean) || platform,
@@ -135,6 +135,7 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
   const details = await fetchJson(`https://api.spiget.org/v2/resources/${resourceId}`);
   const latestVersion = await fetchJson(`https://api.spiget.org/v2/resources/${resourceId}/versions/latest`).catch(() => null);
   const latestVersionLabel = String(latestVersion?.name || latestVersion?.id || 'latest').trim() || 'latest';
+  const latestVersionId = String(latestVersion?.id || latestVersion?.name || '').trim();
   const premium = Boolean(details.premium);
   const external = Boolean(details.external);
   const resourceUrl = `https://www.spigotmc.org/resources/${resourceId}/`;
@@ -146,6 +147,7 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
       projectSlug: '',
       url: details?.file?.url ? `https://www.spigotmc.org/${String(details.file.url).replace(/^\/+/, '')}` : `${resourceUrl}download`,
       resourceUrl,
+      versionId: latestVersionId,
       versionNumber: latestVersionLabel,
       minecraftVersion: mcVersion || 'latest supported',
       loader: 'spigot',
@@ -163,6 +165,7 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
     projectSlug: '',
     url: downloadUrl,
     resourceUrl,
+    versionId: latestVersionId,
     versionNumber: latestVersionLabel,
     minecraftVersion: mcVersion || 'latest supported',
     loader: 'spigot',
