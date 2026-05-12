@@ -795,7 +795,7 @@
       list.innerHTML = items.map((item, idx) =>
         `<button type="button" class="plugin-suggestion-item" data-source="${escapeHtml(item.source)}" data-value="${escapeHtml(item.value)}">` +
           `<span class="plugin-suggestion-image">${item.image ? `<img src="${escapeHtml(item.image)}" alt="" />` : '🧩'}</span>` +
-          `<span class="plugin-suggestion-meta"><span class="plugin-suggestion-name">${escapeHtml(item.label)}</span><span class="plugin-suggestion-source">${escapeHtml(item.source)} • ID ${escapeHtml(item.projectId || item.value || '')}${toDisplaySuggestionVersion(item.updateVersion) ? ' • v' + escapeHtml(toDisplaySuggestionVersion(item.updateVersion)) : ''}</span></span>` +
+          `<span class="plugin-suggestion-meta"><span class="plugin-suggestion-name">${escapeHtml(item.label)}</span><span class="plugin-suggestion-source">${escapeHtml(item.source)} • ${escapeHtml(item.projectId || item.value || '')}${toDisplaySuggestionVersion(item.updateVersion) ? ' • v' + escapeHtml(toDisplaySuggestionVersion(item.updateVersion)) : ''}</span></span>` +
         `</button>`
       ).join('');
     }
