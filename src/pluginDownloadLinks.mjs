@@ -37,6 +37,24 @@ function modrinthLoaderCandidates(platform) {
   return [...new Set([selected, ...preferred, ...ecosystem])];
 }
 
+
+function parseModrinthProjectRef(input) {
+  const raw = String(input || '').trim();
+  if (!raw) return '';
+  const directMatch = raw.match(/modrinth\.com\/(?:plugin|project)\/([^/?#]+)/i);
+  return (directMatch?.[1] || raw).trim();
+}
+
+async function fetchModrinthProject(ref) {
+  const projectRef = parseModrinthProjectRef(ref);
+  if (!projectRef) return null;
+  try {
+    return await fetchJson(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectRef)}`);
+  } catch {
+    return null;
+  }
+}
+
 function chooseModrinthVersion(versions, mcVersion, platform) {
   const candidates = Array.isArray(versions) ? versions : [];
   const loaders = modrinthLoaderCandidates(platform);
@@ -62,18 +80,23 @@ function chooseModrinthVersion(versions, mcVersion, platform) {
 }
 
 async function resolveModrinthPlugin({ query, mcVersion, platform }) {
-  const searchUrl = new URL('https://api.modrinth.com/v2/search');
-  searchUrl.searchParams.set('query', query);
-  searchUrl.searchParams.set('limit', '10');
-  searchUrl.searchParams.set('index', 'relevance');
-  searchUrl.searchParams.set('facets', JSON.stringify([['project_type:plugin']]));
-  const search = await fetchJson(searchUrl.toString());
-  const hit = (search.hits || [])[0];
-  if (!hit?.project_id) {
-    throw new Error(`No Modrinth plugin found for "${query}".`);
+  let project = await fetchModrinthProject(query);
+
+  if (!project?.id) {
+    const searchUrl = new URL('https://api.modrinth.com/v2/search');
+    searchUrl.searchParams.set('query', query);
+    searchUrl.searchParams.set('limit', '10');
+    searchUrl.searchParams.set('index', 'relevance');
+    searchUrl.searchParams.set('facets', JSON.stringify([['project_type:plugin']]));
+    const search = await fetchJson(searchUrl.toString());
+    const hit = (search.hits || [])[0];
+    if (!hit?.project_id) {
+      throw new Error(`No Modrinth plugin found for "${query}".`);
+    }
+    project = { id: hit.project_id, slug: hit.slug, title: hit.title || hit.slug || query };
   }
 
-  const versions = await fetchJson(`https://api.modrinth.com/v2/project/${hit.project_id}/version`);
+  const versions = await fetchJson(`https://api.modrinth.com/v2/project/${project.id}/version`);
   const selected = chooseModrinthVersion(versions, mcVersion, platform);
   if (!selected) {
     throw new Error(
@@ -90,10 +113,11 @@ async function resolveModrinthPlugin({ query, mcVersion, platform }) {
 
   return {
     source: 'modrinth',
-    plugin: hit.title || hit.slug || query,
-    projectId: hit.project_id,
-    projectSlug: hit.slug || '',
+    plugin: project.title || project.slug || query,
+    projectId: project.id,
+    projectSlug: project.slug || '',
     url: file.url,
+    versionId: String(selected.id || selected.version_number || '').trim(),
     versionNumber: selected.version_number || 'unknown',
     minecraftVersion: (selected.game_versions || [mcVersion]).find(Boolean) || 'unknown',
     loader: (selected.loaders || [platform]).find(Boolean) || platform,
@@ -111,6 +135,7 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
   const details = await fetchJson(`https://api.spiget.org/v2/resources/${resourceId}`);
   const latestVersion = await fetchJson(`https://api.spiget.org/v2/resources/${resourceId}/versions/latest`).catch(() => null);
   const latestVersionLabel = String(latestVersion?.name || latestVersion?.id || 'latest').trim() || 'latest';
+  const latestVersionId = String(latestVersion?.id || latestVersion?.name || '').trim();
   const premium = Boolean(details.premium);
   const external = Boolean(details.external);
   const resourceUrl = `https://www.spigotmc.org/resources/${resourceId}/`;
@@ -122,6 +147,7 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
       projectSlug: '',
       url: details?.file?.url ? `https://www.spigotmc.org/${String(details.file.url).replace(/^\/+/, '')}` : `${resourceUrl}download`,
       resourceUrl,
+      versionId: latestVersionId,
       versionNumber: latestVersionLabel,
       minecraftVersion: mcVersion || 'latest supported',
       loader: 'spigot',
@@ -139,6 +165,7 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
     projectSlug: '',
     url: downloadUrl,
     resourceUrl,
+    versionId: latestVersionId,
     versionNumber: latestVersionLabel,
     minecraftVersion: mcVersion || 'latest supported',
     loader: 'spigot',
