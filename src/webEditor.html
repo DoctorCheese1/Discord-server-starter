@@ -694,6 +694,8 @@
               source: 'modrinth',
               value: hit.slug || hit.id || ref,
               label: hit.title || hit.slug || hit.id || ref,
+              projectId: String(hit.id || hit.slug || ref),
+              updateVersion: String(hit.latest_version || '').trim(),
               image: hit.icon_url || ''
             };
           } catch {
@@ -710,6 +712,8 @@
               source: 'spigot',
               value: String(hit?.id || q).trim(),
               label: hit?.name || String(hit?.id || q).trim(),
+              projectId: String(hit?.id || q).trim(),
+              updateVersion: String(hit?.tag?.name || hit?.version?.name || '').trim(),
               image: ''
             };
           } catch {
@@ -730,6 +734,8 @@
               source: 'modrinth',
               value: hit.slug || hit.project_id || '',
               label: hit.title || hit.slug || hit.project_id || '',
+              projectId: String(hit.project_id || hit.slug || '').trim(),
+              updateVersion: String(hit.latest_version || '').trim(),
               image: hit.icon_url || ''
             })).filter(item => item.value);
           } catch {
@@ -747,6 +753,8 @@
               source: 'spigot',
               value: String(item?.id || '').trim(),
               label: item?.name || String(item?.id || '').trim(),
+              projectId: String(item?.id || '').trim(),
+              updateVersion: String(item?.tag?.name || item?.version?.name || '').trim(),
               image: ''
             })).filter(item => item.value);
           } catch {
@@ -777,7 +785,7 @@
       list.innerHTML = items.map((item, idx) =>
         `<button type="button" class="plugin-suggestion-item" data-source="${escapeHtml(item.source)}" data-value="${escapeHtml(item.value)}">` +
           `<span class="plugin-suggestion-image">${item.image ? `<img src="${escapeHtml(item.image)}" alt="" />` : '🧩'}</span>` +
-          `<span class="plugin-suggestion-meta"><span class="plugin-suggestion-name">${escapeHtml(item.label)}</span><span class="plugin-suggestion-source">${escapeHtml(item.source)}</span></span>` +
+          `<span class="plugin-suggestion-meta"><span class="plugin-suggestion-name">${escapeHtml(item.label)}</span><span class="plugin-suggestion-source">${escapeHtml(item.source)} • ID ${escapeHtml(item.projectId || item.value || '')}${item.updateVersion ? ' • v' + escapeHtml(item.updateVersion) : ''}</span></span>` +
         `</button>`
       ).join('');
     }
