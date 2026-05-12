@@ -110,8 +110,8 @@
             </div>
             <div class="plugin-control-field">
               <div class="plugin-field-title">Plugin Identifier</div>
-              <input id="pluginQuery" list="pluginQuerySuggestions" placeholder="Plugin slug, resource ID, or URL" />
-              <datalist id="pluginQuerySuggestions"></datalist>
+              <input id="pluginQuery" placeholder="Plugin slug, resource ID, or URL" />
+              <div id="pluginQuerySuggestions" class="plugin-query-suggestions" hidden></div>
             </div>
             <input id="spigotCookieHeader" type="hidden" value="" />
             <details class="plugin-cookie-details">
@@ -208,6 +208,7 @@
     const pluginPlatform = document.getElementById('pluginPlatform');
     const pluginMcVersion = document.getElementById('pluginMcVersion');
     const pluginQuery = document.getElementById('pluginQuery');
+    const pluginQuerySuggestions = document.getElementById('pluginQuerySuggestions');
     const spigotCookieHeader = document.getElementById('spigotCookieHeader');
     const spigotXfUser = document.getElementById('spigotXfUser');
     const spigotXfSession = document.getElementById('spigotXfSession');
@@ -676,43 +677,66 @@
 
     async function fetchPluginSuggestions(query) {
       const q = String(query || '').trim();
-      const source = String(pluginSource.value || '').toLowerCase();
       if (q.length < 2) return [];
 
-      if (source === 'modrinth') {
-        const url = new URL('https://api.modrinth.com/v2/search');
-        url.searchParams.set('query', q);
-        url.searchParams.set('limit', '8');
-        url.searchParams.set('index', 'relevance');
-        url.searchParams.set('facets', JSON.stringify([['project_type:plugin']]));
-        const response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
-        if (!response.ok) return [];
-        const data = await response.json();
-        return (data?.hits || []).map(hit => ({
-          value: hit.slug || hit.project_id || '',
-          label: hit.title || hit.slug || hit.project_id || ''
-        })).filter(item => item.value);
-      }
+      const [modrinthItems, spigotItems] = await Promise.all([
+        (async () => {
+          try {
+            const url = new URL('https://api.modrinth.com/v2/search');
+            url.searchParams.set('query', q);
+            url.searchParams.set('limit', '6');
+            url.searchParams.set('index', 'relevance');
+            url.searchParams.set('facets', JSON.stringify([['project_type:plugin']]));
+            const response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+            if (!response.ok) return [];
+            const data = await response.json();
+            return (data?.hits || []).map(hit => ({
+              source: 'modrinth',
+              value: hit.slug || hit.project_id || '',
+              label: hit.title || hit.slug || hit.project_id || '',
+              image: hit.icon_url || ''
+            })).filter(item => item.value);
+          } catch {
+            return [];
+          }
+        })(),
+        (async () => {
+          try {
+            const url = new URL(`https://api.spiget.org/v2/search/resources/${encodeURIComponent(q)}`);
+            url.searchParams.set('size', '6');
+            const response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+            if (!response.ok) return [];
+            const data = await response.json();
+            return (Array.isArray(data) ? data : []).map(item => ({
+              source: 'spigot',
+              value: String(item?.id || '').trim(),
+              label: item?.name || String(item?.id || '').trim(),
+              image: ''
+            })).filter(item => item.value);
+          } catch {
+            return [];
+          }
+        })()
+      ]);
 
-      if (source === 'spigot') {
-        const url = new URL(`https://api.spiget.org/v2/search/resources/${encodeURIComponent(q)}`);
-        url.searchParams.set('size', '8');
-        const response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
-        if (!response.ok) return [];
-        const data = await response.json();
-        return (Array.isArray(data) ? data : []).map(item => ({
-          value: String(item?.id || '').trim(),
-          label: item?.name || String(item?.id || '').trim()
-        })).filter(item => item.value);
-      }
-
-      return [];
+      return [...modrinthItems, ...spigotItems];
     }
 
     function renderPluginSuggestions(items) {
       const list = document.getElementById('pluginQuerySuggestions');
       if (!list) return;
-      list.innerHTML = items.map(item => `<option value="${escapeHtml(item.value)}">${escapeHtml(item.label)}</option>`).join('');
+      if (!items.length) {
+        list.hidden = true;
+        list.innerHTML = '';
+        return;
+      }
+      list.hidden = false;
+      list.innerHTML = items.map((item, idx) =>
+        `<button type="button" class="plugin-suggestion-item" data-source="${escapeHtml(item.source)}" data-value="${escapeHtml(item.value)}">` +
+          `<span class="plugin-suggestion-image">${item.image ? `<img src="${escapeHtml(item.image)}" alt="" />` : '🧩'}</span>` +
+          `<span class="plugin-suggestion-meta"><span class="plugin-suggestion-name">${escapeHtml(item.label)}</span><span class="plugin-suggestion-source">${escapeHtml(item.source)}</span></span>` +
+        `</button>`
+      ).join('');
     }
     async function scanPluginUpdates() {
       if (!serverSel.value || pluginUpdateScanInProgress) return;
@@ -1869,13 +1893,12 @@
         }
       }, 220);
     });
-    pluginSource.addEventListener('change', async () => {
-      try {
-        const items = await fetchPluginSuggestions(pluginQuery.value);
-        renderPluginSuggestions(items);
-      } catch {
-        renderPluginSuggestions([]);
-      }
+    pluginQuerySuggestions.addEventListener('click', e => {
+      const item = e.target.closest('.plugin-suggestion-item');
+      if (!item) return;
+      pluginSource.value = item.getAttribute('data-source') || pluginSource.value;
+      pluginQuery.value = item.getAttribute('data-value') || pluginQuery.value;
+      renderPluginSuggestions([]);
     });
     pluginResolveBtn.addEventListener('click', async () => {
       let source = pluginSource.value;
