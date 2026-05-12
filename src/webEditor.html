@@ -763,10 +763,6 @@
         })()
       ]);
 
-      if (spigotDirect && looksLikeSpigotId) {
-        return [spigotDirect];
-      }
-
       const merged = [modrinthDirect, spigotDirect, ...modrinthItems, ...spigotItems].filter(Boolean);
       const seen = new Set();
       return merged.filter(item => {
