@@ -1683,6 +1683,10 @@
             ...getSpigotAuthPayload()
           });
           const updatedVersion = getPluginVersionLabel(response);
+          if (response?.skipped) {
+            pluginDownloadStatus.textContent = 'ℹ️ ' + (response.plugin || query) + ' is already up to date' + (updatedVersion ? ' (' + updatedVersion + ')' : '') + '.';
+            return;
+          }
           pluginDownloadStatus.textContent = '✅ Updated ' + (response.plugin || query) + (updatedVersion ? ' (' + updatedVersion + ')' : '');
           await loadFiles();
         } catch (err) {
