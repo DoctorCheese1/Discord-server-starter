@@ -76,8 +76,8 @@
       </div>
       <section id="pluginsPanel" class="plugins-panel" hidden>
         <div class="plugins-panel-header">Plugin Manager</div>
-        <div class="plugin-download-card">
-          <div class="plugin-download-title">Plugin Download Link</div>
+        <details class="plugin-download-card" id="pluginAdderPanel">
+          <summary class="plugin-download-title">Plugin Adder</summary>
           <div class="plugin-download-controls">
             <div class="plugin-control-field">
               <div class="plugin-field-title">Source</div>
@@ -110,7 +110,8 @@
             </div>
             <div class="plugin-control-field">
               <div class="plugin-field-title">Plugin Identifier</div>
-              <input id="pluginQuery" placeholder="Plugin slug, resource ID, or URL" />
+              <input id="pluginQuery" list="pluginQuerySuggestions" placeholder="Plugin slug, resource ID, or URL" />
+              <datalist id="pluginQuerySuggestions"></datalist>
             </div>
             <input id="spigotCookieHeader" type="hidden" value="" />
             <details class="plugin-cookie-details">
@@ -128,8 +129,8 @@
             <button id="pluginInstallBtn" type="button">Install to /plugins</button>
           </div>
           <div id="pluginDownloadStatus" class="plugin-download-status">Ready.</div>
-        </div>
-        <input id="pluginsSearch" class="plugins-search" placeholder="Search plugins..." />
+        </details>
+        <div class="plugins-toolbar"><input id="pluginsSearch" class="plugins-search" placeholder="Search plugins..." /><button id="pluginsUpdateAllBtn" type="button" class="plugin-update" disabled>Update All</button><label class="plugins-sort"><input id="pluginsUpdateReadyFirst" type="checkbox" /> Update-ready first</label></div>
         <div id="pluginsStatus" class="plugins-status">Load a server to view plugins.</div>
         <div id="pluginsList" class="plugins-list"></div>
       </section>
@@ -200,6 +201,8 @@
     const pluginsPanel = document.getElementById('pluginsPanel');
     const pluginsSearchInput = document.getElementById('pluginsSearch');
     const pluginsList = document.getElementById('pluginsList');
+    const pluginsUpdateAllBtn = document.getElementById('pluginsUpdateAllBtn');
+    const pluginsUpdateReadyFirst = document.getElementById('pluginsUpdateReadyFirst');
     const pluginsStatus = document.getElementById('pluginsStatus');
     const pluginSource = document.getElementById('pluginSource');
     const pluginPlatform = document.getElementById('pluginPlatform');
@@ -267,6 +270,9 @@
     let lastEditorFindIndex = -1;
     let lastEditorFindQuery = '';
     let pluginSearchFilter = '';
+    let pluginUpdateAvailability = {};
+    let pluginUpdateScanInProgress = false;
+    let pluginSuggestionTimer = null;
     let selectedServerType = 'generic';
     let selectedServerIsJava = false;
     let selectedServerHasPluginsDir = false;
@@ -567,16 +573,19 @@
     function renderOpenFileTabs() {
       if (!multiFileTabs) return;
       if (openFileTabs.length === 0) {
-        multiFileTabs.innerHTML = '<button class="tab multi-file-tab active" type="button" data-empty-tab="true"><span class="tab-label">No file open</span></button>';
+        multiFileTabs.innerHTML = '<button class="tab multi-file-tab' + (activeTopTab === 'file' ? ' active' : '') + '" type="button" data-empty-tab="true"><span class="tab-label">No file open</span></button>';
         return;
       }
       multiFileTabs.innerHTML = openFileTabs.map(path => {
         const safePath = escapeHtml(path);
         const unsavedMark = (path === currentFile && content.value !== originalContent) ? ' *' : '';
         const label = escapeHtml(pathBase(path) + unsavedMark);
-        const active = path === currentFile ? ' active' : '';
+        const active = (activeTopTab === 'file' && path === currentFile) ? ' active' : '';
         return `<button class="tab multi-file-tab${active}" data-open-file="${safePath}" title="${safePath}" type="button"><span class="tab-label">${label}</span><span class="tab-close" data-close-file="${safePath}" title="Close tab">×</span></button>`;
       }).join('');
+      const updateReadyCount = allPlugins.filter(p => p.updateAvailable).length;
+      pluginsUpdateAllBtn.disabled = updateReadyCount === 0 || pluginUpdateScanInProgress;
+      pluginsUpdateAllBtn.textContent = updateReadyCount > 0 ? `Update All (${updateReadyCount})` : 'Update All';
     }
 
     function parsePluginFromPath(filePath) {
@@ -604,9 +613,13 @@
         const plugin = parsePluginFromPath(file.path);
         if (!plugin) continue;
         plugin.metadata = editorPluginEntries[plugin.canonicalPath] || null;
+        plugin.updateAvailable = pluginUpdateAvailability[plugin.canonicalPath] === true;
         plugins.push(plugin);
       }
       return plugins.sort((a, b) => {
+        if (pluginsUpdateReadyFirst?.checked) {
+          if (a.updateAvailable !== b.updateAvailable) return a.updateAvailable ? -1 : 1;
+        }
         if (a.enabled !== b.enabled) return a.enabled ? -1 : 1;
         return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
       });
@@ -647,15 +660,91 @@
               '<div class="plugin-state ' + stateClass + '">' + stateLabel + '</div>' +
             '</div>' +
             '<div class="plugin-actions">' +
-              (plugin.metadata ? '<button type="button" class="plugin-update">Update</button>' : '') +
+              (plugin.metadata ? '<button type="button" class="plugin-update"' + (plugin.updateAvailable ? '' : ' disabled') + '>' + (plugin.updateAvailable ? 'Update' : 'Up to date') + '</button>' : '') +
               '<button type="button" class="plugin-toggle">' + actionLabel + '</button>' +
               '<button type="button" class="plugin-delete">Delete</button>' +
             '</div>' +
           '</div>'
         );
       }).join('');
+      const updateReadyCount = allPlugins.filter(p => p.updateAvailable).length;
+      pluginsUpdateAllBtn.disabled = updateReadyCount === 0 || pluginUpdateScanInProgress;
+      pluginsUpdateAllBtn.textContent = updateReadyCount > 0 ? `Update All (${updateReadyCount})` : 'Update All';
     }
 
+
+
+    async function fetchPluginSuggestions(query) {
+      const q = String(query || '').trim();
+      const source = String(pluginSource.value || '').toLowerCase();
+      if (q.length < 2) return [];
+
+      if (source === 'modrinth') {
+        const url = new URL('https://api.modrinth.com/v2/search');
+        url.searchParams.set('query', q);
+        url.searchParams.set('limit', '8');
+        url.searchParams.set('index', 'relevance');
+        url.searchParams.set('facets', JSON.stringify([['project_type:plugin']]));
+        const response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+        if (!response.ok) return [];
+        const data = await response.json();
+        return (data?.hits || []).map(hit => ({
+          value: hit.slug || hit.project_id || '',
+          label: hit.title || hit.slug || hit.project_id || ''
+        })).filter(item => item.value);
+      }
+
+      if (source === 'spigot') {
+        const url = new URL(`https://api.spiget.org/v2/search/resources/${encodeURIComponent(q)}`);
+        url.searchParams.set('size', '8');
+        const response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+        if (!response.ok) return [];
+        const data = await response.json();
+        return (Array.isArray(data) ? data : []).map(item => ({
+          value: String(item?.id || '').trim(),
+          label: item?.name || String(item?.id || '').trim()
+        })).filter(item => item.value);
+      }
+
+      return [];
+    }
+
+    function renderPluginSuggestions(items) {
+      const list = document.getElementById('pluginQuerySuggestions');
+      if (!list) return;
+      list.innerHTML = items.map(item => `<option value="${escapeHtml(item.value)}">${escapeHtml(item.label)}</option>`).join('');
+    }
+    async function scanPluginUpdates() {
+      if (!serverSel.value || pluginUpdateScanInProgress) return;
+      const plugins = listPlugins().filter(p => p.metadata);
+      if (!plugins.length) {
+        pluginUpdateAvailability = {};
+        renderPluginsPanel();
+        return;
+      }
+      pluginUpdateScanInProgress = true;
+      renderPluginsPanel();
+      const next = {};
+      await Promise.all(plugins.map(async plugin => {
+        const metadata = plugin.metadata || {};
+        const source = String(metadata.source || '').toLowerCase();
+        const query = metadata.projectId || metadata.projectSlug || metadata.query || metadata.plugin;
+        if (!source || !query) return;
+        try {
+          const meta = await postJson('/api/plugins/download-link', { source, query, platform: pluginPlatform.value, mcVersion: pluginMcVersion.value.trim(), ...getSpigotAuthPayload() });
+          const currentId = String(metadata.versionId || '').trim();
+          const latestId = String(meta.versionId || '').trim();
+          const currentLabel = extractComparableVersion(metadata.version || '');
+          const latestLabel = extractComparableVersion(getPluginVersionLabel(meta));
+          next[plugin.canonicalPath] = Boolean((currentId && latestId && currentId !== latestId) || (currentLabel && latestLabel && currentLabel !== latestLabel));
+        } catch {
+          next[plugin.canonicalPath] = false;
+        }
+      }));
+      pluginUpdateAvailability = next;
+      pluginUpdateScanInProgress = false;
+      renderPluginsPanel();
+    }
     function isPluginsTabEnabled() {
       return selectedServerHasPluginsDir;
     }
@@ -696,6 +785,27 @@
     function pathBase(p) {
       const parts = p.split('/');
       return parts[parts.length - 1];
+    }
+
+    function getPluginVersionLabel(data) {
+      return String(data?.versionNumber || data?.minecraftVersion || data?.version || '').trim();
+    }
+
+
+    function normalizeVersionForCompare(value) {
+      return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^v(?=\d)/, '')
+        .replace(/\s+/g, '')
+        .replace(/[_-]+/g, '.');
+    }
+
+    function extractComparableVersion(value) {
+      const normalized = normalizeVersionForCompare(value);
+      if (!normalized) return '';
+      const semverLike = normalized.match(/\d+\.\d+(?:\.\d+){0,2}/);
+      return semverLike ? semverLike[0] : normalized;
     }
 
     function hasUnsavedChanges() {
@@ -1261,6 +1371,7 @@
           renderFiles('');
         }
         renderPluginsPanel();
+        scanPluginUpdates().catch(() => {});
         status.textContent = '✅ Loaded ' + allFiles.length + ' files for ' + serverLabel;
         const elapsedMs = Math.round(performance.now() - started);
         showLoadPopup('📁 ' + serverLabel + ': ' + allFiles.length + ' files loaded in ' + elapsedMs + 'ms');
@@ -1564,6 +1675,7 @@
       const emptyTab = e.target.closest('[data-empty-tab]');
       if (emptyTab) {
         setActiveTopTab('file');
+        emptyTab.blur();
         return;
       }
       const closeBtn = e.target.closest('[data-close-file]');
@@ -1591,6 +1703,7 @@
       }
       const btn = e.target.closest('[data-open-file]');
       if (!btn) return;
+      btn.blur();
       const path = btn.getAttribute('data-open-file');
       if (!path || path === currentFile) return;
       if (!confirmDiscardChanges('switch tabs')) return;
@@ -1600,6 +1713,21 @@
       if (!isPluginsTabEnabled()) return;
       renderPluginsPanel();
       setActiveTopTab('plugins');
+      pluginsTab.blur();
+    });
+    pluginsUpdateReadyFirst.addEventListener('change', () => renderPluginsPanel());
+    pluginsUpdateAllBtn.addEventListener('click', async () => {
+      const readyPlugins = listPlugins().filter(p => p.metadata && p.updateAvailable);
+      if (!readyPlugins.length) return;
+      pluginsUpdateAllBtn.disabled = true;
+      for (const plugin of readyPlugins) {
+        const metadata = plugin.metadata;
+        const source = String(metadata.source || '').toLowerCase();
+        const query = metadata.projectId || metadata.projectSlug || metadata.query || metadata.plugin;
+        await postJson('/api/plugins/install', { serverId: serverSel.value, source, query, platform: pluginPlatform.value, mcVersion: pluginMcVersion.value.trim(), ...getSpigotAuthPayload() });
+      }
+      await loadFiles();
+      pluginDownloadStatus.textContent = '✅ Updated all plugins with available updates.';
     });
     pluginsSearchInput.addEventListener('input', () => {
       pluginSearchFilter = pluginsSearchInput.value || '';
@@ -1627,6 +1755,28 @@
         }
         try {
           actionButton.disabled = true;
+          const currentVersion = String(metadata.version || '').trim();
+          const currentVersionId = String(metadata.versionId || '').trim();
+          pluginDownloadStatus.textContent = '⏳ Checking for plugin updates...';
+          const downloadMeta = await postJson('/api/plugins/download-link', {
+            source,
+            query,
+            platform: pluginPlatform.value,
+            mcVersion: pluginMcVersion.value.trim(),
+            ...getSpigotAuthPayload()
+          });
+          const latestVersion = getPluginVersionLabel(downloadMeta);
+          const latestVersionId = String(downloadMeta.versionId || '').trim();
+          const sameByVersionId = currentVersionId && latestVersionId && currentVersionId === latestVersionId;
+          const sameByLabel = currentVersion && latestVersion && normalizeVersionForCompare(currentVersion) === normalizeVersionForCompare(latestVersion);
+          const currentComparable = extractComparableVersion(currentVersion);
+          const latestComparable = extractComparableVersion(latestVersion);
+          const sameByComparable = currentComparable && latestComparable && currentComparable === latestComparable;
+          if (sameByVersionId || sameByLabel || sameByComparable) {
+            pluginDownloadStatus.textContent = 'ℹ️ ' + (downloadMeta.plugin || query) + ' is already up to date (' + (latestVersion || currentVersion) + ').';
+            return;
+          }
+
           pluginDownloadStatus.textContent = '⏳ Updating plugin...';
           const response = await postJson('/api/plugins/install', {
             serverId,
@@ -1636,10 +1786,13 @@
             mcVersion: pluginMcVersion.value.trim(),
             ...getSpigotAuthPayload()
           });
-          pluginDownloadStatus.textContent = '✅ Updated ' + (response.plugin || query) + (response.version ? ' (' + response.version + ')' : '');
+          const updatedVersion = getPluginVersionLabel(response);
+          if (response?.skipped) {
+            pluginDownloadStatus.textContent = 'ℹ️ ' + (response.plugin || query) + ' is already up to date' + (updatedVersion ? ' (' + updatedVersion + ')' : '') + '.';
+            return;
+          }
+          pluginDownloadStatus.textContent = '✅ Updated ' + (response.plugin || query) + (updatedVersion ? ' (' + updatedVersion + ')' : '');
           await loadFiles();
-          renderPluginsPanel();
-          setActiveTopTab('plugins');
         } catch (err) {
           pluginDownloadStatus.textContent = '❌ ' + err.message;
         } finally {
@@ -1705,6 +1858,25 @@
       }
     });
 
+    pluginQuery.addEventListener('input', () => {
+      clearTimeout(pluginSuggestionTimer);
+      pluginSuggestionTimer = setTimeout(async () => {
+        try {
+          const items = await fetchPluginSuggestions(pluginQuery.value);
+          renderPluginSuggestions(items);
+        } catch {
+          renderPluginSuggestions([]);
+        }
+      }, 220);
+    });
+    pluginSource.addEventListener('change', async () => {
+      try {
+        const items = await fetchPluginSuggestions(pluginQuery.value);
+        renderPluginSuggestions(items);
+      } catch {
+        renderPluginSuggestions([]);
+      }
+    });
     pluginResolveBtn.addEventListener('click', async () => {
       let source = pluginSource.value;
       const platform = pluginPlatform.value;
