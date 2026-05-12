@@ -110,7 +110,8 @@
             </div>
             <div class="plugin-control-field">
               <div class="plugin-field-title">Plugin Identifier</div>
-              <input id="pluginQuery" placeholder="Plugin slug, resource ID, or URL" />
+              <input id="pluginQuery" list="pluginQuerySuggestions" placeholder="Plugin slug, resource ID, or URL" />
+              <datalist id="pluginQuerySuggestions"></datalist>
             </div>
             <input id="spigotCookieHeader" type="hidden" value="" />
             <details class="plugin-cookie-details">
@@ -271,6 +272,7 @@
     let pluginSearchFilter = '';
     let pluginUpdateAvailability = {};
     let pluginUpdateScanInProgress = false;
+    let pluginSuggestionTimer = null;
     let selectedServerType = 'generic';
     let selectedServerIsJava = false;
     let selectedServerHasPluginsDir = false;
@@ -671,6 +673,47 @@
     }
 
 
+
+    async function fetchPluginSuggestions(query) {
+      const q = String(query || '').trim();
+      const source = String(pluginSource.value || '').toLowerCase();
+      if (q.length < 2) return [];
+
+      if (source === 'modrinth') {
+        const url = new URL('https://api.modrinth.com/v2/search');
+        url.searchParams.set('query', q);
+        url.searchParams.set('limit', '8');
+        url.searchParams.set('index', 'relevance');
+        url.searchParams.set('facets', JSON.stringify([['project_type:plugin']]));
+        const response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+        if (!response.ok) return [];
+        const data = await response.json();
+        return (data?.hits || []).map(hit => ({
+          value: hit.slug || hit.project_id || '',
+          label: hit.title || hit.slug || hit.project_id || ''
+        })).filter(item => item.value);
+      }
+
+      if (source === 'spigot') {
+        const url = new URL(`https://api.spiget.org/v2/search/resources/${encodeURIComponent(q)}`);
+        url.searchParams.set('size', '8');
+        const response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+        if (!response.ok) return [];
+        const data = await response.json();
+        return (Array.isArray(data) ? data : []).map(item => ({
+          value: String(item?.id || '').trim(),
+          label: item?.name || String(item?.id || '').trim()
+        })).filter(item => item.value);
+      }
+
+      return [];
+    }
+
+    function renderPluginSuggestions(items) {
+      const list = document.getElementById('pluginQuerySuggestions');
+      if (!list) return;
+      list.innerHTML = items.map(item => `<option value="${escapeHtml(item.value)}">${escapeHtml(item.label)}</option>`).join('');
+    }
     async function scanPluginUpdates() {
       if (!serverSel.value || pluginUpdateScanInProgress) return;
       const plugins = listPlugins().filter(p => p.metadata);
@@ -1815,6 +1858,25 @@
       }
     });
 
+    pluginQuery.addEventListener('input', () => {
+      clearTimeout(pluginSuggestionTimer);
+      pluginSuggestionTimer = setTimeout(async () => {
+        try {
+          const items = await fetchPluginSuggestions(pluginQuery.value);
+          renderPluginSuggestions(items);
+        } catch {
+          renderPluginSuggestions([]);
+        }
+      }, 220);
+    });
+    pluginSource.addEventListener('change', async () => {
+      try {
+        const items = await fetchPluginSuggestions(pluginQuery.value);
+        renderPluginSuggestions(items);
+      } catch {
+        renderPluginSuggestions([]);
+      }
+    });
     pluginResolveBtn.addEventListener('click', async () => {
       let source = pluginSource.value;
       const platform = pluginPlatform.value;
