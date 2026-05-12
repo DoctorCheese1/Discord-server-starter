@@ -711,7 +711,7 @@
             return {
               source: 'spigot',
               value: String(hit?.id || q).trim(),
-              label: hit?.name || String(hit?.id || q).trim(),
+              label: (hit?.name || String(hit?.id || q).trim()) + (hit?.tag?.name ? ` (${hit.tag.name})` : ''),
               projectId: String(hit?.id || q).trim(),
               updateVersion: String(hit?.tag?.name || hit?.version?.name || '').trim(),
               image: ''
