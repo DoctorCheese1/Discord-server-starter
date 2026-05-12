@@ -745,18 +745,30 @@
         (async () => {
           try {
             const url = new URL(`https://api.spiget.org/v2/search/resources/${encodeURIComponent(q)}`);
-            url.searchParams.set('size', '6');
+            url.searchParams.set('size', '30');
             const response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
             if (!response.ok) return [];
             const data = await response.json();
-            return (Array.isArray(data) ? data : []).map(item => ({
-              source: 'spigot',
-              value: String(item?.id || '').trim(),
-              label: item?.name || String(item?.id || '').trim(),
-              projectId: String(item?.id || '').trim(),
-              updateVersion: String(item?.tag?.name || item?.version?.name || '').trim(),
-              image: ''
-            })).filter(item => item.value);
+            return (Array.isArray(data) ? data : [])
+              .map(item => ({
+                source: 'spigot',
+                value: String(item?.id || '').trim(),
+                label: item?.name || String(item?.id || '').trim(),
+                projectId: String(item?.id || '').trim(),
+                updateVersion: String(item?.tag?.name || item?.version?.name || '').trim(),
+                image: ''
+              }))
+              .filter(item => item.value)
+              .sort((a, b) => {
+                const aExact = a.value === q ? 1 : 0;
+                const bExact = b.value === q ? 1 : 0;
+                if (aExact !== bExact) return bExact - aExact;
+                const aStarts = a.value.startsWith(q) ? 1 : 0;
+                const bStarts = b.value.startsWith(q) ? 1 : 0;
+                if (aStarts !== bStarts) return bStarts - aStarts;
+                return a.value.localeCompare(b.value, undefined, { numeric: true });
+              })
+              .slice(0, 20);
           } catch {
             return [];
           }
