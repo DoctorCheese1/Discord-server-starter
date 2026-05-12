@@ -773,6 +773,16 @@
       });
     }
 
+
+    function toDisplaySuggestionVersion(value) {
+      const raw = String(value || '').trim();
+      if (!raw) return '';
+      const semverLike = raw.match(/\d+\.\d+(?:\.\d+){0,2}/);
+      if (semverLike) return semverLike[0];
+      if (raw.length <= 20 && !raw.includes('/')) return raw;
+      return '';
+    }
+
     function renderPluginSuggestions(items) {
       const list = document.getElementById('pluginQuerySuggestions');
       if (!list) return;
@@ -785,7 +795,7 @@
       list.innerHTML = items.map((item, idx) =>
         `<button type="button" class="plugin-suggestion-item" data-source="${escapeHtml(item.source)}" data-value="${escapeHtml(item.value)}">` +
           `<span class="plugin-suggestion-image">${item.image ? `<img src="${escapeHtml(item.image)}" alt="" />` : '🧩'}</span>` +
-          `<span class="plugin-suggestion-meta"><span class="plugin-suggestion-name">${escapeHtml(item.label)}</span><span class="plugin-suggestion-source">${escapeHtml(item.source)} • ID ${escapeHtml(item.projectId || item.value || '')}${item.updateVersion ? ' • v' + escapeHtml(item.updateVersion) : ''}</span></span>` +
+          `<span class="plugin-suggestion-meta"><span class="plugin-suggestion-name">${escapeHtml(item.label)}</span><span class="plugin-suggestion-source">${escapeHtml(item.source)} • ID ${escapeHtml(item.projectId || item.value || '')}${toDisplaySuggestionVersion(item.updateVersion) ? ' • v' + escapeHtml(toDisplaySuggestionVersion(item.updateVersion)) : ''}</span></span>` +
         `</button>`
       ).join('');
     }
