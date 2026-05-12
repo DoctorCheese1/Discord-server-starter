@@ -712,6 +712,13 @@
         .replace(/[_-]+/g, '.');
     }
 
+    function extractComparableVersion(value) {
+      const normalized = normalizeVersionForCompare(value);
+      if (!normalized) return '';
+      const semverLike = normalized.match(/\d+\.\d+(?:\.\d+){0,2}/);
+      return semverLike ? semverLike[0] : normalized;
+    }
+
     function hasUnsavedChanges() {
       return Boolean(currentFile) && content.value !== originalContent;
     }
@@ -1658,7 +1665,10 @@
           const latestVersionId = String(downloadMeta.versionId || '').trim();
           const sameByVersionId = currentVersionId && latestVersionId && currentVersionId === latestVersionId;
           const sameByLabel = currentVersion && latestVersion && normalizeVersionForCompare(currentVersion) === normalizeVersionForCompare(latestVersion);
-          if (sameByVersionId || sameByLabel) {
+          const currentComparable = extractComparableVersion(currentVersion);
+          const latestComparable = extractComparableVersion(latestVersion);
+          const sameByComparable = currentComparable && latestComparable && currentComparable === latestComparable;
+          if (sameByVersionId || sameByLabel || sameByComparable) {
             pluginDownloadStatus.textContent = 'ℹ️ ' + (downloadMeta.plugin || query) + ' is already up to date (' + (latestVersion || currentVersion) + ').';
             return;
           }
