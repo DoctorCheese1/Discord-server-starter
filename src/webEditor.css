@@ -113,6 +113,10 @@
     .plugin-download-status { color: #b9bec8; font-size: 12px; word-break: break-word; line-height: 1.45; }
     .plugin-download-status a { color: #8ecbff; }
     .plugin-download-note { color: #9da0a6; }
+    
+    .plugins-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+    .plugins-toolbar .plugins-search { margin: 0; flex: 1; }
+    .plugins-sort { font-size: 12px; color: #9da0a6; display: inline-flex; gap: 6px; align-items: center; }
     .plugins-search { width: 100%; margin: 2px 0 10px; background: #1a1d23; border: 1px solid #313846; color: #d4d4d4; border-radius: 4px; padding: 8px 10px; font-size: 13px; }
     .plugins-status { color: #9da0a6; margin-bottom: 12px; font-size: 13px; }
     .plugins-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; flex: 1; min-height: 0; overflow: auto; padding-bottom: 12px; }
