@@ -185,11 +185,21 @@ export async function getPluginDownloadLink({ source, query, mcVersion, platform
   }
 
   if (selectedSource === 'modrinth') {
-    return resolveModrinthPlugin({
-      query: normalizedQuery,
-      mcVersion: String(mcVersion || '').trim(),
-      platform: normalizePlatform(platform)
-    });
+    try {
+      return await resolveModrinthPlugin({
+        query: normalizedQuery,
+        mcVersion: String(mcVersion || '').trim(),
+        platform: normalizePlatform(platform)
+      });
+    } catch (error) {
+      const message = String(error?.message || '');
+      const shouldFallbackToSpigot = message.includes('No Modrinth plugin found');
+      if (!shouldFallbackToSpigot) throw error;
+      return resolveSpigotPlugin({
+        query: normalizedQuery,
+        mcVersion: String(mcVersion || '').trim()
+      });
+    }
   }
 
   if (selectedSource === 'spigot') {
