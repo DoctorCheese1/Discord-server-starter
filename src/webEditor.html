@@ -1997,6 +1997,9 @@
         const resourceLinkMarkup = resourcePageUrl
           ? '<br><a href="' + escapeHtml(resourcePageUrl) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(resourceLinkLabel) + '</a>'
           : '';
+        const releaseNotesMarkup = r.releaseNotesUrl
+          ? '<br><a href="' + escapeHtml(r.releaseNotesUrl) + '" target="_blank" rel="noopener noreferrer">Open Release Notes</a>'
+          : '';
         pluginDownloadStatus.innerHTML =
           '✅ <strong>' + escapeHtml(r.plugin || query) + '</strong> [' + escapeHtml(String(r.source || source).toUpperCase()) + '] ' +
           paidBadge +
@@ -2005,6 +2008,7 @@
           (Array.isArray(r.loaders) && r.loaders.length ? 'Loaders: ' + escapeHtml(r.loaders.join(', ')) + '<br>' : '') +
           linkMarkup +
           resourceLinkMarkup +
+          releaseNotesMarkup +
           (r.note ? '<br><span class="plugin-download-note">' + escapeHtml(r.note) + '</span>' : '');
       } catch (err) {
         pluginDownloadStatus.textContent = '❌ ' + err.message;

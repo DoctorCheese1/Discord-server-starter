@@ -123,6 +123,7 @@ async function resolveModrinthPlugin({ query, mcVersion, platform }) {
     loader: (selected.loaders || [platform]).find(Boolean) || platform,
     loaders: Array.isArray(selected.loaders) ? selected.loaders : [],
     projectUrl: project.slug ? `https://modrinth.com/plugin/${project.slug}` : (project.id ? `https://modrinth.com/project/${project.id}` : ''),
+    releaseNotesUrl: project.slug && selected.id ? `https://modrinth.com/plugin/${project.slug}/version/${selected.id}` : '',
     note: 'Result chosen from Modrinth plugin releases.'
   };
 }
@@ -148,6 +149,7 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
       projectSlug: '',
       url: details?.file?.url ? `https://www.spigotmc.org/${String(details.file.url).replace(/^\/+/, '')}` : `${resourceUrl}download`,
       resourceUrl,
+      releaseNotesUrl: `${resourceUrl}updates`,
       versionId: latestVersionId,
       versionNumber: latestVersionLabel,
       minecraftVersion: mcVersion || 'latest supported',
@@ -166,6 +168,7 @@ async function resolveSpigotPlugin({ query, mcVersion }) {
     projectSlug: '',
     url: downloadUrl,
     resourceUrl,
+    releaseNotesUrl: `${resourceUrl}updates`,
     versionId: latestVersionId,
     versionNumber: latestVersionLabel,
     minecraftVersion: mcVersion || 'latest supported',
