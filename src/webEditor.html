@@ -567,14 +567,14 @@
     function renderOpenFileTabs() {
       if (!multiFileTabs) return;
       if (openFileTabs.length === 0) {
-        multiFileTabs.innerHTML = '<button class="tab multi-file-tab active" type="button" data-empty-tab="true"><span class="tab-label">No file open</span></button>';
+        multiFileTabs.innerHTML = '<button class="tab multi-file-tab' + (activeTopTab === 'file' ? ' active' : '') + '" type="button" data-empty-tab="true"><span class="tab-label">No file open</span></button>';
         return;
       }
       multiFileTabs.innerHTML = openFileTabs.map(path => {
         const safePath = escapeHtml(path);
         const unsavedMark = (path === currentFile && content.value !== originalContent) ? ' *' : '';
         const label = escapeHtml(pathBase(path) + unsavedMark);
-        const active = path === currentFile ? ' active' : '';
+        const active = (activeTopTab === 'file' && path === currentFile) ? ' active' : '';
         return `<button class="tab multi-file-tab${active}" data-open-file="${safePath}" title="${safePath}" type="button"><span class="tab-label">${label}</span><span class="tab-close" data-close-file="${safePath}" title="Close tab">×</span></button>`;
       }).join('');
     }
@@ -696,6 +696,27 @@
     function pathBase(p) {
       const parts = p.split('/');
       return parts[parts.length - 1];
+    }
+
+    function getPluginVersionLabel(data) {
+      return String(data?.versionNumber || data?.minecraftVersion || data?.version || '').trim();
+    }
+
+
+    function normalizeVersionForCompare(value) {
+      return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^v(?=\d)/, '')
+        .replace(/\s+/g, '')
+        .replace(/[_-]+/g, '.');
+    }
+
+    function extractComparableVersion(value) {
+      const normalized = normalizeVersionForCompare(value);
+      if (!normalized) return '';
+      const semverLike = normalized.match(/\d+\.\d+(?:\.\d+){0,2}/);
+      return semverLike ? semverLike[0] : normalized;
     }
 
     function hasUnsavedChanges() {
@@ -1564,6 +1585,7 @@
       const emptyTab = e.target.closest('[data-empty-tab]');
       if (emptyTab) {
         setActiveTopTab('file');
+        emptyTab.blur();
         return;
       }
       const closeBtn = e.target.closest('[data-close-file]');
@@ -1591,6 +1613,7 @@
       }
       const btn = e.target.closest('[data-open-file]');
       if (!btn) return;
+      btn.blur();
       const path = btn.getAttribute('data-open-file');
       if (!path || path === currentFile) return;
       if (!confirmDiscardChanges('switch tabs')) return;
@@ -1600,6 +1623,7 @@
       if (!isPluginsTabEnabled()) return;
       renderPluginsPanel();
       setActiveTopTab('plugins');
+      pluginsTab.blur();
     });
     pluginsSearchInput.addEventListener('input', () => {
       pluginSearchFilter = pluginsSearchInput.value || '';
@@ -1627,6 +1651,28 @@
         }
         try {
           actionButton.disabled = true;
+          const currentVersion = String(metadata.version || '').trim();
+          const currentVersionId = String(metadata.versionId || '').trim();
+          pluginDownloadStatus.textContent = '⏳ Checking for plugin updates...';
+          const downloadMeta = await postJson('/api/plugins/download-link', {
+            source,
+            query,
+            platform: pluginPlatform.value,
+            mcVersion: pluginMcVersion.value.trim(),
+            ...getSpigotAuthPayload()
+          });
+          const latestVersion = getPluginVersionLabel(downloadMeta);
+          const latestVersionId = String(downloadMeta.versionId || '').trim();
+          const sameByVersionId = currentVersionId && latestVersionId && currentVersionId === latestVersionId;
+          const sameByLabel = currentVersion && latestVersion && normalizeVersionForCompare(currentVersion) === normalizeVersionForCompare(latestVersion);
+          const currentComparable = extractComparableVersion(currentVersion);
+          const latestComparable = extractComparableVersion(latestVersion);
+          const sameByComparable = currentComparable && latestComparable && currentComparable === latestComparable;
+          if (sameByVersionId || sameByLabel || sameByComparable) {
+            pluginDownloadStatus.textContent = 'ℹ️ ' + (downloadMeta.plugin || query) + ' is already up to date (' + (latestVersion || currentVersion) + ').';
+            return;
+          }
+
           pluginDownloadStatus.textContent = '⏳ Updating plugin...';
           const response = await postJson('/api/plugins/install', {
             serverId,
@@ -1636,10 +1682,9 @@
             mcVersion: pluginMcVersion.value.trim(),
             ...getSpigotAuthPayload()
           });
-          pluginDownloadStatus.textContent = '✅ Updated ' + (response.plugin || query) + (response.version ? ' (' + response.version + ')' : '');
+          const updatedVersion = getPluginVersionLabel(response);
+          pluginDownloadStatus.textContent = '✅ Updated ' + (response.plugin || query) + (updatedVersion ? ' (' + updatedVersion + ')' : '');
           await loadFiles();
-          renderPluginsPanel();
-          setActiveTopTab('plugins');
         } catch (err) {
           pluginDownloadStatus.textContent = '❌ ' + err.message;
         } finally {
