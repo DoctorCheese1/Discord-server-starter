@@ -605,6 +605,31 @@ export function startWebEditor() {
             });
           }
           const authPayload = { cookieHeader, xfUser, xfSession, xfTfaTrust, cfClearance };
+          const state = readEditorPluginState(serverConfig.cwd);
+          const normalizedSource = String(result.source || source || '').toLowerCase();
+          const normalizedProjectId = String(result.projectId || '').trim();
+          const resolvedVersionId = String(result.versionId || result.versionNumber || result.minecraftVersion || '').trim();
+          const resolvedVersionLabel = String(result.versionNumber || result.minecraftVersion || '').trim();
+          const existingMeta = Object.values(state.entries || {}).find(meta =>
+            String(meta?.source || '').toLowerCase() === normalizedSource
+            && String(meta?.projectId || '').trim() === normalizedProjectId
+          );
+          const existingVersionId = String(existingMeta?.versionId || '').trim();
+          const existingVersionLabel = String(existingMeta?.version || '').trim();
+          const sameVersion = (existingVersionId && resolvedVersionId && existingVersionId === resolvedVersionId)
+            || (existingVersionLabel && resolvedVersionLabel && existingVersionLabel === resolvedVersionLabel);
+          if (sameVersion) {
+            return sendJson(res, 200, {
+              ok: true,
+              skipped: true,
+              reason: 'already_up_to_date',
+              plugin: result.plugin || result.projectSlug || query,
+              source: result.source || source,
+              versionId: resolvedVersionId,
+              version: resolvedVersionLabel || 'latest',
+              replaced: []
+            });
+          }
           const baseDownloadUrl = await tryAppendSpigotToken(result.url, authPayload, result.resourceUrl || '');
           const spigotCandidates = await resolveSpigotCandidates(baseDownloadUrl, result.resourceUrl || '', authPayload);
           let downloaded = null;
@@ -629,7 +654,6 @@ export function startWebEditor() {
           if (!isSafePath(serverConfig.cwd, relPath)) return sendJson(res, 400, { error: 'Invalid plugin path' });
 
           fs.mkdirSync(pluginsDir, { recursive: true });
-          const state = readEditorPluginState(serverConfig.cwd);
           const knownPluginPaths = Object.entries(state.entries || {})
             .filter(([, meta]) => String(meta?.source || '').toLowerCase() === String(result.source || source || '').toLowerCase() && String(meta?.projectId || '').trim() === String(result.projectId || '').trim())
             .map(([rel]) => rel);
