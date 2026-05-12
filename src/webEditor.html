@@ -76,8 +76,8 @@
       </div>
       <section id="pluginsPanel" class="plugins-panel" hidden>
         <div class="plugins-panel-header">Plugin Manager</div>
-        <div class="plugin-download-card">
-          <div class="plugin-download-title">Plugin Download Link</div>
+        <details class="plugin-download-card" id="pluginAdderPanel">
+          <summary class="plugin-download-title">Plugin Adder</summary>
           <div class="plugin-download-controls">
             <div class="plugin-control-field">
               <div class="plugin-field-title">Source</div>
@@ -128,7 +128,7 @@
             <button id="pluginInstallBtn" type="button">Install to /plugins</button>
           </div>
           <div id="pluginDownloadStatus" class="plugin-download-status">Ready.</div>
-        </div>
+        </details>
         <div class="plugins-toolbar"><input id="pluginsSearch" class="plugins-search" placeholder="Search plugins..." /><button id="pluginsUpdateAllBtn" type="button" class="plugin-update" disabled>Update All</button><label class="plugins-sort"><input id="pluginsUpdateReadyFirst" type="checkbox" /> Update-ready first</label></div>
         <div id="pluginsStatus" class="plugins-status">Load a server to view plugins.</div>
         <div id="pluginsList" class="plugins-list"></div>

@@ -100,7 +100,12 @@
     .editor-wrap.plugins-mode .path-action-bar { display: none !important; }
     .plugins-panel-header { font-size: 18px; margin-bottom: 6px; color: #e6e6e6; }
     .plugin-download-card { border: 1px solid #2d2d30; border-radius: 6px; padding: 10px; margin-bottom: 10px; background: #252526; }
-    .plugin-download-title { font-size: 14px; color: #e6e6e6; margin-bottom: 8px; }
+    .plugin-download-title { font-size: 14px; color: #e6e6e6; margin-bottom: 8px; cursor: pointer; list-style: none; }
+    .plugin-download-card > summary::-webkit-details-marker { display: none; }
+    .plugin-download-card > summary::after { content: "▾"; float: right; opacity: .8; }
+    .plugin-download-card:not([open]) > summary::after { content: "▸"; }
+    .plugin-download-card:not([open]) .plugin-download-controls,
+    .plugin-download-card:not([open]) .plugin-download-status { display: none; }
     .plugin-download-controls { display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr)); gap: 10px; margin-bottom: 8px; align-items: start; }
     .plugin-download-controls select,
     .plugin-download-controls input,
@@ -133,7 +138,7 @@
 
     .plugin-update { border: 1px solid #0f5f92; border-radius: 4px; background: #094771; color: #ffffff; padding: 6px 10px; cursor: pointer; font-size: 12px; }
     .plugin-update:hover:not(:disabled) { background: #0b5e93; border-color: #1a79b6; color: #fff; }
-    .plugin-update:disabled { opacity: .6; cursor: wait; }
+    .plugin-update:disabled { opacity: .6; cursor: not-allowed; }
     .plugin-actions { display: flex; gap: 8px; align-items: center; }
     .plugin-delete { border: 1px solid #744343; border-radius: 4px; background: #3b2424; color: #f2c5c5; padding: 6px 10px; cursor: pointer; font-size: 12px; }
     .plugin-delete:hover:not(:disabled) { background: #7a2f2f; border-color: #a84d4d; color: #fff; }
