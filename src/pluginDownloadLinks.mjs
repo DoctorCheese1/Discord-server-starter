@@ -123,7 +123,7 @@ async function resolveModrinthPlugin({ query, mcVersion, platform }) {
     loader: (selected.loaders || [platform]).find(Boolean) || platform,
     loaders: Array.isArray(selected.loaders) ? selected.loaders : [],
     projectUrl: project.slug ? `https://modrinth.com/plugin/${project.slug}` : (project.id ? `https://modrinth.com/project/${project.id}` : ''),
-    releaseNotesUrl: project.slug && selected.id ? `https://modrinth.com/plugin/${project.slug}/version/${selected.id}` : '',
+    releaseNotesUrl: project.slug ? `https://modrinth.com/plugin/${project.slug}/changelog` : '',
     note: 'Result chosen from Modrinth plugin releases.'
   };
 }
