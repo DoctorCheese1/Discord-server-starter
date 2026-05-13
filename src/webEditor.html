@@ -749,7 +749,7 @@
               : [q];
             const results = await Promise.all(searchTerms.map(async term => {
               const url = new URL(`https://api.spiget.org/v2/search/resources/${encodeURIComponent(term)}`);
-              url.searchParams.set('size', '60');
+              url.searchParams.set('size', '200');
               const response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
               if (!response.ok) return [];
               const data = await response.json();
@@ -778,7 +778,7 @@
                 if (aContains !== bContains) return bContains - aContains;
                 return a.value.localeCompare(b.value, undefined, { numeric: true });
               })
-              .slice(0, 40);
+              .slice(0, 200);
           } catch {
             return [];
           }
