@@ -777,12 +777,29 @@
 
       const merged = [modrinthDirect, spigotDirect, ...modrinthItems, ...spigotItems].filter(Boolean);
       const seen = new Set();
-      return merged.filter(item => {
+      const deduped = merged.filter(item => {
         const key = `${item.source}:${item.value}`;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
       });
+
+      if (/^\d+$/.test(q)) {
+        return deduped.sort((a, b) => {
+          const aSpigot = a.source === 'spigot' ? 1 : 0;
+          const bSpigot = b.source === 'spigot' ? 1 : 0;
+          if (aSpigot !== bSpigot) return bSpigot - aSpigot;
+          const aExact = a.value === q ? 1 : 0;
+          const bExact = b.value === q ? 1 : 0;
+          if (aExact !== bExact) return bExact - aExact;
+          const aStarts = a.value.startsWith(q) ? 1 : 0;
+          const bStarts = b.value.startsWith(q) ? 1 : 0;
+          if (aStarts !== bStarts) return bStarts - aStarts;
+          return a.value.localeCompare(b.value, undefined, { numeric: true });
+        });
+      }
+
+      return deduped;
     }
 
 
