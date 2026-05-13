@@ -755,7 +755,21 @@
               const data = await response.json();
               return Array.isArray(data) ? data : [];
             }));
-            const flat = results.flat();
+            let flat = results.flat();
+            if (/^\d+$/.test(q) && flat.length < 5) {
+              const pageFetches = await Promise.all(Array.from({ length: 5 }, async (_, idx) => {
+                const page = idx + 1;
+                const url = new URL('https://api.spiget.org/v2/resources/free');
+                url.searchParams.set('size', '100');
+                url.searchParams.set('page', String(page));
+                const response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+                if (!response.ok) return [];
+                const data = await response.json();
+                return Array.isArray(data) ? data : [];
+              }));
+              flat = flat.concat(pageFetches.flat().filter(item => String(item?.id || '').includes(q)));
+            }
+
             return flat
               .map(item => ({
                 source: 'spigot',
