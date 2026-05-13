@@ -744,12 +744,19 @@
         })(),
         (async () => {
           try {
-            const url = new URL(`https://api.spiget.org/v2/search/resources/${encodeURIComponent(q)}`);
-            url.searchParams.set('size', '30');
-            const response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
-            if (!response.ok) return [];
-            const data = await response.json();
-            return (Array.isArray(data) ? data : [])
+            const searchTerms = /^\d+$/.test(q)
+              ? [q, ...Array.from({ length: 10 }, (_, i) => `${q}${i}`)]
+              : [q];
+            const results = await Promise.all(searchTerms.map(async term => {
+              const url = new URL(`https://api.spiget.org/v2/search/resources/${encodeURIComponent(term)}`);
+              url.searchParams.set('size', '60');
+              const response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+              if (!response.ok) return [];
+              const data = await response.json();
+              return Array.isArray(data) ? data : [];
+            }));
+            const flat = results.flat();
+            return flat
               .map(item => ({
                 source: 'spigot',
                 value: String(item?.id || '').trim(),
@@ -766,9 +773,12 @@
                 const aStarts = a.value.startsWith(q) ? 1 : 0;
                 const bStarts = b.value.startsWith(q) ? 1 : 0;
                 if (aStarts !== bStarts) return bStarts - aStarts;
+                const aContains = a.value.includes(q) ? 1 : 0;
+                const bContains = b.value.includes(q) ? 1 : 0;
+                if (aContains !== bContains) return bContains - aContains;
                 return a.value.localeCompare(b.value, undefined, { numeric: true });
               })
-              .slice(0, 20);
+              .slice(0, 40);
           } catch {
             return [];
           }
