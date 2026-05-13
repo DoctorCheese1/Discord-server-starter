@@ -756,18 +756,22 @@
               return Array.isArray(data) ? data : [];
             }));
             let flat = results.flat();
-            if (/^\d+$/.test(q) && flat.length < 5) {
-              const pageFetches = await Promise.all(Array.from({ length: 5 }, async (_, idx) => {
-                const page = idx + 1;
-                const url = new URL('https://api.spiget.org/v2/resources/free');
-                url.searchParams.set('size', '100');
-                url.searchParams.set('page', String(page));
-                const response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
-                if (!response.ok) return [];
-                const data = await response.json();
-                return Array.isArray(data) ? data : [];
+            if (/^\d+$/.test(q) && flat.length < 12) {
+              const candidates = [q];
+              for (let i = 0; i < 10; i += 1) candidates.push(`${q}${i}`);
+              for (let i = 0; i < 10; i += 1) {
+                for (let j = 0; j < 10; j += 1) candidates.push(`${q}${i}${j}`);
+              }
+              const directFetches = await Promise.all(candidates.map(async id => {
+                try {
+                  const response = await fetch(`https://api.spiget.org/v2/resources/${encodeURIComponent(id)}`, { headers: { Accept: 'application/json' } });
+                  if (!response.ok) return null;
+                  return await response.json();
+                } catch {
+                  return null;
+                }
               }));
-              flat = flat.concat(pageFetches.flat().filter(item => String(item?.id || '').includes(q)));
+              flat = flat.concat(directFetches.filter(Boolean));
             }
 
             return flat
