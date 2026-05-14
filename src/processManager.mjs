@@ -51,9 +51,12 @@ export async function startServer(server) {
   const escapedStartBat = String(server.startBat).replace(/'/g, "''");
   const escapedCwd = String(server.cwd || '').replace(/'/g, "''");
   const escapedPidFile = String(server.pidFile || '').replace(/'/g, "''");
+  const keepWindowOpen = server.keepConsoleOpen !== false;
+  const cmdMode = keepWindowOpen ? '/k' : '/c';
+  const argumentList = `${cmdMode}','call ""${escapedStartBat}""`;
   const launchCmd = server.pidFile
-    ? `powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = Start-Process -FilePath 'cmd.exe' -WorkingDirectory '${escapedCwd}' -ArgumentList '/c','call ""${escapedStartBat}""' -PassThru; $p.Id | Out-File -FilePath '${escapedPidFile}' -Encoding ascii"`
-    : `powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'cmd.exe' -WorkingDirectory '${escapedCwd}' -ArgumentList '/c','call ""${escapedStartBat}""'"`;
+    ? `powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = Start-Process -FilePath 'cmd.exe' -WorkingDirectory '${escapedCwd}' -WindowStyle Normal -ArgumentList '${argumentList}' -PassThru; $p.Id | Out-File -FilePath '${escapedPidFile}' -Encoding ascii"`
+    : `powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'cmd.exe' -WorkingDirectory '${escapedCwd}' -WindowStyle Normal -ArgumentList '${argumentList}'"`;
 
   await execWindows(launchCmd);
 }
