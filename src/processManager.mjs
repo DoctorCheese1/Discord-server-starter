@@ -33,6 +33,15 @@ function sanitizeTaskName(name) {
   return String(name).replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
+
+function buildConsoleLogPath(server) {
+  if (server?.consoleLog) return server.consoleLog;
+  const baseDir = server?.cwd || '.';
+  const safeId = sanitizeTaskName(server?.id || server?.name || 'server');
+  return `${baseDir}\\${safeId}.console.log`;
+}
+
+
 /* ======================================================
    START / STOP / STATUS
    (ALL EXECUTED ON WINDOWS)
@@ -51,9 +60,13 @@ export async function startServer(server) {
   const escapedStartBat = String(server.startBat).replace(/'/g, "''");
   const escapedCwd = String(server.cwd || '').replace(/'/g, "''");
   const escapedPidFile = String(server.pidFile || '').replace(/'/g, "''");
+  const escapedConsoleLog = String(buildConsoleLogPath(server)).replace(/'/g, "''");
+  const keepWindowOpen = server.keepConsoleOpen !== false;
+  const cmdMode = keepWindowOpen ? '/k' : '/c';
+  const argumentList = `${cmdMode}','call ""${escapedStartBat}"" >> ""${escapedConsoleLog}"" 2>&1`;
   const launchCmd = server.pidFile
-    ? `powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = Start-Process -FilePath 'cmd.exe' -WorkingDirectory '${escapedCwd}' -ArgumentList '/c','call ""${escapedStartBat}""' -PassThru; $p.Id | Out-File -FilePath '${escapedPidFile}' -Encoding ascii"`
-    : `powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'cmd.exe' -WorkingDirectory '${escapedCwd}' -ArgumentList '/c','call ""${escapedStartBat}""'"`;
+    ? `powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = Start-Process -FilePath 'cmd.exe' -WorkingDirectory '${escapedCwd}' -WindowStyle Normal -ArgumentList '${argumentList}' -PassThru; $p.Id | Out-File -FilePath '${escapedPidFile}' -Encoding ascii"`
+    : `powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'cmd.exe' -WorkingDirectory '${escapedCwd}' -WindowStyle Normal -ArgumentList '${argumentList}'"`;
 
   await execWindows(launchCmd);
 }
