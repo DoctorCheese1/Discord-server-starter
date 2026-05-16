@@ -76,7 +76,7 @@
       </div>
       <section id="pluginsPanel" class="plugins-panel" hidden>
         <div class="plugins-panel-header">Plugin Manager</div>
-        <details class="plugin-download-card" id="pluginAdderPanel">
+        <details class="plugin-download-card" id="pluginAdderPanel" open>
           <summary class="plugin-download-title">Plugin Adder</summary>
           <div class="plugin-download-controls">
             <div class="plugin-control-field">
@@ -273,6 +273,7 @@
     let pluginSearchFilter = '';
     let pluginUpdateAvailability = {};
     let pluginUpdateScanInProgress = false;
+    let pluginUpdateScanned = false;
     let pluginSuggestionTimer = null;
     let selectedServerType = 'generic';
     let selectedServerIsJava = false;
@@ -585,7 +586,7 @@
         return `<button class="tab multi-file-tab${active}" data-open-file="${safePath}" title="${safePath}" type="button"><span class="tab-label">${label}</span><span class="tab-close" data-close-file="${safePath}" title="Close tab">×</span></button>`;
       }).join('');
       const updateReadyCount = allPlugins.filter(p => p.updateAvailable).length;
-      pluginsUpdateAllBtn.disabled = updateReadyCount === 0 || pluginUpdateScanInProgress;
+      pluginsUpdateAllBtn.disabled = !pluginUpdateScanned || updateReadyCount === 0 || pluginUpdateScanInProgress;
       pluginsUpdateAllBtn.textContent = updateReadyCount > 0 ? `Update All (${updateReadyCount})` : 'Update All';
     }
 
@@ -669,7 +670,7 @@
         );
       }).join('');
       const updateReadyCount = allPlugins.filter(p => p.updateAvailable).length;
-      pluginsUpdateAllBtn.disabled = updateReadyCount === 0 || pluginUpdateScanInProgress;
+      pluginsUpdateAllBtn.disabled = !pluginUpdateScanned || updateReadyCount === 0 || pluginUpdateScanInProgress;
       pluginsUpdateAllBtn.textContent = updateReadyCount > 0 ? `Update All (${updateReadyCount})` : 'Update All';
     }
 
@@ -861,6 +862,8 @@
       const plugins = listPlugins().filter(p => p.metadata);
       if (!plugins.length) {
         pluginUpdateAvailability = {};
+        pluginUpdateScanned = true;
+        pluginUpdateScanInProgress = false;
         renderPluginsPanel();
         return;
       }
@@ -884,6 +887,7 @@
         }
       }));
       pluginUpdateAvailability = next;
+      pluginUpdateScanned = true;
       pluginUpdateScanInProgress = false;
       renderPluginsPanel();
     }
@@ -1494,6 +1498,9 @@
         allFiles = data.files;
         emptyFolders = data.emptyFolders || [];
         editorPluginEntries = pluginState.entries || {};
+        pluginUpdateAvailability = {};
+        pluginUpdateScanned = false;
+        pluginUpdateScanInProgress = false;
         searchResults = null;
         expandedFolders.clear();
         const restored = restoreUiState();
