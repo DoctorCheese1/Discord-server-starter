@@ -1860,7 +1860,10 @@
     pluginsUpdateReadyFirst.addEventListener('change', () => renderPluginsPanel());
     pluginsUpdateAllBtn.addEventListener('click', async () => {
       const readyPlugins = listPlugins().filter(p => p.metadata && p.updateAvailable);
-      if (!readyPlugins.length) return;
+      if (!readyPlugins.length) {
+        pluginDownloadStatus.textContent = 'ℹ️ All installed plugins are already up to date.';
+        return;
+      }
       pluginsUpdateAllBtn.disabled = true;
       for (const plugin of readyPlugins) {
         const metadata = plugin.metadata;
