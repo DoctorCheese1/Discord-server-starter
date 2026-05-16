@@ -1865,14 +1865,24 @@
         return;
       }
       pluginsUpdateAllBtn.disabled = true;
+      let updatedCount = 0;
+      let skippedCount = 0;
       for (const plugin of readyPlugins) {
         const metadata = plugin.metadata;
         const source = String(metadata.source || '').toLowerCase();
         const query = metadata.projectId || metadata.projectSlug || metadata.query || metadata.plugin;
-        await postJson('/api/plugins/install', { serverId: serverSel.value, source, query, platform: pluginPlatform.value, mcVersion: pluginMcVersion.value.trim(), ...getSpigotAuthPayload() });
+        const response = await postJson('/api/plugins/install', { serverId: serverSel.value, source, query, platform: pluginPlatform.value, mcVersion: pluginMcVersion.value.trim(), ...getSpigotAuthPayload() });
+        if (response?.skipped) skippedCount += 1;
+        else updatedCount += 1;
       }
       await loadFiles();
-      pluginDownloadStatus.textContent = '✅ Updated all plugins with available updates.';
+      if (updatedCount > 0) {
+        pluginDownloadStatus.textContent = skippedCount > 0
+          ? `✅ Updated ${updatedCount} plugin(s); ${skippedCount} already up to date.`
+          : `✅ Updated ${updatedCount} plugin(s).`;
+        return;
+      }
+      pluginDownloadStatus.textContent = 'ℹ️ All installed plugins are already up to date.';
     });
     pluginsSearchInput.addEventListener('input', () => {
       pluginSearchFilter = pluginsSearchInput.value || '';
