@@ -662,7 +662,13 @@
               '<div class="plugin-state ' + stateClass + '">' + stateLabel + '</div>' +
             '</div>' +
             '<div class="plugin-actions">' +
-              (plugin.metadata ? '<button type="button" class="plugin-update">Update</button>' : '') +
+              (plugin.metadata
+                ? ('<button type="button" class="plugin-update"' +
+                    (((!pluginUpdateScanned || pluginUpdateScanInProgress || !plugin.updateAvailable)
+                      ? ' disabled title="No update available"'
+                      : ' title="Update plugin"')) +
+                    '>Update</button>')
+                : '') +
               '<button type="button" class="plugin-toggle">' + actionLabel + '</button>' +
               '<button type="button" class="plugin-delete">Delete</button>' +
             '</div>' +
