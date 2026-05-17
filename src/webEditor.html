@@ -883,11 +883,12 @@
         if (!source || !query) return;
         try {
           const meta = await postJson('/api/plugins/download-link', { source, query, platform: pluginPlatform.value, mcVersion: pluginMcVersion.value.trim(), ...getSpigotAuthPayload() });
-          const currentId = String(metadata.versionId || '').trim();
-          const latestId = String(meta.versionId || '').trim();
-          const currentLabel = extractComparableVersion(metadata.version || '');
-          const latestLabel = extractComparableVersion(getPluginVersionLabel(meta));
-          next[plugin.canonicalPath] = Boolean((currentId && latestId && currentId !== latestId) || (currentLabel && latestLabel && currentLabel !== latestLabel));
+          next[plugin.canonicalPath] = hasPluginUpdateByVersion({
+            currentVersionId: metadata.versionId,
+            latestVersionId: meta.versionId,
+            currentVersion: metadata.version,
+            latestVersion: getPluginVersionLabel(meta)
+          });
         } catch {
           next[plugin.canonicalPath] = false;
         }
@@ -958,6 +959,22 @@
       if (!normalized) return '';
       const semverLike = normalized.match(/\d+\.\d+(?:\.\d+){0,2}/);
       return semverLike ? semverLike[0] : normalized;
+    }
+
+    function hasPluginUpdateByVersion({ currentVersionId = '', latestVersionId = '', currentVersion = '', latestVersion = '' } = {}) {
+      const currentId = String(currentVersionId || '').trim();
+      const latestId = String(latestVersionId || '').trim();
+      if (currentId && latestId) return currentId !== latestId;
+
+      const normalizedCurrent = normalizeVersionForCompare(currentVersion);
+      const normalizedLatest = normalizeVersionForCompare(latestVersion);
+      if (normalizedCurrent && normalizedLatest) return normalizedCurrent !== normalizedLatest;
+
+      const currentComparable = extractComparableVersion(currentVersion);
+      const latestComparable = extractComparableVersion(latestVersion);
+      if (currentComparable && latestComparable) return currentComparable !== latestComparable;
+
+      return false;
     }
 
     function hasUnsavedChanges() {
@@ -1935,12 +1952,13 @@
           });
           const latestVersion = getPluginVersionLabel(downloadMeta);
           const latestVersionId = String(downloadMeta.versionId || '').trim();
-          const sameByVersionId = currentVersionId && latestVersionId && currentVersionId === latestVersionId;
-          const sameByLabel = currentVersion && latestVersion && normalizeVersionForCompare(currentVersion) === normalizeVersionForCompare(latestVersion);
-          const currentComparable = extractComparableVersion(currentVersion);
-          const latestComparable = extractComparableVersion(latestVersion);
-          const sameByComparable = currentComparable && latestComparable && currentComparable === latestComparable;
-          if (sameByVersionId || sameByLabel || sameByComparable) {
+          const hasUpdate = hasPluginUpdateByVersion({
+            currentVersionId,
+            latestVersionId,
+            currentVersion,
+            latestVersion
+          });
+          if (!hasUpdate) {
             pluginDownloadStatus.textContent = 'ℹ️ ' + (downloadMeta.plugin || query) + ' is already up to date (' + (latestVersion || currentVersion) + ').';
             return;
           }
