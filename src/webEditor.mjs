@@ -610,10 +610,14 @@ export function startWebEditor() {
           const normalizedProjectId = String(result.projectId || '').trim();
           const resolvedVersionId = String(result.versionId || result.versionNumber || result.minecraftVersion || '').trim();
           const resolvedVersionLabel = String(result.versionNumber || result.minecraftVersion || '').trim();
-          const existingMeta = Object.values(state.entries || {}).find(meta =>
-            String(meta?.source || '').toLowerCase() === normalizedSource
-            && String(meta?.projectId || '').trim() === normalizedProjectId
-          );
+          const existingEntry = Object.entries(state.entries || {}).find(([rel, meta]) => {
+            const matchesSource = String(meta?.source || '').toLowerCase() === normalizedSource;
+            const matchesProject = String(meta?.projectId || '').trim() === normalizedProjectId;
+            if (!matchesSource || !matchesProject) return false;
+            const absolutePath = path.resolve(serverConfig.cwd, String(rel || ''));
+            return fs.existsSync(absolutePath);
+          });
+          const existingMeta = existingEntry?.[1] || null;
           const existingVersionId = String(existingMeta?.versionId || '').trim();
           const existingVersionLabel = String(existingMeta?.version || '').trim();
           const sameVersion = (existingVersionId && resolvedVersionId && existingVersionId === resolvedVersionId)
