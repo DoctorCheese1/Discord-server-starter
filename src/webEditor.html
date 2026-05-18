@@ -76,7 +76,7 @@
       </div>
       <section id="pluginsPanel" class="plugins-panel" hidden>
         <div class="plugins-panel-header">Plugin Manager</div>
-        <details class="plugin-download-card" id="pluginAdderPanel">
+        <details class="plugin-download-card" id="pluginAdderPanel" open>
           <summary class="plugin-download-title">Plugin Adder</summary>
           <div class="plugin-download-controls">
             <div class="plugin-control-field">
@@ -273,6 +273,7 @@
     let pluginSearchFilter = '';
     let pluginUpdateAvailability = {};
     let pluginUpdateScanInProgress = false;
+    let pluginUpdateScanned = false;
     let pluginSuggestionTimer = null;
     let selectedServerType = 'generic';
     let selectedServerIsJava = false;
@@ -584,9 +585,9 @@
         const active = (activeTopTab === 'file' && path === currentFile) ? ' active' : '';
         return `<button class="tab multi-file-tab${active}" data-open-file="${safePath}" title="${safePath}" type="button"><span class="tab-label">${label}</span><span class="tab-close" data-close-file="${safePath}" title="Close tab">×</span></button>`;
       }).join('');
-      const updateReadyCount = allPlugins.filter(p => p.updateAvailable).length;
-      pluginsUpdateAllBtn.disabled = updateReadyCount === 0 || pluginUpdateScanInProgress;
-      pluginsUpdateAllBtn.textContent = updateReadyCount > 0 ? `Update All (${updateReadyCount})` : 'Update All';
+      const updatableCount = listPlugins().filter(p => p.metadata).length;
+      pluginsUpdateAllBtn.disabled = pluginUpdateScanInProgress || updatableCount === 0;
+      pluginsUpdateAllBtn.textContent = updatableCount > 0 ? `Update All (${updatableCount})` : 'Update All';
     }
 
     function parsePluginFromPath(filePath) {
@@ -668,9 +669,9 @@
           '</div>'
         );
       }).join('');
-      const updateReadyCount = allPlugins.filter(p => p.updateAvailable).length;
-      pluginsUpdateAllBtn.disabled = updateReadyCount === 0 || pluginUpdateScanInProgress;
-      pluginsUpdateAllBtn.textContent = updateReadyCount > 0 ? `Update All (${updateReadyCount})` : 'Update All';
+      const updatableCount = allPlugins.filter(p => p.metadata).length;
+      pluginsUpdateAllBtn.disabled = pluginUpdateScanInProgress || updatableCount === 0;
+      pluginsUpdateAllBtn.textContent = updatableCount > 0 ? `Update All (${updatableCount})` : 'Update All';
     }
 
 
@@ -861,6 +862,8 @@
       const plugins = listPlugins().filter(p => p.metadata);
       if (!plugins.length) {
         pluginUpdateAvailability = {};
+        pluginUpdateScanned = true;
+        pluginUpdateScanInProgress = false;
         renderPluginsPanel();
         return;
       }
@@ -884,6 +887,7 @@
         }
       }));
       pluginUpdateAvailability = next;
+      pluginUpdateScanned = true;
       pluginUpdateScanInProgress = false;
       renderPluginsPanel();
     }
@@ -1494,6 +1498,9 @@
         allFiles = data.files;
         emptyFolders = data.emptyFolders || [];
         editorPluginEntries = pluginState.entries || {};
+        pluginUpdateAvailability = {};
+        pluginUpdateScanned = false;
+        pluginUpdateScanInProgress = false;
         searchResults = null;
         expandedFolders.clear();
         const restored = restoreUiState();
@@ -1513,7 +1520,6 @@
           renderFiles('');
         }
         renderPluginsPanel();
-        scanPluginUpdates().catch(() => {});
         status.textContent = '✅ Loaded ' + allFiles.length + ' files for ' + serverLabel;
         const elapsedMs = Math.round(performance.now() - started);
         showLoadPopup('📁 ' + serverLabel + ': ' + allFiles.length + ' files loaded in ' + elapsedMs + 'ms');
@@ -1859,17 +1865,30 @@
     });
     pluginsUpdateReadyFirst.addEventListener('change', () => renderPluginsPanel());
     pluginsUpdateAllBtn.addEventListener('click', async () => {
-      const readyPlugins = listPlugins().filter(p => p.metadata && p.updateAvailable);
-      if (!readyPlugins.length) return;
+      const readyPlugins = listPlugins().filter(p => p.metadata);
+      if (!readyPlugins.length) {
+        pluginDownloadStatus.textContent = 'ℹ️ No plugins with update metadata are available.';
+        return;
+      }
       pluginsUpdateAllBtn.disabled = true;
+      let updatedCount = 0;
+      let skippedCount = 0;
       for (const plugin of readyPlugins) {
         const metadata = plugin.metadata;
         const source = String(metadata.source || '').toLowerCase();
         const query = metadata.projectId || metadata.projectSlug || metadata.query || metadata.plugin;
-        await postJson('/api/plugins/install', { serverId: serverSel.value, source, query, platform: pluginPlatform.value, mcVersion: pluginMcVersion.value.trim(), ...getSpigotAuthPayload() });
+        const response = await postJson('/api/plugins/install', { serverId: serverSel.value, source, query, platform: pluginPlatform.value, mcVersion: pluginMcVersion.value.trim(), ...getSpigotAuthPayload() });
+        if (response?.skipped) skippedCount += 1;
+        else updatedCount += 1;
       }
       await loadFiles();
-      pluginDownloadStatus.textContent = '✅ Updated all plugins with available updates.';
+      if (updatedCount > 0) {
+        pluginDownloadStatus.textContent = skippedCount > 0
+          ? `✅ Updated ${updatedCount} plugin(s); ${skippedCount} already up to date.`
+          : `✅ Updated ${updatedCount} plugin(s).`;
+        return;
+      }
+      pluginDownloadStatus.textContent = 'ℹ️ All installed plugins are already up to date.';
     });
     pluginsSearchInput.addEventListener('input', () => {
       pluginSearchFilter = pluginsSearchInput.value || '';
