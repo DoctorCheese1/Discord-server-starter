@@ -586,7 +586,7 @@
         return `<button class="tab multi-file-tab${active}" data-open-file="${safePath}" title="${safePath}" type="button"><span class="tab-label">${label}</span><span class="tab-close" data-close-file="${safePath}" title="Close tab">×</span></button>`;
       }).join('');
       const updateReadyCount = listPlugins().filter(p => p.updateAvailable).length;
-      pluginsUpdateAllBtn.disabled = !pluginUpdateScanned || updateReadyCount === 0 || pluginUpdateScanInProgress;
+      pluginsUpdateAllBtn.disabled = pluginUpdateScanInProgress;
       pluginsUpdateAllBtn.textContent = updateReadyCount > 0 ? `Update All (${updateReadyCount})` : 'Update All';
     }
 
@@ -676,7 +676,7 @@
         );
       }).join('');
       const updateReadyCount = allPlugins.filter(p => p.updateAvailable).length;
-      pluginsUpdateAllBtn.disabled = !pluginUpdateScanned || updateReadyCount === 0 || pluginUpdateScanInProgress;
+      pluginsUpdateAllBtn.disabled = pluginUpdateScanInProgress;
       pluginsUpdateAllBtn.textContent = updateReadyCount > 0 ? `Update All (${updateReadyCount})` : 'Update All';
     }
 
