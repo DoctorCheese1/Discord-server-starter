@@ -882,7 +882,8 @@
         const query = metadata.projectId || metadata.projectSlug || metadata.query || metadata.plugin;
         if (!source || !query) return;
         try {
-          const meta = await postJson('/api/plugins/download-link', { source, query, platform: pluginPlatform.value, mcVersion: pluginMcVersion.value.trim(), ...getSpigotAuthPayload() });
+          const metaResponse = await postJson('/api/plugins/download-link', { source, query, platform: pluginPlatform.value, mcVersion: pluginMcVersion.value.trim(), ...getSpigotAuthPayload() });
+          const meta = unwrapPluginDownloadResponse(metaResponse);
           next[plugin.canonicalPath] = hasPluginUpdateByVersion({
             currentVersionId: metadata.versionId,
             latestVersionId: meta.versionId,
@@ -940,8 +941,13 @@
       return parts[parts.length - 1];
     }
 
+    function unwrapPluginDownloadResponse(data) {
+      return data?.result || data || {};
+    }
+
     function getPluginVersionLabel(data) {
-      return String(data?.versionNumber || data?.minecraftVersion || data?.version || '').trim();
+      const pluginData = unwrapPluginDownloadResponse(data);
+      return String(pluginData?.versionNumber || pluginData?.minecraftVersion || pluginData?.version || '').trim();
     }
 
 
@@ -1942,13 +1948,14 @@
           const currentVersion = String(metadata.version || '').trim();
           const currentVersionId = String(metadata.versionId || '').trim();
           pluginDownloadStatus.textContent = '⏳ Checking for plugin updates...';
-          const downloadMeta = await postJson('/api/plugins/download-link', {
+          const downloadMetaResponse = await postJson('/api/plugins/download-link', {
             source,
             query,
             platform: pluginPlatform.value,
             mcVersion: pluginMcVersion.value.trim(),
             ...getSpigotAuthPayload()
           });
+          const downloadMeta = unwrapPluginDownloadResponse(downloadMetaResponse);
           const latestVersion = getPluginVersionLabel(downloadMeta);
           const latestVersionId = String(downloadMeta.versionId || '').trim();
           const hasUpdate = hasPluginUpdateByVersion({
