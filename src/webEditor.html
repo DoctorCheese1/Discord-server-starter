@@ -664,7 +664,7 @@
             '<div class="plugin-actions">' +
               (plugin.metadata
                 ? ('<button type="button" class="plugin-update"' +
-                    (((!pluginUpdateScanned || pluginUpdateScanInProgress || !plugin.updateAvailable)
+                    ((!plugin.updateAvailable
                       ? ' disabled title="No update available"'
                       : ' title="Update plugin"')) +
                     '>Update</button>')
@@ -1900,24 +1900,25 @@
         return;
       }
       pluginsUpdateAllBtn.disabled = true;
+      const totalPlugins = listPlugins().length;
       let updatedCount = 0;
-      let skippedCount = 0;
       for (const plugin of readyPlugins) {
         const metadata = plugin.metadata;
         const source = String(metadata.source || '').toLowerCase();
         const query = metadata.projectId || metadata.projectSlug || metadata.query || metadata.plugin;
         const response = await postJson('/api/plugins/install', { serverId: serverSel.value, source, query, platform: pluginPlatform.value, mcVersion: pluginMcVersion.value.trim(), ...getSpigotAuthPayload() });
-        if (response?.skipped) skippedCount += 1;
-        else updatedCount += 1;
+        if (!response?.skipped) updatedCount += 1;
       }
       await loadFiles();
+      const scannedPlugins = readyPlugins.length;
       if (updatedCount > 0) {
-        pluginDownloadStatus.textContent = skippedCount > 0
-          ? `✅ Updated ${updatedCount} plugin(s); ${skippedCount} already up to date.`
-          : `✅ Updated ${updatedCount} plugin(s).`;
+        const unchangedCount = scannedPlugins - updatedCount;
+        pluginDownloadStatus.textContent = unchangedCount > 0
+          ? `✅ Updated ${updatedCount} of ${scannedPlugins} update-ready plugin(s) (${totalPlugins} total installed); ${unchangedCount} already up to date.`
+          : `✅ Updated ${updatedCount} of ${scannedPlugins} update-ready plugin(s) (${totalPlugins} total installed).`;
         return;
       }
-      pluginDownloadStatus.textContent = 'ℹ️ All installed plugins are already up to date.';
+      pluginDownloadStatus.textContent = `ℹ️ 0 of ${scannedPlugins} update-ready plugin(s) updated (${totalPlugins} total installed). All are already up to date.`;
     });
     pluginsSearchInput.addEventListener('input', () => {
       pluginSearchFilter = pluginsSearchInput.value || '';
