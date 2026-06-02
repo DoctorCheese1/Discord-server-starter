@@ -130,7 +130,8 @@
           </div>
           <div id="pluginDownloadStatus" class="plugin-download-status">Ready.</div>
         </details>
-        <div class="plugins-toolbar"><input id="pluginsSearch" class="plugins-search" placeholder="Search plugins..." /><button id="pluginsUpdateAllBtn" type="button" class="plugin-update" disabled>Update All</button><label class="plugins-sort"><input id="pluginsUpdateReadyFirst" type="checkbox" /> Update-ready first</label></div>
+        <div class="plugins-toolbar"><input id="pluginsSearch" class="plugins-search" placeholder="Search plugins..." /><button id="pluginsUpdateAllBtn" type="button" class="plugin-update">Check / Update All</button><label class="plugins-sort"><input id="pluginsUpdateReadyFirst" type="checkbox" /> Update-ready first</label></div>
+        <div class="plugins-update-note">Update buttons stay enabled so you can manually check anytime. Bulk updates only run for plugins installed or updated through this editor.</div>
         <div id="pluginsStatus" class="plugins-status">Load a server to view plugins.</div>
         <div id="pluginsList" class="plugins-list"></div>
       </section>
@@ -274,6 +275,8 @@
     let pluginUpdateAvailability = {};
     let pluginUpdateScanInProgress = false;
     let pluginUpdateScanned = false;
+    let pluginUpdateAllInProgress = false;
+    const pluginUpdateInProgressPaths = new Set();
     let pluginSuggestionTimer = null;
     let selectedServerType = 'generic';
     let selectedServerIsJava = false;
@@ -572,8 +575,14 @@
       renderOpenFileTabs();
     }
 
+    function updatePluginsUpdateAllButtonLabel(pluginCount = listPlugins().filter(p => p.metadata).length) {
+      pluginsUpdateAllBtn.disabled = false;
+      pluginsUpdateAllBtn.textContent = pluginCount > 0 ? `Check / Update All (${pluginCount})` : 'Check / Update All';
+    }
+
     function renderOpenFileTabs() {
       if (!multiFileTabs) return;
+      updatePluginsUpdateAllButtonLabel();
       if (openFileTabs.length === 0) {
         multiFileTabs.innerHTML = '<button class="tab multi-file-tab' + (activeTopTab === 'file' ? ' active' : '') + '" type="button" data-empty-tab="true"><span class="tab-label">No file open</span></button>';
         return;
@@ -585,9 +594,6 @@
         const active = (activeTopTab === 'file' && path === currentFile) ? ' active' : '';
         return `<button class="tab multi-file-tab${active}" data-open-file="${safePath}" title="${safePath}" type="button"><span class="tab-label">${label}</span><span class="tab-close" data-close-file="${safePath}" title="Close tab">×</span></button>`;
       }).join('');
-      const updatableCount = listPlugins().filter(p => p.metadata).length;
-      pluginsUpdateAllBtn.disabled = pluginUpdateScanInProgress || updatableCount === 0;
-      pluginsUpdateAllBtn.textContent = updatableCount > 0 ? `Update All (${updatableCount})` : 'Update All';
     }
 
     function parsePluginFromPath(filePath) {
@@ -663,11 +669,7 @@
             '</div>' +
             '<div class="plugin-actions">' +
               (plugin.metadata
-                ? ('<button type="button" class="plugin-update"' +
-                    ((!plugin.updateAvailable
-                      ? ' disabled title="No update available"'
-                      : ' title="Update plugin"')) +
-                    '>Update</button>')
+                ? ('<button type="button" class="plugin-update" title="Check for and install plugin updates">Check / Update</button>')
                 : '') +
               '<button type="button" class="plugin-toggle">' + actionLabel + '</button>' +
               '<button type="button" class="plugin-delete">Delete</button>' +
@@ -675,9 +677,7 @@
           '</div>'
         );
       }).join('');
-      const updatableCount = allPlugins.filter(p => p.metadata).length;
-      pluginsUpdateAllBtn.disabled = pluginUpdateScanInProgress || updatableCount === 0;
-      pluginsUpdateAllBtn.textContent = updatableCount > 0 ? `Update All (${updatableCount})` : 'Update All';
+      updatePluginsUpdateAllButtonLabel(allPlugins.filter(p => p.metadata).length);
     }
 
 
@@ -1894,31 +1894,41 @@
     });
     pluginsUpdateReadyFirst.addEventListener('change', () => renderPluginsPanel());
     pluginsUpdateAllBtn.addEventListener('click', async () => {
+      if (pluginUpdateAllInProgress) {
+        pluginDownloadStatus.textContent = '⏳ Check / Update All is already running.';
+        return;
+      }
       const readyPlugins = listPlugins().filter(p => p.metadata);
       if (!readyPlugins.length) {
         pluginDownloadStatus.textContent = 'ℹ️ No plugins with update metadata are available.';
         return;
       }
-      pluginsUpdateAllBtn.disabled = true;
       const totalPlugins = listPlugins().length;
       let updatedCount = 0;
-      for (const plugin of readyPlugins) {
-        const metadata = plugin.metadata;
-        const source = String(metadata.source || '').toLowerCase();
-        const query = metadata.projectId || metadata.projectSlug || metadata.query || metadata.plugin;
-        const response = await postJson('/api/plugins/install', { serverId: serverSel.value, source, query, platform: pluginPlatform.value, mcVersion: pluginMcVersion.value.trim(), ...getSpigotAuthPayload() });
-        if (!response?.skipped) updatedCount += 1;
+      pluginUpdateAllInProgress = true;
+      try {
+        for (const plugin of readyPlugins) {
+          const metadata = plugin.metadata;
+          const source = String(metadata.source || '').toLowerCase();
+          const query = metadata.projectId || metadata.projectSlug || metadata.query || metadata.plugin;
+          const response = await postJson('/api/plugins/install', { serverId: serverSel.value, source, query, platform: pluginPlatform.value, mcVersion: pluginMcVersion.value.trim(), ...getSpigotAuthPayload() });
+          if (!response?.skipped) updatedCount += 1;
+        }
+        await loadFiles();
+        const scannedPlugins = readyPlugins.length;
+        if (updatedCount > 0) {
+          const unchangedCount = scannedPlugins - updatedCount;
+          pluginDownloadStatus.textContent = unchangedCount > 0
+            ? `✅ Updated ${updatedCount} of ${scannedPlugins} editor-managed plugin(s) (${totalPlugins} total installed); ${unchangedCount} already up to date.`
+            : `✅ Updated ${updatedCount} of ${scannedPlugins} editor-managed plugin(s) (${totalPlugins} total installed).`;
+          return;
+        }
+        pluginDownloadStatus.textContent = `ℹ️ 0 of ${scannedPlugins} editor-managed plugin(s) updated (${totalPlugins} total installed). All are already up to date.`;
+      } catch (err) {
+        pluginDownloadStatus.textContent = '❌ ' + err.message;
+      } finally {
+        pluginUpdateAllInProgress = false;
       }
-      await loadFiles();
-      const scannedPlugins = readyPlugins.length;
-      if (updatedCount > 0) {
-        const unchangedCount = scannedPlugins - updatedCount;
-        pluginDownloadStatus.textContent = unchangedCount > 0
-          ? `✅ Updated ${updatedCount} of ${scannedPlugins} update-ready plugin(s) (${totalPlugins} total installed); ${unchangedCount} already up to date.`
-          : `✅ Updated ${updatedCount} of ${scannedPlugins} update-ready plugin(s) (${totalPlugins} total installed).`;
-        return;
-      }
-      pluginDownloadStatus.textContent = `ℹ️ 0 of ${scannedPlugins} update-ready plugin(s) updated (${totalPlugins} total installed). All are already up to date.`;
     });
     pluginsSearchInput.addEventListener('input', () => {
       pluginSearchFilter = pluginsSearchInput.value || '';
@@ -1937,6 +1947,10 @@
 
       if (actionButton.classList.contains('plugin-update')) {
         if (!metadata) return;
+        if (pluginUpdateInProgressPaths.has(canonicalPath)) {
+          pluginDownloadStatus.textContent = '⏳ Update check is already running for this plugin.';
+          return;
+        }
         const serverId = serverSel.value;
         const source = String(metadata.source || '').toLowerCase();
         const query = metadata.projectId || metadata.projectSlug || metadata.query || metadata.plugin;
@@ -1945,7 +1959,7 @@
           return;
         }
         try {
-          actionButton.disabled = true;
+          pluginUpdateInProgressPaths.add(canonicalPath);
           const currentVersion = String(metadata.version || '').trim();
           const currentVersionId = String(metadata.versionId || '').trim();
           pluginDownloadStatus.textContent = '⏳ Checking for plugin updates...';
@@ -1989,7 +2003,7 @@
         } catch (err) {
           pluginDownloadStatus.textContent = '❌ ' + err.message;
         } finally {
-          actionButton.disabled = false;
+          pluginUpdateInProgressPaths.delete(canonicalPath);
         }
         return;
       }
