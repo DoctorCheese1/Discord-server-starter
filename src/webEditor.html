@@ -130,7 +130,7 @@
           </div>
           <div id="pluginDownloadStatus" class="plugin-download-status">Ready.</div>
         </details>
-        <div class="plugins-toolbar"><input id="pluginsSearch" class="plugins-search" placeholder="Search plugins..." /><button id="pluginsUpdateAllBtn" type="button" class="plugin-update" disabled>Update All</button><label class="plugins-sort"><input id="pluginsUpdateReadyFirst" type="checkbox" /> Update-ready first</label></div>
+        <div class="plugins-toolbar"><input id="pluginsSearch" class="plugins-search" placeholder="Search plugins..." /><button id="pluginsUpdateAllBtn" type="button" class="plugin-update">Update All</button><label class="plugins-sort"><input id="pluginsUpdateReadyFirst" type="checkbox" /> Update-ready first</label></div>
         <div id="pluginsStatus" class="plugins-status">Load a server to view plugins.</div>
         <div id="pluginsList" class="plugins-list"></div>
       </section>
@@ -586,7 +586,7 @@
         return `<button class="tab multi-file-tab${active}" data-open-file="${safePath}" title="${safePath}" type="button"><span class="tab-label">${label}</span><span class="tab-close" data-close-file="${safePath}" title="Close tab">×</span></button>`;
       }).join('');
       const updatableCount = listPlugins().filter(p => p.metadata).length;
-      pluginsUpdateAllBtn.disabled = pluginUpdateScanInProgress || updatableCount === 0;
+      pluginsUpdateAllBtn.disabled = false;
       pluginsUpdateAllBtn.textContent = updatableCount > 0 ? `Update All (${updatableCount})` : 'Update All';
     }
 
@@ -663,11 +663,7 @@
             '</div>' +
             '<div class="plugin-actions">' +
               (plugin.metadata
-                ? ('<button type="button" class="plugin-update"' +
-                    ((!plugin.updateAvailable
-                      ? ' disabled title="No update available"'
-                      : ' title="Update plugin"')) +
-                    '>Update</button>')
+                ? ('<button type="button" class="plugin-update" title="Check for and install plugin updates">Update</button>')
                 : '') +
               '<button type="button" class="plugin-toggle">' + actionLabel + '</button>' +
               '<button type="button" class="plugin-delete">Delete</button>' +
@@ -676,7 +672,7 @@
         );
       }).join('');
       const updatableCount = allPlugins.filter(p => p.metadata).length;
-      pluginsUpdateAllBtn.disabled = pluginUpdateScanInProgress || updatableCount === 0;
+      pluginsUpdateAllBtn.disabled = false;
       pluginsUpdateAllBtn.textContent = updatableCount > 0 ? `Update All (${updatableCount})` : 'Update All';
     }
 
@@ -1899,7 +1895,6 @@
         pluginDownloadStatus.textContent = 'ℹ️ No plugins with update metadata are available.';
         return;
       }
-      pluginsUpdateAllBtn.disabled = true;
       const totalPlugins = listPlugins().length;
       let updatedCount = 0;
       for (const plugin of readyPlugins) {
@@ -1945,7 +1940,6 @@
           return;
         }
         try {
-          actionButton.disabled = true;
           const currentVersion = String(metadata.version || '').trim();
           const currentVersionId = String(metadata.versionId || '').trim();
           pluginDownloadStatus.textContent = '⏳ Checking for plugin updates...';
@@ -1988,8 +1982,6 @@
           await loadFiles();
         } catch (err) {
           pluginDownloadStatus.textContent = '❌ ' + err.message;
-        } finally {
-          actionButton.disabled = false;
         }
         return;
       }
