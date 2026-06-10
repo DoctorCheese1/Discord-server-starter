@@ -43,8 +43,8 @@ export function buildCommands() {
         .setDMPermission(true)
         .addSubcommand(sc => sc.setName('status').setDescription('Power status'))
         .addSubcommand(sc => sc.setName('on').setDescription('Power on'))
-        .addSubcommand(sc => sc.setName('off').setDescription('Power off'))
-        .addSubcommand(sc => sc.setName('reboot').setDescription('Reboot'))
+        .addSubcommand(sc => sc.setName('off').setDescription('Power off').addBooleanOption(o => o.setName('confirm').setDescription('Required safety confirmation').setRequired(false)))
+        .addSubcommand(sc => sc.setName('reboot').setDescription('Reboot').addBooleanOption(o => o.setName('confirm').setDescription('Required safety confirmation').setRequired(false)))
         .toJSON()
     ];
   }
@@ -112,6 +112,11 @@ export function buildCommands() {
           .setDescription('Server id')
           .setRequired(true)
           .setAutocomplete(true)
+      )
+      .addBooleanOption(o =>
+        o.setName('confirm')
+          .setDescription('Required safety confirmation for stop')
+          .setRequired(false)
       ),
 
     new SlashCommandBuilder()
@@ -123,6 +128,131 @@ export function buildCommands() {
           .setDescription('Server id')
           .setRequired(true)
           .setAutocomplete(true)
+      )
+      .addBooleanOption(o =>
+        o.setName('confirm')
+          .setDescription('Required safety confirmation for restart')
+          .setRequired(false)
+      ),
+
+
+
+    new SlashCommandBuilder()
+      .setName('console')
+      .setDescription('Read or manage captured server console logs')
+      .setDMPermission(true)
+      .addSubcommand(sc =>
+        sc.setName('tail')
+          .setDescription('Show the last lines of a server console log')
+          .addStringOption(o => o.setName('id').setDescription('Server id').setRequired(true).setAutocomplete(true))
+          .addIntegerOption(o => o.setName('lines').setDescription('Number of lines').setRequired(false).setMinValue(1).setMaxValue(100))
+      )
+      .addSubcommand(sc =>
+        sc.setName('search')
+          .setDescription('Search a server console log')
+          .addStringOption(o => o.setName('id').setDescription('Server id').setRequired(true).setAutocomplete(true))
+          .addStringOption(o => o.setName('query').setDescription('Text to search for').setRequired(true))
+      )
+      .addSubcommand(sc =>
+        sc.setName('clear')
+          .setDescription('Clear a server console log')
+          .addStringOption(o => o.setName('id').setDescription('Server id').setRequired(true).setAutocomplete(true))
+          .addBooleanOption(o => o.setName('confirm').setDescription('Required safety confirmation').setRequired(false))
+      ),
+
+    new SlashCommandBuilder()
+      .setName('backup')
+      .setDescription('Create, list, and restore server folder backups')
+      .setDMPermission(true)
+      .addSubcommand(sc =>
+        sc.setName('create')
+          .setDescription('Copy a server folder into data/backups')
+          .addStringOption(o => o.setName('id').setDescription('Server id').setRequired(true).setAutocomplete(true))
+          .addStringOption(o => o.setName('label').setDescription('Optional backup label').setRequired(false))
+      )
+      .addSubcommand(sc =>
+        sc.setName('list')
+          .setDescription('List backups for a server')
+          .addStringOption(o => o.setName('id').setDescription('Server id').setRequired(true).setAutocomplete(true))
+      )
+      .addSubcommand(sc =>
+        sc.setName('restore')
+          .setDescription('Restore a backup over the current server folder')
+          .addStringOption(o => o.setName('id').setDescription('Server id').setRequired(true).setAutocomplete(true))
+          .addStringOption(o => o.setName('name').setDescription('Backup name from /backup list').setRequired(true))
+          .addBooleanOption(o => o.setName('confirm').setDescription('Required safety confirmation').setRequired(false))
+      ),
+
+    new SlashCommandBuilder()
+      .setName('disk')
+      .setDescription('Show server folder disk usage')
+      .setDMPermission(true)
+      .addSubcommand(sc =>
+        sc.setName('summary')
+          .setDescription('Show disk usage for one server or all servers')
+          .addStringOption(o => o.setName('id').setDescription('Optional server id').setRequired(false).setAutocomplete(true))
+      ),
+
+    new SlashCommandBuilder()
+      .setName('schedule')
+      .setDescription('Schedule one server action after a delay')
+      .setDMPermission(true)
+      .addSubcommand(sc =>
+        sc.setName('run')
+          .setDescription('Schedule start, stop, restart, or Steam update')
+          .addStringOption(o => o.setName('id').setDescription('Server id').setRequired(true).setAutocomplete(true))
+          .addStringOption(o => o.setName('action').setDescription('Action').setRequired(true).addChoices(
+            { name: 'start', value: 'start' },
+            { name: 'stop', value: 'stop' },
+            { name: 'restart', value: 'restart' },
+            { name: 'update', value: 'update' }
+          ))
+          .addIntegerOption(o => o.setName('delay-minutes').setDescription('Delay before execution').setRequired(true).setMinValue(1).setMaxValue(1440))
+      )
+      .addSubcommand(sc => sc.setName('list').setDescription('List pending server schedules'))
+      .addSubcommand(sc =>
+        sc.setName('cancel')
+          .setDescription('Cancel a pending server schedule')
+          .addStringOption(o => o.setName('id').setDescription('Schedule id from /schedule list').setRequired(true))
+      ),
+
+    new SlashCommandBuilder()
+      .setName('template')
+      .setDescription('Generate starter scripts for a configured server folder')
+      .setDMPermission(true)
+      .addSubcommand(sc =>
+        sc.setName('create')
+          .setDescription('Create start.bat, stop.bat, and update.bat templates')
+          .addStringOption(o => o.setName('id').setDescription('Server id').setRequired(true).setAutocomplete(true))
+          .addStringOption(o => o.setName('type').setDescription('Template type').setRequired(true).addChoices(
+            { name: 'generic', value: 'generic' },
+            { name: 'minecraft', value: 'minecraft' },
+            { name: 'proxy', value: 'proxy' },
+            { name: 'steam', value: 'steam' }
+          ))
+          .addBooleanOption(o => o.setName('overwrite').setDescription('Overwrite existing scripts').setRequired(false))
+      ),
+
+    new SlashCommandBuilder()
+      .setName('mc')
+      .setDescription('Minecraft RCON helpers')
+      .setDMPermission(true)
+      .addSubcommand(sc =>
+        sc.setName('players')
+          .setDescription('Run list over RCON')
+          .addStringOption(o => o.setName('id').setDescription('Server id').setRequired(true).setAutocomplete(true))
+      )
+      .addSubcommand(sc =>
+        sc.setName('say')
+          .setDescription('Broadcast a message over RCON')
+          .addStringOption(o => o.setName('id').setDescription('Server id').setRequired(true).setAutocomplete(true))
+          .addStringOption(o => o.setName('message').setDescription('Message').setRequired(true))
+      )
+      .addSubcommand(sc =>
+        sc.setName('command')
+          .setDescription('Run a raw RCON command')
+          .addStringOption(o => o.setName('id').setDescription('Server id').setRequired(true).setAutocomplete(true))
+          .addStringOption(o => o.setName('command').setDescription('Command without slash').setRequired(true))
       ),
 
     new SlashCommandBuilder()
@@ -412,6 +542,34 @@ export function buildCommands() {
       )
 
       .addSubcommand(sc =>
+        sc.setName('set-rcon')
+          .setDescription('Set Minecraft RCON connection settings')
+          .addStringOption(o =>
+            o.setName('id')
+              .setDescription('Server id')
+              .setRequired(true)
+              .setAutocomplete(true)
+          )
+          .addStringOption(o =>
+            o.setName('host')
+              .setDescription('RCON host (default 127.0.0.1)')
+              .setRequired(false)
+          )
+          .addIntegerOption(o =>
+            o.setName('port')
+              .setDescription('RCON port (default 25575)')
+              .setRequired(false)
+              .setMinValue(1)
+              .setMaxValue(65535)
+          )
+          .addStringOption(o =>
+            o.setName('password')
+              .setDescription('RCON password')
+              .setRequired(false)
+          )
+      )
+
+      .addSubcommand(sc =>
         sc.setName('set-dir')
           .setDescription('Set server folder path (also updates name to folder name)')
           .addStringOption(o =>
@@ -435,6 +593,11 @@ export function buildCommands() {
               .setDescription('Server id')
               .setRequired(true)
               .setAutocomplete(true)
+          )
+          .addBooleanOption(o =>
+            o.setName('confirm')
+              .setDescription('Required safety confirmation')
+              .setRequired(false)
           )
       ),
 
@@ -477,6 +640,16 @@ export function buildCommands() {
       )
 
       .addSubcommand(sc =>
+        sc.setName('search')
+          .setDescription('Search registered Steam games')
+          .addStringOption(o =>
+            o.setName('query')
+              .setDescription('Game name or AppID')
+              .setRequired(true)
+          )
+      )
+
+      .addSubcommand(sc =>
         sc.setName('addgame')
           .setDescription('Register a Steam game')
           .addStringOption(o =>
@@ -508,8 +681,8 @@ export function buildCommands() {
       .setDMPermission(true)
       .addSubcommand(sc => sc.setName('status').setDescription('Power status'))
       .addSubcommand(sc => sc.setName('on').setDescription('Power on'))
-      .addSubcommand(sc => sc.setName('off').setDescription('Power off'))
-      .addSubcommand(sc => sc.setName('reboot').setDescription('Reboot')),
+      .addSubcommand(sc => sc.setName('off').setDescription('Power off').addBooleanOption(o => o.setName('confirm').setDescription('Required safety confirmation').setRequired(false)))
+      .addSubcommand(sc => sc.setName('reboot').setDescription('Reboot').addBooleanOption(o => o.setName('confirm').setDescription('Required safety confirmation').setRequired(false))),
   ];
 
   return cmds.map(c => c.toJSON());

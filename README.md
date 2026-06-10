@@ -468,3 +468,150 @@ Then restart the bot and use the new key in the web editor login field.
 * The bot remains game-agnostic and stable
 
 ---
+
+---
+
+## Advanced Control Features
+
+### Safety confirmations
+
+Dangerous commands require an explicit `confirm:true` option before they run:
+
+* `/stop`
+* `/restart`
+* `/console clear`
+* `/backup restore`
+* `/config remove`
+* `/idrac off`
+* `/idrac reboot`
+
+This is intended to prevent accidental shutdowns, destructive restores, or host power actions.
+
+### Bot operator permissions
+
+By default, if no permission environment variables are set, the bot treats all users as owners for backwards compatibility.
+To lock the bot down, set one or more comma-separated Discord user ID lists:
+
+```env
+BOT_OWNER_IDS=111111111111111111
+BOT_ADMIN_IDS=222222222222222222,333333333333333333
+BOT_MOD_IDS=444444444444444444
+```
+
+Permission tiers:
+
+* **owner**: full access
+* **admin**: config, templates, backups, iDRAC power, and moderator actions
+* **mod**: lifecycle, group, Steam update, schedule, backup create/list, and Minecraft RCON actions
+* **viewer**: status, info, disk usage, audit, web editor status, and console read/search
+
+### Persistent audit log
+
+Bot control actions are written to `data/audit.jsonl` and can be reviewed with:
+
+```text
+/audit recent
+```
+
+Each audit entry records timestamp, user, action, status, and details so history survives bot restarts.
+
+### Console log commands
+
+Servers launched by the bot write to their console log path. You can inspect that log from Discord:
+
+```text
+/console tail id:<serverId> lines:50
+/console search id:<serverId> query:<text>
+/console clear id:<serverId> confirm:true
+```
+
+### Backup and restore commands
+
+Folder backups are stored under `data/backups/<serverId>/` as copied directory snapshots:
+
+```text
+/backup create id:<serverId> label:<optional-label>
+/backup list id:<serverId>
+/backup restore id:<serverId> name:<backup-name> confirm:true
+```
+
+Backups skip transient PID files and include a `backup-manifest.json` file with source metadata.
+
+### Disk usage command
+
+Show the largest server folders or inspect one server:
+
+```text
+/disk summary
+/disk summary id:<serverId>
+```
+
+### Per-server delayed schedules
+
+Schedule one server action after a delay:
+
+```text
+/schedule run id:<serverId> action:<start|stop|restart|update> delay-minutes:<1-1440>
+/schedule list
+/schedule cancel id:<scheduleId>
+```
+
+For grouped delayed actions, keep using `/group schedule`.
+
+### Starter script templates
+
+Generate starter `start.bat`, `stop.bat`, and `update.bat` files inside an existing server folder:
+
+```text
+/template create id:<serverId> type:<generic|minecraft|proxy|steam>
+/template create id:<serverId> type:minecraft overwrite:true
+```
+
+Templates are intentionally basic and should be reviewed before production use.
+
+### Minecraft RCON helpers
+
+Set RCON globally:
+
+```env
+MC_RCON_HOST=127.0.0.1
+MC_RCON_PORT=25575
+MC_RCON_PASSWORD=your-rcon-password
+```
+
+Or configure a server-specific RCON connection:
+
+```text
+/config set-rcon id:<serverId> host:<host> port:<port> password:<password>
+```
+
+Then run:
+
+```text
+/mc players id:<serverId>
+/mc say id:<serverId> message:<message>
+/mc command id:<serverId> command:<command-without-slash>
+```
+
+### Steam search registration
+
+The Steam registry search handler is now exposed as a slash command:
+
+```text
+/steam search query:<game-name-or-appid>
+```
+
+### Web editor file transfer and backup-on-save
+
+The web editor now creates a timestamped copy in `.webeditor-backups/` before overwriting an existing file unless disabled:
+
+```env
+WEB_EDITOR_BACKUP_ON_SAVE=false
+```
+
+Additional API endpoints are available for file transfer integrations:
+
+* `GET /api/file/download?serverId=<id>&path=<relative-file>` downloads a file
+* `POST /api/file/upload` with JSON `{ "serverId": "id", "path": "relative-file.txt", "base64": "..." }` uploads/replaces an allowed text file
+
+The existing read-only key behavior also blocks upload, save, create, rename, duplicate, and delete actions.
