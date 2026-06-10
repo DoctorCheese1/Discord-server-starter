@@ -231,6 +231,20 @@ Use the included updater from inside the cloned bot folder:
 npm run update:bot
 ```
 
+On Windows, you can also double-click or run the included batch file:
+
+```bat
+update.bat
+```
+
+The batch file runs the same updater, runs `npm install` so dependency changes are applied, and then runs `npm run verify:deps` to confirm every runtime dependency is installed and present in `package-lock.json`.
+
+You can also verify dependencies manually at any time:
+
+```sh
+npm run verify:deps
+```
+
 The updater checks for Git, confirms the folder is a Git repository, stashes local changes before updating, fetches the repository's default branch, applies the update with a fast-forward merge, and then reapplies the stash. You can override the source repository or branch when needed:
 
 ```sh
