@@ -223,6 +223,22 @@ Notes:
 
 ---
 
+## Updating the Bot
+
+Use the included updater from inside the cloned bot folder:
+
+```sh
+npm run update:bot
+```
+
+The updater checks for Git, confirms the folder is a Git repository, stashes local changes before updating, fetches the repository's default branch, applies the update with a fast-forward merge, and then reapplies the stash. You can override the source repository or branch when needed:
+
+```sh
+SERVER_CONTROL_BOT_REPO_URL=https://github.com/DoctorCheese1/Discord-server-starter.git SERVER_CONTROL_BOT_UPDATE_BRANCH=main npm run update:bot
+```
+
+---
+
 ### /group list [name:<groupName>]
 
 Lists grouped servers, or only servers for a specific group.
