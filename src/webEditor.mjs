@@ -33,6 +33,25 @@ function sendCss(res, css) {
   res.end(css);
 }
 
+function sendDownload(res, filename, data, contentType = 'application/octet-stream') {
+  res.writeHead(200, {
+    'Content-Type': contentType,
+    'Content-Disposition': `attachment; filename="${String(filename).replace(/"/g, '')}"`
+  });
+  res.end(data);
+}
+
+function backupFileBeforeSave(serverConfig, fullPath, relPath) {
+  if (process.env.WEB_EDITOR_BACKUP_ON_SAVE === 'false') return '';
+  if (!fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile()) return '';
+  const safeRel = String(relPath || path.basename(fullPath)).replace(/[^a-zA-Z0-9_.-]/g, '_');
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backupPath = path.join(serverConfig.cwd, '.webeditor-backups', `${stamp}-${safeRel}`);
+  fs.mkdirSync(path.dirname(backupPath), { recursive: true });
+  fs.copyFileSync(fullPath, backupPath);
+  return path.relative(serverConfig.cwd, backupPath).replace(/\\/g, '/');
+}
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let data = '';
@@ -736,6 +755,18 @@ export function startWebEditor() {
         return sendJson(res, 200, { content });
       }
 
+      if (req.method === 'GET' && url.pathname === '/api/file/download') {
+        const serverId = url.searchParams.get('serverId');
+        const relPath = url.searchParams.get('path') || '';
+        const serverConfig = findServer(serverId);
+        if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
+        if (!isSafePath(serverConfig.cwd, relPath)) return sendJson(res, 400, { error: 'Invalid path' });
+        const fullPath = path.resolve(serverConfig.cwd, relPath);
+        if (!fs.existsSync(fullPath)) return sendJson(res, 404, { error: 'File not found' });
+        if (!fs.statSync(fullPath).isFile()) return sendJson(res, 400, { error: 'Path is not a file' });
+        return sendDownload(res, path.basename(fullPath), fs.readFileSync(fullPath));
+      }
+
       if (req.method === 'POST' && url.pathname === '/api/file') {
         if (isReadOnlyRequest(req)) return sendJson(res, 403, { error: 'Read-only key cannot modify files' });
         const raw = await readBody(req);
@@ -755,9 +786,10 @@ export function startWebEditor() {
         if (!editability.editable) return sendJson(res, 400, { error: editability.reason });
 
         fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+        const backupPath = backupFileBeforeSave(serverConfig, fullPath, relPath);
         fs.writeFileSync(fullPath, content, 'utf8');
 
-        return sendJson(res, 200, { ok: true });
+        return sendJson(res, 200, { ok: true, backupPath });
       }
 
       if (req.method === 'POST' && url.pathname === '/api/file/create') {
@@ -780,6 +812,27 @@ export function startWebEditor() {
         fs.mkdirSync(path.dirname(fullPath), { recursive: true });
         fs.writeFileSync(fullPath, content, 'utf8');
         return sendJson(res, 200, { ok: true });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/file/upload') {
+        if (isReadOnlyRequest(req)) return sendJson(res, 403, { error: 'Read-only key cannot upload files' });
+        const raw = await readBody(req);
+        const body = JSON.parse(raw || '{}');
+        const serverConfig = findServer(body.serverId);
+        const relPath = String(body.path || '').trim();
+        const base64 = String(body.base64 || '');
+        if (!serverConfig) return sendJson(res, 404, { error: 'Server not found' });
+        if (!relPath) return sendJson(res, 400, { error: 'Path is required' });
+        if (!isSafePath(serverConfig.cwd, relPath)) return sendJson(res, 400, { error: 'Invalid path' });
+        const fullPath = path.resolve(serverConfig.cwd, relPath);
+        const ext = path.extname(fullPath).toLowerCase();
+        if (!TEXT_EXTENSIONS.has(ext)) return sendJson(res, 400, { error: `Unsupported extension: ${ext || 'none'}` });
+        const data = Buffer.from(base64, 'base64');
+        if (data.length > MAX_FILE_BYTES) return sendJson(res, 400, { error: 'Upload too large' });
+        fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+        const backupPath = backupFileBeforeSave(serverConfig, fullPath, relPath);
+        fs.writeFileSync(fullPath, data);
+        return sendJson(res, 200, { ok: true, backupPath });
       }
 
       if (req.method === 'POST' && url.pathname === '/api/folder/create') {

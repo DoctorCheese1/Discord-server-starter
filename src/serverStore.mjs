@@ -186,6 +186,10 @@ function normalizeServer(s) {
     java: s.java === true || s.type === 'minecraft' || s.type === 'proxy',
     group: typeof s.group === 'string' ? s.group : '',
     processName: s.processName,
+    consoleLog: s.consoleLog,
+    rconHost: s.rconHost,
+    rconPort: s.rconPort,
+    rconPassword: s.rconPassword,
 
     startBat: path.join(s.cwd, 'start.bat'),
     stopBat: path.join(s.cwd, 'stop.bat'),

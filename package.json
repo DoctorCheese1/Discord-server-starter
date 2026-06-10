@@ -10,6 +10,7 @@
   },
   "scripts": {
     "check:steam": "node --check src/steam/steamServerCreator.mjs",
-    "update:bot": "node scripts/updateBot.mjs"
+    "update:bot": "node scripts/updateBot.mjs",
+    "verify:deps": "node scripts/verifyDependencies.mjs"
   }
 }
