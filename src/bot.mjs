@@ -12,6 +12,7 @@ import {
 import { autoDeployIfEnabled } from './autoDeploy.mjs';
 import { startPresenceLoop, startIdracPresenceLoop } from './presence.mjs';
 import { handleCommand } from './commands.mjs';
+import { canRunCommand } from './permissions.mjs';
 import { startIdracMonitor } from './idrac/idracMonitor.mjs';
 import { loadServers } from './serverStore.mjs';
 import { ensureInstalledUpdateTasks } from './processManager.mjs';
@@ -239,7 +240,17 @@ client.on('interactionCreate', async interaction => {
         'start',
         'stop',
         'restart',
-        'info'
+        'info',
+        'console',
+        'backup',
+        'disk',
+        'schedule',
+        'template',
+        'mc',
+        'webeditor',
+        'steam',
+        'config',
+        'group'
       ]);
 
       if (!supportsServerIdAutocomplete.has(commandName)) {
@@ -285,6 +296,11 @@ client.on('interactionCreate', async interaction => {
   if (interaction.isChatInputCommand()) {
     try {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const subcommand = interaction.options.getSubcommand(false) || '';
+      const permission = canRunCommand(interaction.user.id, interaction.commandName, subcommand);
+      if (!permission.ok) {
+        return interaction.editReply(`⛔ Permission denied. Required role: **${permission.required}**; your role: **${permission.actual}**.`);
+      }
       await handleCommand(interaction);
     } catch (err) {
       console.error('❌ Command error:', err);

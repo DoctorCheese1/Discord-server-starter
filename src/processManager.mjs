@@ -34,7 +34,7 @@ function sanitizeTaskName(name) {
 }
 
 
-function buildConsoleLogPath(server) {
+export function buildConsoleLogPath(server) {
   if (server?.consoleLog) return server.consoleLog;
   const baseDir = server?.cwd || '.';
   const safeId = sanitizeTaskName(server?.id || server?.name || 'server');

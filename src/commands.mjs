@@ -7,6 +7,7 @@ import {
 import fs from 'fs';
 import { EmbedBuilder, MessageFlags } from 'discord.js';
 import {
+  buildConsoleLogPath,
   ensureInstalledUpdateTasks,
   ensureUpdateTask,
   isRunning,
@@ -38,6 +39,11 @@ import {
   refreshIdracMonitor
 } from './idrac/idracMonitor.mjs';
 import { isIdracOnlyMode } from './mode.mjs';
+import { appendAuditEntry, readRecentAuditEntries } from './auditStore.mjs';
+import { createBackup, listBackups, restoreBackup } from './backupManager.mjs';
+import { folderSizeBytes, formatBytes } from './diskUsage.mjs';
+import { createServerTemplate } from './templates.mjs';
+import { sendRconCommand } from './rconClient.mjs';
 
 /* ======================================================
    MAIN HANDLER
@@ -100,7 +106,7 @@ async function requireIdracOnline(interaction, actionLabel = 'run this command')
 }
 
 function isMutatingConfigSubcommand(sub) {
-  return ['enable', 'disable', 'rename', 'set-java', 'set-steam', 'set-group', 'set-process', 'set-dir', 'remove'].includes(sub);
+  return ['enable', 'disable', 'rename', 'set-java', 'set-steam', 'set-group', 'set-process', 'set-rcon', 'set-dir', 'remove'].includes(sub);
 }
 
 const DISCORD_MESSAGE_LIMIT = 2000;
@@ -109,13 +115,16 @@ const AUDIT_LOG_LIMIT = 200;
 const auditTrail = [];
 const scheduledGroupActions = new Map();
 
-function addAuditEntry(interaction, action, details = '') {
-  auditTrail.unshift({
+function addAuditEntry(interaction, action, details = '', status = 'ok') {
+  const entry = appendAuditEntry({
     at: new Date().toISOString(),
     user: interaction?.user?.tag || interaction?.user?.id || 'unknown',
+    userId: interaction?.user?.id || '',
     action,
+    status,
     details
   });
+  auditTrail.unshift(entry);
   if (auditTrail.length > AUDIT_LOG_LIMIT) auditTrail.length = AUDIT_LOG_LIMIT;
 }
 
@@ -210,6 +219,40 @@ async function replyWithPages(interaction, lines, title = 'List') {
       flags: MessageFlags.Ephemeral
     });
   }
+}
+
+function requireConfirm(interaction, actionLabel) {
+  if (interaction.options.getBoolean('confirm') === true) return null;
+  return `⚠️ Safety confirmation required. Re-run this command with \`confirm:true\` to ${actionLabel}.`;
+}
+
+function readTextTail(file, lines = 50) {
+  if (!fs.existsSync(file)) throw new Error('Console log does not exist yet');
+  const content = fs.readFileSync(file, 'utf8');
+  const selected = content.split(/\r?\n/).slice(-Math.max(1, Math.min(lines, 100)));
+  return selected.join('\n').slice(-SAFE_PAGE_LIMIT);
+}
+
+function searchTextFile(file, query, limit = 25) {
+  if (!fs.existsSync(file)) throw new Error('Console log does not exist yet');
+  const q = String(query || '').toLowerCase();
+  return fs.readFileSync(file, 'utf8')
+    .split(/\r?\n/)
+    .map((line, index) => ({ line, index: index + 1 }))
+    .filter(entry => entry.line.toLowerCase().includes(q))
+    .slice(-limit)
+    .map(entry => `${entry.index}: ${entry.line}`);
+}
+
+const scheduledServerActions = new Map();
+let nextScheduleId = 1;
+
+function serverRconConfig(server) {
+  return {
+    host: server.rconHost || process.env.MC_RCON_HOST || '127.0.0.1',
+    port: server.rconPort || process.env.MC_RCON_PORT || 25575,
+    password: server.rconPassword || process.env.MC_RCON_PASSWORD || ''
+  };
 }
 
 
@@ -327,6 +370,180 @@ export async function handleCommand(interaction) {
   }
 
 
+  if (cmd === 'console') {
+    const sub = interaction.options.getSubcommand();
+    const id = interaction.options.getString('id', true);
+    const server = getServer(id, { includeDisabled: true });
+    if (!server) return interaction.editReply('❌ Server not found.');
+    const logFile = buildConsoleLogPath(server);
+
+    try {
+      if (sub === 'tail') {
+        const lines = interaction.options.getInteger('lines') || 50;
+        const text = readTextTail(logFile, lines);
+        addAuditEntry(interaction, 'console.tail', server.id);
+        return interaction.editReply(`📜 Console tail for **${server.name}** (\`${logFile}\`):\n\`\`\`\n${text || '(empty)'}\n\`\`\``);
+      }
+
+      if (sub === 'search') {
+        const query = interaction.options.getString('query', true);
+        const matches = searchTextFile(logFile, query);
+        if (!matches.length) return interaction.editReply(`🔎 No matches for **${query}** in **${server.name}**.`);
+        addAuditEntry(interaction, 'console.search', `${server.id} query=${query}`);
+        return replyWithPages(interaction, [`🔎 Matches for **${query}** in **${server.name}**:`, '', ...matches], 'Console search');
+      }
+
+      if (sub === 'clear') {
+        const confirmation = requireConfirm(interaction, `clear the console log for ${server.name}`);
+        if (confirmation) return interaction.editReply(confirmation);
+        fs.writeFileSync(logFile, '', 'utf8');
+        addAuditEntry(interaction, 'console.clear', server.id);
+        return interaction.editReply(`🧹 Cleared console log for **${server.name}**.`);
+      }
+    } catch (error) {
+      addAuditEntry(interaction, `console.${sub}`, `${server.id}: ${error?.message || 'error'}`, 'failed');
+      return interaction.editReply(`❌ Console ${sub} failed: ${error?.message || 'unknown error'}`);
+    }
+  }
+
+  if (cmd === 'backup') {
+    const sub = interaction.options.getSubcommand();
+    const id = interaction.options.getString('id', true);
+    const server = getServer(id, { includeDisabled: true });
+    if (!server) return interaction.editReply('❌ Server not found.');
+
+    try {
+      if (sub === 'create') {
+        const label = interaction.options.getString('label') || '';
+        const backup = createBackup(server, label);
+        addAuditEntry(interaction, 'backup.create', `${server.id} ${backup.name}`);
+        return interaction.editReply(`💾 Backup created for **${server.name}**.\n• Name: \`${backup.name}\`\n• Path: \`${backup.path}\``);
+      }
+
+      if (sub === 'list') {
+        const backups = listBackups(server.id);
+        if (!backups.length) return interaction.editReply(`ℹ️ No backups found for **${server.name}**.`);
+        const lines = backups.slice(0, 25).map(b => `• \`${b.name}\` — ${b.createdAt}`);
+        return replyWithPages(interaction, [`💾 Backups for **${server.name}**`, '', ...lines], 'Backups');
+      }
+
+      if (sub === 'restore') {
+        const confirmation = requireConfirm(interaction, `restore a backup over ${server.name}`);
+        if (confirmation) return interaction.editReply(confirmation);
+        const name = interaction.options.getString('name', true);
+        const restored = restoreBackup(server, name);
+        addAuditEntry(interaction, 'backup.restore', `${server.id} ${restored.name}`);
+        return interaction.editReply(`♻️ Restored **${server.name}** from backup \`${restored.name}\`.`);
+      }
+    } catch (error) {
+      addAuditEntry(interaction, `backup.${sub}`, `${server.id}: ${error?.message || 'error'}`, 'failed');
+      return interaction.editReply(`❌ Backup ${sub} failed: ${error?.message || 'unknown error'}`);
+    }
+  }
+
+  if (cmd === 'disk') {
+    const sub = interaction.options.getSubcommand();
+    if (sub === 'summary') {
+      const id = interaction.options.getString('id');
+      const servers = id ? [getServer(id, { includeDisabled: true })].filter(Boolean) : loadServers({ includeDisabled: true });
+      if (!servers.length) return interaction.editReply('❌ No matching servers found.');
+      const rows = servers.map(server => {
+        const size = folderSizeBytes(server.cwd);
+        return { server, size };
+      }).sort((a, b) => b.size - a.size);
+      const total = rows.reduce((sum, row) => sum + row.size, 0);
+      const lines = rows.map(row => `• **${row.server.name}** (\`${row.server.id}\`) — **${formatBytes(row.size)}**`);
+      return replyWithPages(interaction, [`💽 Disk usage total: **${formatBytes(total)}**`, '', ...lines], 'Disk usage');
+    }
+  }
+
+  if (cmd === 'schedule') {
+    const sub = interaction.options.getSubcommand();
+
+    if (sub === 'list') {
+      if (!scheduledServerActions.size) return interaction.editReply('ℹ️ No pending server schedules.');
+      const lines = [...scheduledServerActions.entries()].map(([id, item]) => `• \`${id}\` — **${item.serverName}** ${item.action} at <t:${Math.floor(item.runAt / 1000)}:F>`);
+      return replyWithPages(interaction, lines, 'Schedules');
+    }
+
+    if (sub === 'cancel') {
+      const id = interaction.options.getString('id', true);
+      const item = scheduledServerActions.get(id);
+      if (!item) return interaction.editReply('❌ Schedule not found.');
+      clearTimeout(item.timer);
+      scheduledServerActions.delete(id);
+      addAuditEntry(interaction, 'schedule.cancel', id);
+      return interaction.editReply(`🛑 Cancelled schedule \`${id}\`.`);
+    }
+
+    if (sub === 'run') {
+      const id = interaction.options.getString('id', true);
+      const action = interaction.options.getString('action', true);
+      const delayMinutes = interaction.options.getInteger('delay-minutes', true);
+      const server = getServer(id);
+      if (!server) return interaction.editReply('❌ Server not found or disabled.');
+      if (action === 'update' && !server.steam) return interaction.editReply('❌ Update schedules require a Steam server.');
+
+      const scheduleId = String(nextScheduleId++);
+      const runAt = Date.now() + delayMinutes * 60000;
+      const timer = setTimeout(async () => {
+        try {
+          if (action === 'update') await runUpdateTask(server);
+          else await runLifecycleCommand(server, action);
+        } catch {}
+        scheduledServerActions.delete(scheduleId);
+      }, delayMinutes * 60000);
+      scheduledServerActions.set(scheduleId, { timer, runAt, serverId: server.id, serverName: server.name, action });
+      addAuditEntry(interaction, 'schedule.run', `${server.id} ${action} in ${delayMinutes}m`);
+      return interaction.editReply(`⏱ Scheduled **${action}** for **${server.name}** at <t:${Math.floor(runAt / 1000)}:F>. Schedule id: \`${scheduleId}\``);
+    }
+  }
+
+  if (cmd === 'template') {
+    const sub = interaction.options.getSubcommand();
+    if (sub === 'create') {
+      const id = interaction.options.getString('id', true);
+      const server = getServer(id, { includeDisabled: true });
+      if (!server) return interaction.editReply('❌ Server not found.');
+      const type = interaction.options.getString('type', true);
+      const overwrite = interaction.options.getBoolean('overwrite') === true;
+      try {
+        const result = createServerTemplate(server, type, { overwrite });
+        addAuditEntry(interaction, 'template.create', `${server.id} type=${type} overwrite=${overwrite}`);
+        return interaction.editReply([
+          `🧰 Template generation complete for **${server.name}**.`,
+          `• start.bat: ${result.startBat ? 'created' : 'kept existing'}`,
+          `• stop.bat: ${result.stopBat ? 'created' : 'kept existing'}`,
+          `• update.bat: ${result.updateBat ? 'created' : 'kept existing'}`
+        ].join('\n'));
+      } catch (error) {
+        return interaction.editReply(`❌ Template creation failed: ${error?.message || 'unknown error'}`);
+      }
+    }
+  }
+
+  if (cmd === 'mc') {
+    const sub = interaction.options.getSubcommand();
+    const id = interaction.options.getString('id', true);
+    const server = getServer(id, { includeDisabled: true });
+    if (!server) return interaction.editReply('❌ Server not found.');
+    const cfg = serverRconConfig(server);
+    if (!cfg.password) return interaction.editReply('❌ RCON password is not configured. Set `MC_RCON_PASSWORD` or server metadata.');
+    const command = sub === 'players'
+      ? 'list'
+      : sub === 'say'
+        ? `say ${interaction.options.getString('message', true)}`
+        : interaction.options.getString('command', true).replace(/^\//, '');
+    try {
+      const response = await sendRconCommand({ ...cfg, command });
+      addAuditEntry(interaction, `mc.${sub}`, `${server.id} ${command}`);
+      return interaction.editReply(`🎮 RCON response from **${server.name}**:\n\`\`\`\n${String(response).slice(0, SAFE_PAGE_LIMIT)}\n\`\`\``);
+    } catch (error) {
+      addAuditEntry(interaction, `mc.${sub}`, `${server.id}: ${error?.message || 'error'}`, 'failed');
+      return interaction.editReply(`❌ RCON command failed: ${error?.message || 'unknown error'}`);
+    }
+  }
+
   if (cmd === 'webeditor') {
     const sub = interaction.options.getSubcommand();
     const enabled = process.env.WEB_EDITOR_ENABLED === 'true';
@@ -398,6 +615,11 @@ export async function handleCommand(interaction) {
 
     if (!server) {
       return interaction.editReply('❌ Server not found.');
+    }
+
+    if (['stop', 'restart'].includes(cmd)) {
+      const confirmation = requireConfirm(interaction, `${cmd} ${server.name}`);
+      if (confirmation) return interaction.editReply(confirmation);
     }
 
     try {
@@ -599,8 +821,9 @@ export async function handleCommand(interaction) {
   if (cmd === 'audit') {
     const sub = interaction.options.getSubcommand();
     if (sub === 'recent') {
-      if (!auditTrail.length) return interaction.editReply('ℹ️ No audit entries yet.');
-      const lines = auditTrail.slice(0, 20).map(entry => `• [${entry.at}] **${entry.user}** — \`${entry.action}\`${entry.details ? ` (${entry.details})` : ''}`);
+      const recent = readRecentAuditEntries(20);
+      if (!recent.length) return interaction.editReply('ℹ️ No audit entries yet.');
+      const lines = recent.map(entry => `• [${entry.at}] **${entry.user}** — \`${entry.action}\` [${entry.status || 'ok'}]${entry.details ? ` (${entry.details})` : ''}`);
       return replyWithPages(interaction, lines, 'Audit');
     }
   }
@@ -729,6 +952,19 @@ export async function handleCommand(interaction) {
       return interaction.editReply(`✅ Process fallback set to **${name}**.`);
     }
 
+    if (sub === 'set-rcon') {
+      const id = interaction.options.getString('id');
+      const host = interaction.options.getString('host');
+      const port = interaction.options.getInteger('port');
+      const password = interaction.options.getString('password');
+      const patch = {};
+      if (host) patch.rconHost = host;
+      if (port) patch.rconPort = port;
+      if (password) patch.rconPassword = password;
+      setServer(id, patch);
+      return interaction.editReply(`✅ RCON settings updated for **${id}**.`);
+    }
+
     if (sub === 'set-dir') {
       const id = interaction.options.getString('id');
       const dir = interaction.options.getString('dir', true);
@@ -763,6 +999,8 @@ export async function handleCommand(interaction) {
 
     if (sub === 'remove') {
       const id = interaction.options.getString('id', true);
+      const confirmation = requireConfirm(interaction, `remove server ${id} from config`);
+      if (confirmation) return interaction.editReply(confirmation);
       try {
         removeServer(id);
         return interaction.editReply(`🗑️ Removed server **${id}** from config.`);
@@ -914,6 +1152,8 @@ export async function handleCommand(interaction) {
     }
 
     if (sub === 'off') {
+      const confirmation = requireConfirm(interaction, 'power off the iDRAC host');
+      if (confirmation) return interaction.editReply(confirmation);
       try {
         await idracPower('off');
         return interaction.editReply('🔴 iDRAC power **OFF** command sent.');
@@ -923,6 +1163,8 @@ export async function handleCommand(interaction) {
     }
 
     if (sub === 'reboot') {
+      const confirmation = requireConfirm(interaction, 'reboot the iDRAC host');
+      if (confirmation) return interaction.editReply(confirmation);
       try {
         await idracPower('reboot');
         return interaction.editReply('🔄 iDRAC **REBOOT** command sent.');
