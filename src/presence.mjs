@@ -44,6 +44,7 @@ export function startIdracPresenceLoop(client) {
 
 export function startPresenceLoop(client) {
   let lastText = null;
+  let lastStatus = null;
 
   async function updatePresence() {
     try {
@@ -101,10 +102,11 @@ if (online === 0) {
         text += ` | ${topServer.name}: ${cpu}% / ${ram}MB`;
       }
 
-      // Prevent duplicate presence spam
-      if (text !== lastText) {
+      // Prevent duplicate presence spam while still applying status-only changes.
+      if (text !== lastText || status !== lastStatus) {
         setPresence(client, status, text);
         lastText = text;
+        lastStatus = status;
       }
 
     } catch (err) {
