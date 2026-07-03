@@ -66,7 +66,16 @@
   </div>
   <div class="layout">
     <aside class="sidebar">
-      <div class="tree-head"></div>
+      <div class="tree-head">
+        <div class="quick-section">
+          <div class="quick-section-title">Favorites</div>
+          <div id="favoritesList" class="quick-list"></div>
+        </div>
+        <div class="quick-section">
+          <div class="quick-section-title">History</div>
+          <div id="historyList" class="quick-list"></div>
+        </div>
+      </div>
       <div id="tree" class="tree"></div>
     </aside>
     <section class="editor-wrap">
@@ -183,6 +192,8 @@
     const status = document.getElementById('status');
     const serverSel = document.getElementById('server');
     const tree = document.getElementById('tree');
+    const favoritesList = document.getElementById('favoritesList');
+    const historyList = document.getElementById('historyList');
     const content = document.getElementById('content');
     const highlight = document.getElementById('highlight');
     const keyInput = document.getElementById('key');
@@ -257,6 +268,8 @@
     let editorPluginEntries = {};
     let currentFile = '';
     let openFileTabs = [];
+    let favoriteFiles = [];
+    let historyFiles = [];
     let originalContent = '';
     let popupTimer;
     let loadPopupTimer;
@@ -303,9 +316,83 @@
 
     function restoreUiState() {
       const serverId = serverSel.value || '';
-      if (!serverId) return { expanded: [], currentFile: '', spigotCookieHeader: '', spigotXfUser: '', spigotXfSession: '', spigotXfTfaTrust: '', spigotCfClearance: '' };
+      if (!serverId) return getDefaultUiState();
       const state = loadUiState();
-      return state[serverId] || { expanded: [], currentFile: '', spigotCookieHeader: '', spigotXfUser: '', spigotXfSession: '', spigotXfTfaTrust: '', spigotCfClearance: '' };
+      return { ...getDefaultUiState(), ...(state[serverId] || {}) };
+    }
+
+
+    function getDefaultUiState() {
+      return {
+        expanded: [],
+        currentFile: '',
+        favorites: [],
+        history: [],
+        spigotCookieHeader: '',
+        spigotXfUser: '',
+        spigotXfSession: '',
+        spigotXfTfaTrust: '',
+        spigotCfClearance: ''
+      };
+    }
+
+    function normalizeStoredFileList(value) {
+      return Array.from(new Set((Array.isArray(value) ? value : [])
+        .map(item => String(item || '').trim())
+        .filter(Boolean)));
+    }
+
+    function fileExists(filePath) {
+      return allFiles.some(file => file.path === filePath);
+    }
+
+    function getFileEntry(filePath) {
+      return allFiles.find(file => file.path === filePath) || null;
+    }
+
+    function renderQuickLists() {
+      renderQuickList(favoritesList, favoriteFiles, 'No favorites yet.', true);
+      renderQuickList(historyList, historyFiles, 'No recently opened files.', false);
+    }
+
+    function renderQuickList(container, files, emptyText, showRemove) {
+      if (!container) return;
+      const visibleFiles = files.filter(fileExists);
+      if (!visibleFiles.length) {
+        container.innerHTML = '<div class="quick-empty">' + emptyText + '</div>';
+        return;
+      }
+      container.innerHTML = visibleFiles.map(filePath => {
+        const fileEntry = getFileEntry(filePath);
+        const disabled = fileEntry?.editable === false ? ' disabled' : '';
+        const removeButton = showRemove ? '<button class="quick-remove" type="button" data-favorite-remove="' + escapeHtml(filePath) + '" title="Remove favorite">×</button>' : '';
+        return '<div class="quick-row' + disabled + '" data-quick-open="' + escapeHtml(filePath) + '" title="' + escapeHtml(filePath) + '"><span class="quick-name">' + escapeHtml(pathBase(filePath)) + '</span>' + removeButton + '</div>';
+      }).join('');
+    }
+
+    function persistQuickLists() {
+      saveUiState({ favorites: favoriteFiles, history: historyFiles });
+    }
+
+    function addFileToHistory(filePath) {
+      if (!filePath) return;
+      historyFiles = [filePath, ...historyFiles.filter(path => path !== filePath)].slice(0, 12);
+      persistQuickLists();
+      renderQuickLists();
+    }
+
+    function toggleFavorite(filePath) {
+      if (!filePath) return;
+      if (favoriteFiles.includes(filePath)) {
+        favoriteFiles = favoriteFiles.filter(path => path !== filePath);
+        status.textContent = 'Removed favorite ' + pathBase(filePath);
+      } else {
+        favoriteFiles = [filePath, ...favoriteFiles].slice(0, 50);
+        status.textContent = '⭐ Favorited ' + pathBase(filePath);
+      }
+      persistQuickLists();
+      renderQuickLists();
+      renderFiles(fileSearchInput.value || '');
     }
 
     function persistSpigotSessionState() {
@@ -1234,7 +1321,9 @@
             : '';
           const title = fileEntry.editable ? (filePath + preview) : (fileEntry.reason || (pathBase(filePath) + ' cannot be edited'));
           const highlightedName = highlightMatches(pathBase(filePath), queryTerms);
-          parts.push('<div class="tree-row file' + ext + lockedClass + '" data-path="' + filePath + '" data-editable="' + fileEntry.editable + '" title="' + title.replace(/"/g, '&quot;') + '" style="padding-left:' + (depth * 8 + 18) + 'px">' + highlightedName + '</div>');
+          const favoriteClass = favoriteFiles.includes(filePath) ? ' favorited' : '';
+          const favoriteTitle = favoriteFiles.includes(filePath) ? 'Remove from favorites' : 'Add to favorites';
+          parts.push('<div class="tree-row file' + ext + lockedClass + favoriteClass + '" data-path="' + filePath + '" data-editable="' + fileEntry.editable + '" title="' + title.replace(/"/g, '&quot;') + '" style="padding-left:' + (depth * 8 + 18) + 'px"><button class="favorite-toggle" type="button" data-favorite-path="' + filePath.replace(/"/g, '&quot;') + '" title="' + favoriteTitle + '">★</button>' + highlightedName + '</div>');
         }
         if (node.explicitEmpty && node.folders.size === 0 && node.files.length === 0) {
           parts.push('<div class="tree-row empty" style="padding-left:' + (depth * 8 + 18) + 'px">(folder empty)</div>');
@@ -1540,6 +1629,9 @@
         spigotXfTfaTrust.value = restored.spigotXfTfaTrust || '';
         spigotCfClearance.value = restored.spigotCfClearance || '';
         refreshSpigotCookieHints();
+        favoriteFiles = normalizeStoredFileList(restored.favorites).filter(fileExists);
+        historyFiles = normalizeStoredFileList(restored.history).filter(fileExists).slice(0, 12);
+        renderQuickLists();
         for (const folder of restored.expanded || []) {
           expandedFolders.add(folder);
         }
@@ -1576,6 +1668,7 @@
         saveUiState({
           currentFile
         });
+        addFileToHistory(file);
         status.textContent = 'Loaded ' + file;
         markActiveFile();
         updateLineNumbers();
@@ -1622,6 +1715,13 @@
     });
 
     tree.onclick = e => {
+      const favoriteButton = e.target.closest('[data-favorite-path]');
+      if (favoriteButton) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleFavorite(favoriteButton.dataset.favoritePath);
+        return;
+      }
       const row = e.target.closest('.tree-row.file');
       if (!row) return;
       if (row.dataset.editable !== 'true') {
@@ -1657,6 +1757,31 @@
         openContextMenu(e.clientX, e.clientY, { type: 'root', path: '' });
       }
     });
+
+
+    function handleQuickListClick(e) {
+      const removeButton = e.target.closest('[data-favorite-remove]');
+      if (removeButton) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleFavorite(removeButton.dataset.favoriteRemove);
+        return;
+      }
+      const row = e.target.closest('[data-quick-open]');
+      if (!row) return;
+      const filePath = row.dataset.quickOpen;
+      const fileEntry = getFileEntry(filePath);
+      if (!fileEntry || fileEntry.editable === false) {
+        status.textContent = '⚠️ ' + pathBase(filePath) + ' cannot be edited';
+        return;
+      }
+      setActiveTopTab('file');
+      if (!confirmDiscardChanges('open another file')) return;
+      loadFile(filePath);
+    }
+
+    favoritesList.addEventListener('click', handleQuickListClick);
+    historyList.addEventListener('click', handleQuickListClick);
 
     serverSel.onchange = () => {
       if (!confirmDiscardChanges('switch servers')) {
