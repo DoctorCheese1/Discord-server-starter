@@ -5,8 +5,8 @@
       "dir": "C:/Servers/ARK/asa"
     },
     "test": {
-      "appid": 1623730,
-      "name": "Palworld",
+      "appid": 2394010,
+      "name": "Palworld Dedicated Server",
       "dir": "C:\\Users\\primeplaymain\\Desktop\\steamcmd\\games\\palworld",
       "exe": "PalServer.exe",
       "args": ""
