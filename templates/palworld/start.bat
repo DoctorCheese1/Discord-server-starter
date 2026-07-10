@@ -1,24 +1,33 @@
 @echo off
-setlocal
+setlocal EnableExtensions
 cd /d "%~dp0"
+title Palworld Server Start
 
-set "PID_FILE=%~dp0server.pid"
-if exist "%PID_FILE%" del /f /q "%PID_FILE%" >nul 2>&1
+set "SERVER_DIR=%CD%"
+set "PID_FILE=server.pid"
+set "PALSERVER_EXE=PalServer.exe"
+set "PALSERVER_ARGS="
 
-if not exist "PalServer.exe" (
-  echo [ERROR] PalServer.exe was not found in %CD%.
+if not exist "%SERVER_DIR%\%PALSERVER_EXE%" (
+  echo [ERROR] %PALSERVER_EXE% was not found in %SERVER_DIR%.
   echo [ERROR] Run update.bat first or place these scripts in your Palworld server folder.
   exit /b 1
 )
 
-start "" "PalServer.exe"
+if exist "%SERVER_DIR%\%PID_FILE%" del /f /q "%SERVER_DIR%\%PID_FILE%" >nul 2>&1
 
-for /f "tokens=2 delims==" %%P in ('wmic process where "name='PalServer.exe'" get ProcessId /value ^| find "ProcessId="') do set "SERVER_PID=%%P"
-if defined SERVER_PID (
-  > "%PID_FILE%" echo %SERVER_PID%
-  echo [INFO] Started PalServer.exe with PID %SERVER_PID%.
-) else (
-  echo [WARN] PalServer.exe was launched, but its PID could not be detected.
-)
+echo Starting Palworld server...
+echo Exe: %SERVER_DIR%\%PALSERVER_EXE%
+echo Args: %PALSERVER_ARGS%
 
+start "" /min powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command ^
+  "$wd='%SERVER_DIR%';" ^
+  "$exe=Join-Path $wd '%PALSERVER_EXE%';" ^
+  "$pidPath=Join-Path $wd '%PID_FILE%';" ^
+  "$argList='%PALSERVER_ARGS%';" ^
+  "if ([string]::IsNullOrWhiteSpace($argList)) { $p=Start-Process -FilePath $exe -WorkingDirectory $wd -PassThru; } else { $p=Start-Process -FilePath $exe -ArgumentList $argList -WorkingDirectory $wd -PassThru; };" ^
+  "if (!(Test-Path $pidPath)) { New-Item -Path $pidPath -ItemType File -Force | Out-Null };" ^
+  "Set-Content -Path $pidPath -Value $p.Id -NoNewline -Encoding ascii;"
+
+echo [INFO] Start command sent.
 exit /b 0
