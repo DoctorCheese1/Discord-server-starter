@@ -23,34 +23,31 @@ echo Exe: %SERVER_DIR%\%PALSERVER_EXE%
 echo Args: %PALSERVER_ARGS%
 
 REM ================= LAUNCH + CAPTURE REAL SERVER PID =================
-REM Write the PowerShell launcher to a temporary file so paths and quotes are
-REM not re-parsed by cmd.exe. This avoids "filename, directory name, or volume
-REM label syntax" errors when the server path contains special characters.
->"%LAUNCH_PS1%" (
-  echo $ErrorActionPreference = 'Stop'
-  echo $wd = $env:PALWORLD_SERVER_DIR
-  echo $exe = Join-Path -Path $wd -ChildPath $env:PALWORLD_SERVER_EXE
-  echo $argList = $env:PALWORLD_SERVER_ARGS
-  echo if ([string]::IsNullOrWhiteSpace($argList^)^) {
-  echo   $p = Start-Process -FilePath $exe -WorkingDirectory $wd -PassThru
-  echo } else {
-  echo   $p = Start-Process -FilePath $exe -ArgumentList $argList -WorkingDirectory $wd -PassThru
-  echo }
-  echo Start-Sleep -Milliseconds 800
-  echo $real = $null
-  echo for($i=0; $i -lt 25 -and -not $real; $i++^) {
-  echo   $kids = Get-CimInstance Win32_Process -Filter ('ParentProcessId=' + $p.Id^) -ErrorAction SilentlyContinue
-  echo   foreach($k in $kids^) { if($k.Name -like 'PalServer*.exe'^) { $real = $k.ProcessId } }
-  echo   if(-not $real^) { Start-Sleep -Milliseconds 200 }
-  echo }
-  echo if(-not $real^) {
-  echo   $candidate = Get-CimInstance Win32_Process -Filter "Name LIKE 'PalServer%%.exe'" -ErrorAction SilentlyContinue ^| Sort-Object CreationDate -Descending ^| Select-Object -First 1
-  echo   if($candidate^) { $real = $candidate.ProcessId }
-  echo }
-  echo if(-not $real^) { $real = $p.Id }
-  echo Set-Content -Path $env:PALWORLD_PID_FILE -Value $real -NoNewline -Encoding ascii
-  echo Write-Host ('[INFO] Launched PID ' + $real^)
-)
+REM Write the PowerShell launcher one line at a time so cmd.exe never has to
+REM parse PowerShell parentheses or quotes inside a parenthesized batch block.
+>"%LAUNCH_PS1%" echo $ErrorActionPreference = 'Stop'
+>>"%LAUNCH_PS1%" echo $wd = $env:PALWORLD_SERVER_DIR
+>>"%LAUNCH_PS1%" echo $exe = Join-Path -Path $wd -ChildPath $env:PALWORLD_SERVER_EXE
+>>"%LAUNCH_PS1%" echo $argList = $env:PALWORLD_SERVER_ARGS
+>>"%LAUNCH_PS1%" echo if ([string]::IsNullOrWhiteSpace($argList^)^) {
+>>"%LAUNCH_PS1%" echo   $p = Start-Process -FilePath $exe -WorkingDirectory $wd -PassThru
+>>"%LAUNCH_PS1%" echo } else {
+>>"%LAUNCH_PS1%" echo   $p = Start-Process -FilePath $exe -ArgumentList $argList -WorkingDirectory $wd -PassThru
+>>"%LAUNCH_PS1%" echo }
+>>"%LAUNCH_PS1%" echo Start-Sleep -Milliseconds 800
+>>"%LAUNCH_PS1%" echo $real = $null
+>>"%LAUNCH_PS1%" echo for($i=0; $i -lt 25 -and -not $real; $i++^) {
+>>"%LAUNCH_PS1%" echo   $kids = Get-CimInstance Win32_Process -Filter ('ParentProcessId=' + $p.Id^) -ErrorAction SilentlyContinue
+>>"%LAUNCH_PS1%" echo   foreach($k in $kids^) { if($k.Name -like 'PalServer*.exe'^) { $real = $k.ProcessId } }
+>>"%LAUNCH_PS1%" echo   if(-not $real^) { Start-Sleep -Milliseconds 200 }
+>>"%LAUNCH_PS1%" echo }
+>>"%LAUNCH_PS1%" echo if(-not $real^) {
+>>"%LAUNCH_PS1%" echo   $candidate = Get-CimInstance Win32_Process -Filter "Name LIKE 'PalServer%%.exe'" -ErrorAction SilentlyContinue ^| Sort-Object CreationDate -Descending ^| Select-Object -First 1
+>>"%LAUNCH_PS1%" echo   if($candidate^) { $real = $candidate.ProcessId }
+>>"%LAUNCH_PS1%" echo }
+>>"%LAUNCH_PS1%" echo if(-not $real^) { $real = $p.Id }
+>>"%LAUNCH_PS1%" echo Set-Content -Path $env:PALWORLD_PID_FILE -Value $real -NoNewline -Encoding ascii
+>>"%LAUNCH_PS1%" echo Write-Host ('[INFO] Launched PID ' + $real^)
 
 set "PALWORLD_SERVER_DIR=%SERVER_DIR%"
 set "PALWORLD_SERVER_EXE=%PALSERVER_EXE%"
