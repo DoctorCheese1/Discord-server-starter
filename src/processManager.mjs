@@ -29,6 +29,11 @@ function hasProcessFallback(server) {
   return Boolean(server?.processName);
 }
 
+
+function quoteCmdArg(value) {
+  return `"${String(value).replace(/"/g, '""')}"`;
+}
+
 function sanitizeTaskName(name) {
   return String(name).replace(/[^a-zA-Z0-9_-]/g, '_');
 }
@@ -55,18 +60,11 @@ export async function startServer(server) {
   // Remove stale PID so status checks do not read old process IDs.
   clearPidFile(server);
 
-  // Launch via PowerShell so we can persist the spawned wrapper PID in server.pid.
-  // Use the server cwd as working directory so relative paths inside start.bat work.
-  const escapedStartBat = String(server.startBat).replace(/'/g, "''");
-  const escapedCwd = String(server.cwd || '').replace(/'/g, "''");
-  const escapedPidFile = String(server.pidFile || '').replace(/'/g, "''");
-  const escapedConsoleLog = String(buildConsoleLogPath(server)).replace(/'/g, "''");
-  const keepWindowOpen = server.keepConsoleOpen !== false;
-  const cmdMode = keepWindowOpen ? '/k' : '/c';
-  const argumentList = `${cmdMode}','call ""${escapedStartBat}"" >> ""${escapedConsoleLog}"" 2>&1`;
-  const launchCmd = server.pidFile
-    ? `powershell -NoProfile -ExecutionPolicy Bypass -Command "$p = Start-Process -FilePath 'cmd.exe' -WorkingDirectory '${escapedCwd}' -WindowStyle Normal -ArgumentList '${argumentList}' -PassThru; $p.Id | Out-File -FilePath '${escapedPidFile}' -Encoding ascii"`
-    : `powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath 'cmd.exe' -WorkingDirectory '${escapedCwd}' -WindowStyle Normal -ArgumentList '${argumentList}'"`;
+  // Let Windows start the batch file directly. The batch script is responsible
+  // for writing the real game-server PID; the bot should not overwrite it with
+  // a cmd.exe or PowerShell wrapper PID.
+  const cwd = server.cwd || process.cwd();
+  const launchCmd = `cmd /c start "" /D ${quoteCmdArg(cwd)} ${quoteCmdArg(server.startBat)}`;
 
   await execWindows(launchCmd);
 }
