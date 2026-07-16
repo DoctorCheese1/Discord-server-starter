@@ -60,39 +60,44 @@ del /f /q "%LAUNCH_PS1%" >nul 2>&1
 if not "%LAUNCH_EXIT%"=="0" exit /b %LAUNCH_EXIT%
 
 REM ================= WAIT FOR PID FILE =================
+REM Keep this section out of parenthesized IF/ELSE blocks. Some Windows
+REM process values can contain parser-sensitive characters, and cmd.exe parses
+REM an entire block before executing it, which can produce errors such as
+REM ". was unexpected at this time." after the server has already launched.
 set "tries=0"
 :wait_pid
 set /a tries+=1
 
-if not exist "%PID_FILE%" (
-  if !tries! lss 30 (
-    timeout /t 1 >nul
-    goto wait_pid
-  ) else (
-    echo [WARN] PID file not found: %PID_FILE%
-    goto done
-  )
-)
+if exist "%PID_FILE%" goto check_pid_size
+if !tries! geq 30 goto pid_missing
+timeout /t 1 >nul
+goto wait_pid
 
+:check_pid_size
 for %%A in ("%PID_FILE%") do set "size=%%~zA"
-if "!size!"=="0" (
-  if !tries! lss 30 (
-    timeout /t 1 >nul
-    goto wait_pid
-  ) else (
-    echo [WARN] PID file is empty: %PID_FILE%
-    goto done
-  )
-)
+if not "!size!"=="0" goto read_pid
+if !tries! geq 30 goto pid_empty
+timeout /t 1 >nul
+goto wait_pid
 
+:read_pid
 set /p PID=<"%PID_FILE%"
 set "PID=!PID: =!"
+if "!PID!"=="" goto pid_read_empty
+echo [INFO] Palworld server launched. PID=!PID!
+goto done
 
-if "!PID!"=="" (
-  echo [WARN] Failed to capture PID (empty).
-) else (
-  echo [INFO] Palworld server launched. PID=!PID!
-)
+:pid_missing
+echo [WARN] PID file not found: %PID_FILE%
+goto done
+
+:pid_empty
+echo [WARN] PID file is empty: %PID_FILE%
+goto done
+
+:pid_read_empty
+echo [WARN] Failed to capture PID ^(empty^).
+goto done
 
 :done
 exit /b 0

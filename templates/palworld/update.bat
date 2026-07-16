@@ -1,8 +1,11 @@
 @echo off
-setlocal
+setlocal EnableExtensions
 cd /d "%~dp0"
+title Updating Palworld
 
 set "APPID=2394010"
+set "INSTALL_DIR=%CD%"
+set "COMPLETION_MARKER=%INSTALL_DIR%\update_complete.txt"
 set "ENV_STEAMCMD_EXE=%STEAMCMD_EXE%"
 set "STEAMCMD_EXE="
 
@@ -29,7 +32,27 @@ if not defined STEAMCMD_EXE (
   exit /b 1
 )
 
-echo [INFO] Using steamcmd: %STEAMCMD_EXE%
-echo [INFO] Installing/updating Palworld Dedicated Server AppID %APPID% in %CD%
-"%STEAMCMD_EXE%" +force_install_dir "%CD%" +login anonymous +app_update %APPID% validate +quit
-exit /b %errorlevel%
+echo Checking for Palworld updates...
+echo [INFO] Using SteamCMD: %STEAMCMD_EXE%
+echo [INFO] Install directory: %INSTALL_DIR%
+echo.
+
+REM --- Update SteamCMD itself ---
+echo Updating SteamCMD...
+"%STEAMCMD_EXE%" +quit
+if errorlevel 1 exit /b %errorlevel%
+echo.
+
+REM --- Update Palworld Dedicated Server ---
+echo Updating Palworld Dedicated Server...
+"%STEAMCMD_EXE%" +force_install_dir "%INSTALL_DIR%" ^
+ +login anonymous ^
+ +app_update %APPID% validate ^
+ +quit
+if errorlevel 1 exit /b %errorlevel%
+echo.
+
+REM --- Completion marker (ABSOLUTE PATH) ---
+echo DONE > "%COMPLETION_MARKER%"
+echo [INFO] Update complete. Wrote marker: %COMPLETION_MARKER%
+exit /b 0
