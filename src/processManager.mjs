@@ -60,11 +60,11 @@ export async function startServer(server) {
   // Remove stale PID so status checks do not read old process IDs.
   clearPidFile(server);
 
-  // Let Windows start the batch file directly. The batch script is responsible
-  // for writing the real game-server PID; the bot should not overwrite it with
-  // a cmd.exe or PowerShell wrapper PID.
+  // Start the batch in a child cmd.exe that exits when start.bat finishes.
+  // The batch script is responsible for writing the real game-server PID; the
+  // bot should not overwrite it with a cmd.exe or PowerShell wrapper PID.
   const cwd = server.cwd || process.cwd();
-  const launchCmd = `cmd /c start "" /D ${quoteCmdArg(cwd)} ${quoteCmdArg(server.startBat)}`;
+  const launchCmd = `cmd /c start "" /D ${quoteCmdArg(cwd)} "%ComSpec%" /c ${quoteCmdArg(server.startBat)}`;
 
   await execWindows(launchCmd);
 }
