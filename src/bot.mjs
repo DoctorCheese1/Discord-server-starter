@@ -49,6 +49,70 @@ const DEFAULT_AUTH_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
 const AUTH_CHECK_INTERVAL = Number.isFinite(Number(process.env.AUTH_CHECK_INTERVAL_MS))
   ? Math.max(1000, Number(process.env.AUTH_CHECK_INTERVAL_MS))
   : DEFAULT_AUTH_CHECK_INTERVAL;
+const DEFAULT_AUTOCOMPLETE_CACHE_MS = 30 * 1000;
+const AUTOCOMPLETE_CACHE_MS = Number.isFinite(Number(process.env.AUTOCOMPLETE_CACHE_MS))
+  ? Math.max(1000, Number(process.env.AUTOCOMPLETE_CACHE_MS))
+  : DEFAULT_AUTOCOMPLETE_CACHE_MS;
+const serverAutocompleteCache = { expiresAt: 0, servers: [] };
+
+function clearServerAutocompleteCache() {
+  serverAutocompleteCache.expiresAt = 0;
+  serverAutocompleteCache.servers = [];
+}
+
+function getAutocompleteServers() {
+  const now = Date.now();
+  if (serverAutocompleteCache.expiresAt > now) {
+    return serverAutocompleteCache.servers;
+  }
+
+  const servers = loadServers({ includeDisabled: false });
+  serverAutocompleteCache.servers = servers;
+  serverAutocompleteCache.expiresAt = now + AUTOCOMPLETE_CACHE_MS;
+  return servers;
+}
+
+function scoreAutocompleteChoices(choices, query) {
+  return choices
+    .filter(choice => {
+      if (!query) return true;
+      return choice.search.includes(query);
+    })
+    .sort((a, b) => {
+      const aStarts = query ? a.search.startsWith(query) : false;
+      const bStarts = query ? b.search.startsWith(query) : false;
+      if (aStarts !== bStarts) return aStarts ? -1 : 1;
+      return a.value.localeCompare(b.value);
+    })
+    .slice(0, 25)
+    .map(({ name, value }) => ({ name: name.slice(0, 100), value }));
+}
+
+function buildServerIdAutocomplete(servers, query) {
+  return scoreAutocompleteChoices(
+    servers.map(s => ({
+      name: `${s.name} (${s.id})`,
+      value: s.id,
+      search: `${s.id || ''} ${s.name || ''}`.toLowerCase()
+    })),
+    query
+  );
+}
+
+function buildGroupAutocomplete(servers, query) {
+  const seen = new Set();
+  const groups = [];
+
+  for (const server of servers) {
+    const group = String(server.group || '').trim();
+    const key = group.toLowerCase();
+    if (!group || seen.has(key)) continue;
+    seen.add(key);
+    groups.push({ name: group, value: group, search: key });
+  }
+
+  return scoreAutocompleteChoices(groups, query);
+}
 
 /* ================= AUTH STATE ================= */
 
@@ -73,7 +137,9 @@ function startServerFolderWatcher() {
   let syncTimer = null;
   const runSync = () => {
     try {
+      clearServerAutocompleteCache();
       const discovered = loadServers({ includeDisabled: true });
+      clearServerAutocompleteCache();
       console.log(`🔄 Server folder change sync complete (${discovered.length} server entries).`);
     } catch (err) {
       console.error('❌ Server folder change sync failed:', err);
@@ -258,34 +324,18 @@ client.on('interactionCreate', async interaction => {
       }
 
       const focused = interaction.options.getFocused(true);
-      if (!focused || focused.name !== 'id') {
+      if (!focused || !['id', 'name', 'group'].includes(focused.name)) {
         return interaction.respond([]);
       }
 
       const query = String(focused.value || '').trim().toLowerCase();
-      const candidates = loadServers({ includeDisabled: false });
-      const scored = candidates
-        .filter(s => {
-          if (!query) return true;
-          const id = String(s.id || '').toLowerCase();
-          const name = String(s.name || '').toLowerCase();
-          return id.includes(query) || name.includes(query);
-        })
-        .sort((a, b) => {
-          const aId = String(a.id || '').toLowerCase();
-          const bId = String(b.id || '').toLowerCase();
-          const aStarts = query ? aId.startsWith(query) : false;
-          const bStarts = query ? bId.startsWith(query) : false;
-          if (aStarts !== bStarts) return aStarts ? -1 : 1;
-          return aId.localeCompare(bId);
-        })
-        .slice(0, 25)
-        .map(s => ({
-          name: `${s.name} (${s.id})`.slice(0, 100),
-          value: s.id
-        }));
+      const candidates = getAutocompleteServers();
 
-      return interaction.respond(scored);
+      if (focused.name === 'id') {
+        return interaction.respond(buildServerIdAutocomplete(candidates, query));
+      }
+
+      return interaction.respond(buildGroupAutocomplete(candidates, query));
     } catch (err) {
       console.error('❌ Autocomplete error:', err);
       return interaction.respond([]);
