@@ -57,42 +57,4 @@ set "PALWORLD_PID_FILE=%PID_FILE%"
 powershell -NoProfile -ExecutionPolicy Bypass -File "%LAUNCH_PS1%"
 set "LAUNCH_EXIT=%ERRORLEVEL%"
 del /f /q "%LAUNCH_PS1%" >nul 2>&1
-if not "%LAUNCH_EXIT%"=="0" exit /b %LAUNCH_EXIT%
-
-REM ================= WAIT FOR PID FILE =================
-set "tries=0"
-:wait_pid
-set /a tries+=1
-
-if not exist "%PID_FILE%" (
-  if !tries! lss 30 (
-    timeout /t 1 >nul
-    goto wait_pid
-  ) else (
-    echo [WARN] PID file not found: %PID_FILE%
-    goto done
-  )
-)
-
-for %%A in ("%PID_FILE%") do set "size=%%~zA"
-if "!size!"=="0" (
-  if !tries! lss 30 (
-    timeout /t 1 >nul
-    goto wait_pid
-  ) else (
-    echo [WARN] PID file is empty: %PID_FILE%
-    goto done
-  )
-)
-
-set /p PID=<"%PID_FILE%"
-set "PID=!PID: =!"
-
-if "!PID!"=="" (
-  echo [WARN] Failed to capture PID (empty).
-) else (
-  echo [INFO] Palworld server launched. PID=!PID!
-)
-
-:done
-exit /b 0
+exit /b %LAUNCH_EXIT%
